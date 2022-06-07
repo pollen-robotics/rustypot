@@ -1,18 +1,15 @@
 use rustypot::DynamixelLikeIO;
 use rustypot::grpc_io::DynamixelGrpcIO;
 
-use std::time::Instant;
+use rustypot::protocol::{FromBytes, ToBytes};
+use rustypot::protocol::v1::{InstructionPacket, StatusPacket};
 
 
 fn main() {
     let mut dxl_io = DynamixelGrpcIO::new("192.168.1.40", 38745);
 
-    let start = Instant::now();
+    dxl_io.send_packet(InstructionPacket::ping_packet(1).to_bytes());
+    let sp = StatusPacket::from_bytes(dxl_io.read_packet());
 
-    for _ in 0..1000 {
-        dxl_io.send_packet(vec![255, 255, 1, 2, 1, 251]);
-        let _resp = dxl_io.read_packet();
-    }
-    let duration = start.elapsed();
-    println!("Time elapsed: {:?}", duration);
+    println!("Time elapsed: {:?}", sp);
 }

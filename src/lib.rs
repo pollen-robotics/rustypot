@@ -2,6 +2,7 @@
 extern crate lazy_static;
 
 pub mod grpc_io;
+pub mod protocol;
 
 pub trait DynamixelLikeIO {
     fn send_packet(&self, bytes: Vec<u8>);
