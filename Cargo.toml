@@ -7,7 +7,6 @@ edition = "2021"
 
 [dependencies]
 async-stream = "0.3.3"
-lazy_static = "1.4.0"
 prost = "0.10"
 tokio = { version = "1.19", features = ["macros", "rt-multi-thread", "sync", "time"] }
 tokio-stream = "0.1.9"

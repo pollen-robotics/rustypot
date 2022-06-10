@@ -11,23 +11,23 @@ pub mod message {
     tonic::include_proto!("message");
 }
 
-lazy_static! {
-    static ref RT: Runtime = Runtime::new().unwrap();
-}
-
 pub struct DynamixelGrpcIO {
+    rt: Runtime,
+
     out_tx: mpsc::Sender<Vec<u8>>,
     in_rx: mpsc::Receiver<Vec<u8>>,
 }
 
 impl DynamixelGrpcIO {
     pub fn new(host: &str, port: u32) -> Self {
+        let rt = Runtime::new().unwrap();
+
         let (out_tx, mut out_rx): (mpsc::Sender<Vec<u8>>, mpsc::Receiver<Vec<u8>>) = mpsc::channel(1);
         let (in_tx, in_rx): (mpsc::Sender<Vec<u8>>, mpsc::Receiver<Vec<u8>>) = mpsc::channel(1);
 
         let host = String::from(host);
 
-        RT.spawn(async move {
+        rt.spawn(async move {
             let url = format!("http://{}:{}", host, port);
             let mut client = MessageServiceClient::connect(url).await.unwrap();
 
@@ -54,19 +54,19 @@ impl DynamixelGrpcIO {
             }
         });
 
-        DynamixelGrpcIO { out_tx: out_tx, in_rx: in_rx }
+        DynamixelGrpcIO { rt: rt, out_tx: out_tx, in_rx: in_rx }
     }
 }
 
 impl DynamixelLikeIO for DynamixelGrpcIO {
     fn send_packet(&self, bytes: Vec<u8>) {
-        RT.block_on(async {
+        self.rt.block_on(async {
             self.out_tx.send(bytes).await
         }).unwrap();
     }
 
     fn read_packet(&mut self) -> Vec<u8> {
-        RT.block_on(async {
+        self.rt.block_on(async {
             self.in_rx.recv().await
         }).unwrap()
     }
