@@ -16,7 +16,7 @@ impl InstructionPacket {
     pub fn read_packet(id: u8, reg: u8, length: u8) -> Self {
         InstructionPacket { id: id, instr: Instruction::Read, payload: vec![reg, length] }
     }
-    pub fn write_packet(id: u8, reg: u8, value: &[u8]) -> Self {
+    pub fn write_packet(id: u8, reg: u8, value: Vec<u8>) -> Self {
         let mut payload = vec![reg];
         payload.extend(value);
 
@@ -26,9 +26,9 @@ impl InstructionPacket {
 
 #[derive(Debug)]
 pub struct StatusPacket {
-    id: u8,
-    error: Vec<DynamixelErrorKind>,
-    payload: Vec<u8>,
+    pub id: u8,
+    pub error: Vec<DynamixelErrorKind>,
+    pub payload: Vec<u8>,
 }
 
 #[derive(Debug)]
@@ -111,7 +111,7 @@ impl Instruction {
         match self {
             Instruction::Ping => 0x01,
             Instruction::Read => 0x02,
-            Instruction::Write => 0x03,
+            Instruction::Write => 0x04,
         }
     }
 }
@@ -120,7 +120,7 @@ impl ToBytes for InstructionPacket {
     fn to_bytes(&self) -> Vec<u8> {
         let mut bytes = Vec::new();
 
-        let payload_length: u8 = (self.payload.len() + 1).try_into().unwrap();
+        let payload_length: u8 = (self.payload.len() + 2).try_into().unwrap();
 
         bytes.extend(vec![255, 255, self.id, payload_length].iter());
         bytes.push(self.instr.value());
@@ -137,4 +137,46 @@ fn crc(data: &[u8]) -> u8 {
         crc = crc.wrapping_add(*b);
     }
     !crc
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    
+    #[test]
+    fn create_ping_packet() {
+        let p = InstructionPacket::ping_packet(1);
+        let bytes = p.to_bytes();
+        assert_eq!(bytes, [0xFF, 0xFF, 0x01, 0x02, 0x01, 0xFB]);
+    }
+
+    #[test]
+    fn create_read_packet() {
+        let p = InstructionPacket::read_packet(1, 0x2B, 1);
+        let bytes = p.to_bytes();
+        assert_eq!(bytes, [0xFF, 0xFF, 0x01, 0x04, 0x02, 0x2B, 0x01, 0xCC]);
+    }
+
+    #[test]
+    fn create_write_packet() {
+        let p = InstructionPacket::write_packet(1, 30, vec![0xF4, 0x01]);
+        let bytes = p.to_bytes();
+        assert_eq!(bytes, [0xFF, 0xFF, 0x01, 0x05, 0x04, 0x1E, 0xF4, 0x01, 0xE2]);
+    }
+
+    #[test]
+    fn parse_status_packet() {
+        let bytes = vec![0xFF, 0xFF, 0x01, 0x02, 0x00, 0xFC];
+        let sp = StatusPacket::from_bytes(bytes).unwrap();
+        assert_eq!(sp.id, 1);
+        assert_eq!(sp.error.len(), 0);
+        assert_eq!(sp.payload.len(), 0);
+
+        let bytes = vec![0xFF, 0xFF, 0x01, 0x03, 0x00, 0x20, 0xDB];
+        let sp = StatusPacket::from_bytes(bytes).unwrap();
+        assert_eq!(sp.id, 1);
+        assert_eq!(sp.error.len(), 0);
+        assert_eq!(sp.payload.len(), 1);
+        assert_eq!(sp.payload[0], 0x20);
+    }
 }
