@@ -111,7 +111,7 @@ impl Instruction {
         match self {
             Instruction::Ping => 0x01,
             Instruction::Read => 0x02,
-            Instruction::Write => 0x04,
+            Instruction::Write => 0x03,
         }
     }
 }
@@ -159,9 +159,13 @@ mod tests {
 
     #[test]
     fn create_write_packet() {
-        let p = InstructionPacket::write_packet(1, 30, vec![0xF4, 0x01]);
+        let p = InstructionPacket::write_packet(10, 24, vec![1]);
         let bytes = p.to_bytes();
-        assert_eq!(bytes, [0xFF, 0xFF, 0x01, 0x05, 0x04, 0x1E, 0xF4, 0x01, 0xE2]);
+        assert_eq!(bytes, [255, 255, 10, 4, 3, 24, 1, 213]);
+
+        let p = InstructionPacket::write_packet(0xFE, 0x03, vec![1]);
+        let bytes = p.to_bytes();
+        assert_eq!(bytes, [0xFF, 0xFF, 0xFE, 0x04, 0x03, 0x03, 0x01, 0xF6]);
     }
 
     #[test]
