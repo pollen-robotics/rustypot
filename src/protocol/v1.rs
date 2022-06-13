@@ -1,4 +1,4 @@
-use super::{FromBytes, ToBytes, ErrorKind};
+use super::{FromBytes, ToBytes, CommunicationErrorKind, DynamixelErrorKind};
 
 const HEADER_SIZE: usize = 4;
 
@@ -31,52 +31,21 @@ pub struct StatusPacket {
     pub payload: Vec<u8>,
 }
 
-#[derive(Debug)]
-pub enum DynamixelErrorKind {
-    InstructionError,
-    OverloadError,
-    ChecksumError,
-    RangeError,
-    OverheatingError,
-    AngleLimitError,
-    InputVoltageError,
-}
-impl DynamixelErrorKind {
-    fn from_byte(error: u8) -> Vec<Self> {
-        (0..7).into_iter()
-            .filter(|i| error & (1 << i) != 0)
-            .map(|i| DynamixelErrorKind::from_bit(i).unwrap())
-            .collect()
-    }
-    fn from_bit(b: u8) -> Option<Self> {
-        match b {
-            6 => Some(DynamixelErrorKind::InstructionError),
-            5 => Some(DynamixelErrorKind::OverloadError),
-            4 => Some(DynamixelErrorKind::ChecksumError),
-            3 => Some(DynamixelErrorKind::RangeError),
-            2 => Some(DynamixelErrorKind::OverheatingError),
-            1 => Some(DynamixelErrorKind::AngleLimitError),
-            0 => Some(DynamixelErrorKind::InputVoltageError),
-            _ => None,
-        }
-    }
-}
-
 
 impl FromBytes for StatusPacket {
-    fn from_bytes(bytes: Vec<u8>) -> Result<Self, ErrorKind> {
+    fn from_bytes(bytes: Vec<u8>) -> Result<Self, CommunicationErrorKind> {
         if bytes.len() < 6 {
-            return Err(ErrorKind::ParsingError);
+            return Err(CommunicationErrorKind::ParsingError);
         }
 
         let read_crc = *bytes.last().unwrap();
         let computed_crc = crc(&bytes[2..bytes.len() - 1]);
         if read_crc != computed_crc {
-            return Err(ErrorKind::ChecksumError);
+            return Err(CommunicationErrorKind::ChecksumError);
         }
 
         if bytes[0] != 255 || bytes[1] != 255 {
-            return Err(ErrorKind::ParsingError);
+            return Err(CommunicationErrorKind::ParsingError);
         }
 
         let id = bytes[2];
@@ -84,7 +53,7 @@ impl FromBytes for StatusPacket {
         let error = DynamixelErrorKind::from_byte(bytes[4]);
 
         if payload_length != bytes.len() - HEADER_SIZE || payload_length < 2 {
-            return Err(ErrorKind::ParsingError);
+            return Err(CommunicationErrorKind::ParsingError);
         }
 
         let payload = bytes[5..3 + payload_length].to_vec();
