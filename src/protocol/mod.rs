@@ -1,3 +1,5 @@
+use crate::CommunicationErrorKind;
+
 pub trait ToBytes {
     fn to_bytes(&self) -> Vec<u8>;
 }
@@ -6,11 +8,7 @@ pub trait FromBytes {
     fn from_bytes(bytes: Vec<u8>) -> Result<Self, CommunicationErrorKind> where Self: Sized;
 }
 
-#[derive(Debug)]
-pub enum CommunicationErrorKind {
-    ChecksumError,
-    ParsingError,
-}
+
 
 #[derive(Debug, PartialEq, Eq, Hash, Clone, Copy)]
 pub enum DynamixelErrorKind {

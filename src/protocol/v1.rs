@@ -1,4 +1,5 @@
-use super::{FromBytes, ToBytes, CommunicationErrorKind, DynamixelErrorKind};
+use crate::CommunicationErrorKind;
+use super::{FromBytes, ToBytes, DynamixelErrorKind};
 
 const HEADER_SIZE: usize = 4;
 
