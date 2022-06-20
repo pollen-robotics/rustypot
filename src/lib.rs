@@ -12,4 +12,3 @@ pub trait DynamixelLikeIO {
     fn send_packet(&self, bytes: Vec<u8>);
     fn read_packet(&mut self) -> Result<Vec<u8>, CommunicationErrorKind>;
 }
-

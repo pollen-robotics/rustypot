@@ -1,5 +1,5 @@
+use super::{DynamixelErrorKind, FromBytes, ToBytes};
 use crate::CommunicationErrorKind;
-use super::{FromBytes, ToBytes, DynamixelErrorKind};
 
 const HEADER_SIZE: usize = 4;
 
@@ -12,16 +12,28 @@ pub struct InstructionPacket {
 
 impl InstructionPacket {
     pub fn ping_packet(id: u8) -> Self {
-        InstructionPacket { id: id, instr: Instruction::Ping, payload: vec![] }
+        InstructionPacket {
+            id,
+            instr: Instruction::Ping,
+            payload: vec![],
+        }
     }
     pub fn read_packet(id: u8, reg: u8, length: u8) -> Self {
-        InstructionPacket { id: id, instr: Instruction::Read, payload: vec![reg, length] }
+        InstructionPacket {
+            id,
+            instr: Instruction::Read,
+            payload: vec![reg, length],
+        }
     }
     pub fn write_packet(id: u8, reg: u8, value: Vec<u8>) -> Self {
         let mut payload = vec![reg];
         payload.extend(value);
 
-        InstructionPacket { id: id, instr: Instruction::Write, payload: payload }
+        InstructionPacket {
+            id,
+            instr: Instruction::Write,
+            payload,
+        }
     }
 }
 
@@ -31,7 +43,6 @@ pub struct StatusPacket {
     pub error: Vec<DynamixelErrorKind>,
     pub payload: Vec<u8>,
 }
-
 
 impl FromBytes for StatusPacket {
     fn from_bytes(bytes: Vec<u8>) -> Result<Self, CommunicationErrorKind> {
@@ -59,15 +70,9 @@ impl FromBytes for StatusPacket {
 
         let payload = bytes[5..3 + payload_length].to_vec();
 
-        Ok(StatusPacket {
-            id: id,
-            error: error,
-            payload: payload,
-        })
-
+        Ok(StatusPacket { id, error, payload })
     }
 }
-
 
 #[derive(Debug)]
 enum Instruction {
@@ -112,7 +117,7 @@ fn crc(data: &[u8]) -> u8 {
 #[cfg(test)]
 mod tests {
     use super::*;
-    
+
     #[test]
     fn create_ping_packet() {
         let p = InstructionPacket::ping_packet(1);

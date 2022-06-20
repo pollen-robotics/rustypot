@@ -11,11 +11,13 @@ pub mod message {
     tonic::include_proto!("message");
 }
 
+type ByteResponse = Result<Vec<u8>, CommunicationErrorKind>;
+
 pub struct DynamixelGrpcIO {
     rt: Runtime,
 
     out_tx: mpsc::Sender<Vec<u8>>,
-    in_rx: mpsc::Receiver<Result<Vec<u8>, CommunicationErrorKind>>,
+    in_rx: mpsc::Receiver<ByteResponse>,
 }
 
 impl DynamixelGrpcIO {
@@ -24,10 +26,8 @@ impl DynamixelGrpcIO {
 
         let (out_tx, mut out_rx): (mpsc::Sender<Vec<u8>>, mpsc::Receiver<Vec<u8>>) =
             mpsc::channel(1);
-        let (in_tx, in_rx): (
-            mpsc::Sender<Result<Vec<u8>, CommunicationErrorKind>>,
-            mpsc::Receiver<Result<Vec<u8>, CommunicationErrorKind>>,
-        ) = mpsc::channel(1);
+        let (in_tx, in_rx): (mpsc::Sender<ByteResponse>, mpsc::Receiver<ByteResponse>) =
+            mpsc::channel(1);
 
         let host = String::from(host);
 
@@ -64,11 +64,7 @@ impl DynamixelGrpcIO {
             }
         });
 
-        DynamixelGrpcIO {
-            rt: rt,
-            out_tx: out_tx,
-            in_rx: in_rx,
-        }
+        DynamixelGrpcIO { rt, out_tx, in_rx }
     }
 }
 
@@ -79,7 +75,7 @@ impl DynamixelLikeIO for DynamixelGrpcIO {
             .unwrap();
     }
 
-    fn read_packet(&mut self) -> Result<Vec<u8>, CommunicationErrorKind> {
+    fn read_packet(&mut self) -> ByteResponse {
         self.rt.block_on(async { self.in_rx.recv().await }).unwrap()
     }
 }

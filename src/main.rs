@@ -1,9 +1,8 @@
-use rustypot::DynamixelLikeIO;
 use rustypot::grpc_io::DynamixelGrpcIO;
+use rustypot::DynamixelLikeIO;
 
-use rustypot::protocol::{FromBytes, ToBytes};
 use rustypot::protocol::v1::{InstructionPacket, StatusPacket};
-
+use rustypot::protocol::{FromBytes, ToBytes};
 
 fn main() {
     let mut dxl_io = DynamixelGrpcIO::new("192.168.1.40", 38745);
