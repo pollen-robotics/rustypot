@@ -150,16 +150,22 @@ mod tests {
     #[test]
     fn parse_status_packet() {
         let bytes = vec![0xFF, 0xFF, 0x01, 0x02, 0x00, 0xFC];
-        let sp = StatusPacket::from_bytes(bytes).unwrap();
+        let sp = StatusPacket::from_bytes(0x01, bytes).unwrap();
         assert_eq!(sp.id, 1);
         assert_eq!(sp.error.len(), 0);
         assert_eq!(sp.payload.len(), 0);
 
         let bytes = vec![0xFF, 0xFF, 0x01, 0x03, 0x00, 0x20, 0xDB];
-        let sp = StatusPacket::from_bytes(bytes).unwrap();
+        let sp = StatusPacket::from_bytes(0x01, bytes).unwrap();
         assert_eq!(sp.id, 1);
         assert_eq!(sp.error.len(), 0);
         assert_eq!(sp.payload.len(), 1);
         assert_eq!(sp.payload[0], 0x20);
+    }
+    #[test]
+    fn check_error_on_wrong_id() {
+        let bytes = vec![0xFF, 0xFF, 0x01, 0x03, 0x00, 0x20, 0xDB];
+        let sp = StatusPacket::from_bytes(0x02, bytes);
+        assert!(sp.is_err());
     }
 }

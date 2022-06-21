@@ -7,8 +7,10 @@ use rustypot::protocol::{FromBytes, ToBytes};
 fn main() {
     let mut dxl_io = DynamixelGrpcIO::new("192.168.1.40", 38745);
 
-    dxl_io.send_packet(InstructionPacket::ping_packet(1).to_bytes());
-    let sp = StatusPacket::from_bytes(dxl_io.read_packet().unwrap());
+    let id = 1;
+
+    dxl_io.send_packet(InstructionPacket::ping_packet(id).to_bytes());
+    let sp = StatusPacket::from_bytes(id, dxl_io.read_packet().unwrap());
 
     println!("Time elapsed: {:?}", sp);
 }
