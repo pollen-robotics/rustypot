@@ -5,9 +5,9 @@ const HEADER_SIZE: usize = 4;
 
 #[derive(Debug)]
 pub struct InstructionPacket {
-    id: u8,
-    instr: Instruction,
-    payload: Vec<u8>,
+    pub id: u8,
+    pub instr: Instruction,
+    pub payload: Vec<u8>,
 }
 
 impl InstructionPacket {
@@ -45,7 +45,7 @@ pub struct StatusPacket {
 }
 
 impl FromBytes for StatusPacket {
-    fn from_bytes(bytes: Vec<u8>) -> Result<Self, CommunicationErrorKind> {
+    fn from_bytes(sender_id: u8, bytes: Vec<u8>) -> Result<Self, CommunicationErrorKind> {
         if bytes.len() < 6 {
             return Err(CommunicationErrorKind::ParsingError);
         }
@@ -61,6 +61,10 @@ impl FromBytes for StatusPacket {
         }
 
         let id = bytes[2];
+        if id != sender_id {
+            return Err(CommunicationErrorKind::ParsingError);
+        }
+
         let payload_length = bytes[3] as usize;
         let error = DynamixelErrorKind::from_byte(bytes[4]);
 
@@ -75,7 +79,7 @@ impl FromBytes for StatusPacket {
 }
 
 #[derive(Debug)]
-enum Instruction {
+pub enum Instruction {
     Ping,
     Read,
     Write,

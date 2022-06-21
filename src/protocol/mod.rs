@@ -5,7 +5,7 @@ pub trait ToBytes {
 }
 
 pub trait FromBytes {
-    fn from_bytes(bytes: Vec<u8>) -> Result<Self, CommunicationErrorKind>
+    fn from_bytes(sender_id: u8, bytes: Vec<u8>) -> Result<Self, CommunicationErrorKind>
     where
         Self: Sized;
 }
