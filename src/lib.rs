@@ -1,7 +1,7 @@
 pub mod grpc_io;
 pub mod protocol;
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 pub enum CommunicationErrorKind {
     ChecksumError,
     ParsingError,
