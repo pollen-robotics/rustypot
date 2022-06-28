@@ -1,3 +1,5 @@
+use std::time::Duration;
+
 use tokio::runtime::Runtime;
 use tokio::sync::mpsc;
 use tokio_stream::StreamExt;
@@ -33,7 +35,16 @@ impl DynamixelGrpcIO {
 
         rt.spawn(async move {
             let url = format!("http://{}:{}", host, port);
-            let mut client = MessageServiceClient::connect(url).await.unwrap();
+
+            let client = MessageServiceClient::connect(url.clone()).await;
+            let mut client = match client {
+                Ok(client) => Ok(client),
+                Err(_) => {
+                    tokio::time::sleep(Duration::from_millis(500)).await;
+                    MessageServiceClient::connect(url.clone()).await
+                }
+            }
+            .unwrap();
 
             let outbound = async_stream::stream! {
                 loop {
