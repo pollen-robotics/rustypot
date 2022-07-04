@@ -1,5 +1,9 @@
+mod controller;
 pub mod grpc_io;
 pub mod protocol;
+pub use controller::{Controller, Register};
+mod serialize;
+pub use serialize::Serializable;
 
 #[derive(Debug, Clone, Copy)]
 pub enum CommunicationErrorKind {

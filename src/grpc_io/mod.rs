@@ -1,3 +1,4 @@
+use log::warn;
 use std::time::Duration;
 
 use tokio::runtime::Runtime;
@@ -36,15 +37,24 @@ impl DynamixelGrpcIO {
         rt.spawn(async move {
             let url = format!("http://{}:{}", host, port);
 
-            let client = MessageServiceClient::connect(url.clone()).await;
-            let mut client = match client {
-                Ok(client) => Ok(client),
-                Err(_) => {
-                    tokio::time::sleep(Duration::from_millis(500)).await;
-                    MessageServiceClient::connect(url.clone()).await
+            const MAX_RETRY: u32 = 5;
+            let mut trial = 0;
+
+            let mut client = loop {
+                trial += 1;
+
+                if trial == MAX_RETRY {
+                    panic!("Could not connect to {url}, aborting!")
                 }
-            }
-            .unwrap();
+
+                match MessageServiceClient::connect(url.clone()).await {
+                    Ok(client) => break client,
+                    Err(_) => {
+                        warn!("Unable to connect to {url}! Will retry in 1s.");
+                        tokio::time::sleep(Duration::from_secs(1)).await;
+                    }
+                }
+            };
 
             let outbound = async_stream::stream! {
                 loop {
