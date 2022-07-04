@@ -126,8 +126,8 @@ impl Serializable for (i32, i32, i32) {
         match bytes.len() {
             12 => Some((
                 i32::from_bytes(bytes[0..4].to_vec()).unwrap(),
-                i32::from_bytes(bytes[0..4].to_vec()).unwrap(),
-                i32::from_bytes(bytes[0..4].to_vec()).unwrap(),
+                i32::from_bytes(bytes[4..8].to_vec()).unwrap(),
+                i32::from_bytes(bytes[8..12].to_vec()).unwrap(),
             )),
             _ => None,
         }
@@ -150,8 +150,8 @@ impl Serializable for (f32, f32, f32) {
         match bytes.len() {
             12 => Some((
                 f32::from_bytes(bytes[0..4].to_vec()).unwrap(),
-                f32::from_bytes(bytes[0..4].to_vec()).unwrap(),
-                f32::from_bytes(bytes[0..4].to_vec()).unwrap(),
+                f32::from_bytes(bytes[4..8].to_vec()).unwrap(),
+                f32::from_bytes(bytes[8..12].to_vec()).unwrap(),
             )),
             _ => None,
         }
