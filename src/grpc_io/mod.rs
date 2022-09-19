@@ -90,7 +90,7 @@ impl DynamixelGrpcIO {
 }
 
 impl DynamixelLikeIO for DynamixelGrpcIO {
-    fn send_packet(&self, bytes: Vec<u8>) {
+    fn send_packet(&mut self, bytes: Vec<u8>) {
         self.rt
             .block_on(async { self.out_tx.send(bytes).await })
             .unwrap();
