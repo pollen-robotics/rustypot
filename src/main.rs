@@ -1,6 +1,5 @@
 use std::time::Duration;
 
-use rustypot::grpc_io::DynamixelGrpcIO;
 use rustypot::DynamixelLikeIO;
 
 use rustypot::protocol::v1::{InstructionPacket, StatusPacket};

@@ -13,7 +13,7 @@ impl DynamixelSerialIO {
         let serial_port = serialport::new(path, 1_000_000)
             .timeout(timeout)
             .open()
-            .expect(format!("Failed to open port {}", path).as_str());
+            .unwrap_or_else(|_| panic!("Failed to open port {}", path));
 
         Self { serial_port }
     }
@@ -26,13 +26,16 @@ impl DynamixelLikeIO for DynamixelSerialIO {
 
     fn read_packet(&mut self) -> Result<Vec<u8>, crate::CommunicationErrorKind> {
         let mut header = vec![0; 4];
-        self.serial_port.read_exact(&mut header).unwrap();
+        if self.serial_port.read_exact(&mut header).is_err() {
+            return Err(crate::CommunicationErrorKind::TimeoutError);
+        }
 
-        let resp_id = header[2];
         let payload_size = header[3];
 
         let mut payload = vec![0; payload_size.into()];
-        self.serial_port.read(&mut payload).unwrap();
+        if self.serial_port.read(&mut payload).is_err() {
+            return Err(crate::CommunicationErrorKind::TimeoutError);
+        }
 
         let mut resp = Vec::new();
         resp.append(&mut header);
