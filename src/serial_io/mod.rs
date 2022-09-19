@@ -10,7 +10,7 @@ pub struct DynamixelSerialIO {
 
 impl DynamixelSerialIO {
     pub fn new(path: &str, timeout: Duration) -> Self {
-        let serial_port = serialport::new(path, 1_000_000)
+        let serial_port = serialport::new(path, 500_000)
             .timeout(timeout)
             .open()
             .unwrap_or_else(|_| panic!("Failed to open port {}", path));
