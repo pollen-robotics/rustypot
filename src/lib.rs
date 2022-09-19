@@ -1,7 +1,10 @@
 mod controller;
+pub use controller::{Controller, Register};
+
 pub mod grpc_io;
 pub mod protocol;
-pub use controller::{Controller, Register};
+pub mod serial_io;
+
 mod serialize;
 pub use serialize::Serializable;
 
@@ -13,6 +16,6 @@ pub enum CommunicationErrorKind {
 }
 
 pub trait DynamixelLikeIO {
-    fn send_packet(&self, bytes: Vec<u8>);
+    fn send_packet(&mut self, bytes: Vec<u8>);
     fn read_packet(&mut self) -> Result<Vec<u8>, CommunicationErrorKind>;
 }
