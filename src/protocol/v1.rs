@@ -1,4 +1,4 @@
-use super::{DynamixelErrorKind, FromBytes, ToBytes};
+use super::{DynamixelError, FromBytes, ToBytes};
 use crate::CommunicationErrorKind;
 
 const HEADER_SIZE: usize = 4;
@@ -40,7 +40,7 @@ impl InstructionPacket {
 #[derive(Debug)]
 pub struct StatusPacket {
     pub id: u8,
-    pub error: Vec<DynamixelErrorKind>,
+    pub error: Vec<DynamixelError>,
     pub payload: Vec<u8>,
 }
 
@@ -66,7 +66,7 @@ impl FromBytes for StatusPacket {
         }
 
         let payload_length = bytes[3] as usize;
-        let error = DynamixelErrorKind::from_byte(bytes[4]);
+        let error = DynamixelError::from_byte(bytes[4]);
 
         if payload_length != bytes.len() - HEADER_SIZE || payload_length < 2 {
             return Err(CommunicationErrorKind::ParsingError);

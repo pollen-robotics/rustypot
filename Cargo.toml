@@ -6,13 +6,6 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-async-stream = "0.3.3"
 log = "0.4.17"
-prost = "0.10"
 serialport = "4.2.0"
-tokio = { version = "1.19", features = ["macros", "rt-multi-thread", "sync", "time"] }
-tokio-stream = "0.1.9"
-tonic = "0.7"
 
-[build-dependencies]
-tonic-build = "0.7"
