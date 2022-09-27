@@ -9,7 +9,7 @@ use crate::protocol::v1::{InstructionPacket, StatusPacket};
 use crate::protocol::{DynamixelError, FromBytes, ToBytes};
 
 mod serialize;
-use serialize::Serializable;
+pub use serialize::Serializable;
 
 pub struct DynamixelSerialIO {
     serial_port: Box<dyn SerialPort>,
