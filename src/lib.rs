@@ -17,16 +17,18 @@ pub struct DynamixelSerialIO {
 }
 
 impl DynamixelSerialIO {
-    pub fn new(path: &str, baudrate: u32, timeout: Duration) -> Self {
+    pub fn new(path: &str, baudrate: u32, timeout: Duration) -> Result<Self, Box<dyn Error>> {
         let serial_port = serialport::new(path, baudrate)
             .timeout(timeout)
             .open()
             .unwrap_or_else(|_| panic!("Failed to open port {}", path));
 
-        Self {
+        serial_port.clear(serialport::ClearBuffer::All)?;
+
+        Ok(Self {
             serial_port,
             errors: HashSet::new(),
-        }
+        })
     }
 
     pub fn ping(&mut self, id: u8) -> Result<bool, CommunicationErrorKind> {
