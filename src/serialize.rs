@@ -165,3 +165,27 @@ impl Serializable for (f32, f32, f32) {
         v
     }
 }
+
+impl Serializable for (i16, u16, u16) {
+    fn from_bytes(bytes: Vec<u8>) -> Option<Self>
+    where
+        Self: Sized,
+    {
+        match bytes.len() {
+            6 => Some((
+                i16::from_bytes(bytes[0..2].to_vec()).unwrap(),
+                u16::from_bytes(bytes[2..4].to_vec()).unwrap(),
+                u16::from_bytes(bytes[4..6].to_vec()).unwrap(),
+            )),
+            _ => None,
+        }
+    }
+
+    fn to_bytes(&self) -> Vec<u8> {
+        let mut v = Vec::new();
+        v.extend(self.0.to_bytes());
+        v.extend(self.1.to_bytes());
+        v.extend(self.2.to_bytes());
+        v
+    }
+}
