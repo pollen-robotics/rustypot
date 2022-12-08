@@ -64,14 +64,32 @@ impl DynamixelSerialIO {
         Ok(())
     }
 
+    pub fn sync_write_data<T: Serializable>(
+        &mut self,
+        ids: Vec<u8>,
+        reg: u8,
+        values: Vec<T>,
+    ) -> Result<(), CommunicationErrorKind> {
+        assert_eq!(ids.len(), values.len());
+
+        let instruction_packet = InstructionPacket::sync_write_packet(
+            ids,
+            reg,
+            values.iter().map(|value| value.to_bytes()).collect(),
+        );
+        self.send_packet(&instruction_packet);
+        Ok(())
+    }
+
     fn request(
         &mut self,
         instruction_packet: InstructionPacket,
     ) -> Result<StatusPacket, CommunicationErrorKind> {
-        self.send_packet(&instruction_packet.to_bytes());
+        self.send_packet(&instruction_packet);
 
         let data = self.read_packet()?;
         let status_packet = StatusPacket::from_bytes(instruction_packet.id, data)?;
+        log::debug!("<<< {:?}", status_packet);
 
         for e in status_packet.error.iter().copied() {
             self.errors.insert(e);
@@ -80,8 +98,11 @@ impl DynamixelSerialIO {
         Ok(status_packet)
     }
 
-    fn send_packet(&mut self, bytes: &[u8]) {
-        self.serial_port.write_all(bytes).unwrap();
+    fn send_packet(&mut self, instruction_packet: &InstructionPacket) {
+        log::debug!(">>> {:?}", instruction_packet);
+        self.serial_port
+            .write_all(&instruction_packet.to_bytes())
+            .unwrap();
     }
 
     fn read_packet(&mut self) -> Result<Vec<u8>, crate::CommunicationErrorKind> {

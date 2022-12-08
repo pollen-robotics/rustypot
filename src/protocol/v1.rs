@@ -2,6 +2,7 @@ use super::{DynamixelError, FromBytes, ToBytes};
 use crate::CommunicationErrorKind;
 
 const HEADER_SIZE: usize = 4;
+const BROADCAST_ID: u8 = 254;
 
 #[derive(Debug)]
 pub struct InstructionPacket {
@@ -32,6 +33,26 @@ impl InstructionPacket {
         InstructionPacket {
             id,
             instr: Instruction::Write,
+            payload,
+        }
+    }
+    pub fn sync_write_packet(ids: Vec<u8>, reg: u8, values: Vec<Vec<u8>>) -> Self {
+        let mut payload = vec![reg];
+        let values: Vec<u8> = ids
+            .iter()
+            .zip(values.iter())
+            .flat_map(|(&id, val)| {
+                let mut v = vec![id];
+                v.extend(val);
+                v
+            })
+            .collect();
+        payload.push((values.len() / ids.len() - 1).try_into().unwrap());
+        payload.extend(values);
+
+        InstructionPacket {
+            id: BROADCAST_ID,
+            instr: Instruction::SyncWrite,
             payload,
         }
     }
@@ -83,6 +104,7 @@ pub enum Instruction {
     Ping,
     Read,
     Write,
+    SyncWrite,
 }
 
 impl Instruction {
@@ -91,6 +113,7 @@ impl Instruction {
             Instruction::Ping => 0x01,
             Instruction::Read => 0x02,
             Instruction::Write => 0x03,
+            Instruction::SyncWrite => 0x83,
         }
     }
 }
