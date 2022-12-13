@@ -1,6 +1,6 @@
 use std::error::Error;
-use std::{collections::HashSet, mem::size_of, time::Duration};
 use std::fmt;
+use std::{collections::HashSet, mem::size_of, time::Duration};
 
 use serialport::SerialPort;
 
