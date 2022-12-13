@@ -1,135 +1,263 @@
-use super::{DynamixelError, FromBytes, ToBytes};
-use crate::CommunicationErrorKind;
+use crate::{
+    packet::{InstructionPacket, StatusPacket},
+    Protocol, Result,
+};
 
-const HEADER_SIZE: usize = 4;
+use super::{CommunicationErrorKind, Packet};
+
 const BROADCAST_ID: u8 = 254;
+const BROADCAST_RESPONSE_ID: u8 = 253;
 
-#[derive(Debug)]
-pub struct InstructionPacket {
-    pub id: u8,
-    pub instr: Instruction,
-    pub payload: Vec<u8>,
-}
+pub struct PacketV1;
+impl Packet for PacketV1 {
+    const HEADER_SIZE: usize = 4;
 
-impl InstructionPacket {
-    pub fn ping_packet(id: u8) -> Self {
-        InstructionPacket {
+    type ErrorKind = DynamixelErrorV1;
+    type InstructionKind = InstructionKindV1;
+
+    fn ping_packet(id: u8) -> Box<dyn InstructionPacket<Self>> {
+        Box::new(InstructionPacketV1 {
             id,
-            instr: Instruction::Ping,
-            payload: vec![],
-        }
+            instruction: InstructionKindV1::Ping,
+            params: vec![],
+        })
     }
-    pub fn read_packet(id: u8, reg: u8, length: u8) -> Self {
-        InstructionPacket {
-            id,
-            instr: Instruction::Read,
-            payload: vec![reg, length],
-        }
-    }
-    pub fn write_packet(id: u8, reg: u8, value: Vec<u8>) -> Self {
-        let mut payload = vec![reg];
-        payload.extend(value);
 
-        InstructionPacket {
+    fn read_packet(id: u8, addr: u8, length: u8) -> Box<dyn InstructionPacket<Self>> {
+        Box::new(InstructionPacketV1 {
             id,
-            instr: Instruction::Write,
-            payload,
-        }
+            instruction: InstructionKindV1::Read,
+            params: vec![addr, length],
+        })
     }
-    pub fn sync_write_packet(ids: Vec<u8>, reg: u8, values: Vec<Vec<u8>>) -> Self {
-        let mut payload = vec![reg];
-        let values: Vec<u8> = ids
-            .iter()
-            .zip(values.iter())
-            .flat_map(|(&id, val)| {
-                let mut v = vec![id];
-                v.extend(val);
-                v
-            })
-            .collect();
-        payload.push((values.len() / ids.len() - 1).try_into().unwrap());
-        payload.extend(values);
 
-        InstructionPacket {
+    fn write_packet(id: u8, addr: u8, data: &[u8]) -> Box<dyn InstructionPacket<Self>> {
+        Box::new(InstructionPacketV1 {
+            id,
+            instruction: InstructionKindV1::Write,
+            params: {
+                let mut params = vec![addr];
+                params.extend(data);
+                params
+            },
+        })
+    }
+
+    fn sync_read_packet(ids: &[u8], addr: u8, length: u8) -> Box<dyn InstructionPacket<Self>> {
+        Box::new(InstructionPacketV1 {
             id: BROADCAST_ID,
-            instr: Instruction::SyncWrite,
-            payload,
+            instruction: InstructionKindV1::SyncRead,
+            params: {
+                let mut params = vec![addr, length];
+                params.extend(ids);
+                params
+            },
+        })
+    }
+
+    fn sync_write_packet(ids: &[u8], addr: u8, data: &[&[u8]]) -> Box<dyn InstructionPacket<Self>> {
+        Box::new(InstructionPacketV1 {
+            id: BROADCAST_ID,
+            instruction: InstructionKindV1::SyncWrite,
+            params: {
+                let mut params = vec![addr];
+                let values: Vec<u8> = ids
+                    .iter()
+                    .zip(data.iter())
+                    .flat_map(|(&id, &val)| {
+                        let mut v = vec![id];
+                        v.extend(val);
+                        v
+                    })
+                    .collect();
+                params.push((values.len() / ids.len() - 1).try_into().unwrap());
+                params.extend(values);
+                params
+            },
+        })
+    }
+
+    fn get_payload_size(header: &[u8]) -> Result<usize> {
+        if header.len() == 4 && header[0] == 255 && header[1] == 255 {
+            Ok(header[3].into())
+        } else {
+            Err(Box::new(CommunicationErrorKind::ParsingError))
         }
+    }
+
+    fn status_packet(data: &[u8], sender_id: u8) -> Result<Box<dyn StatusPacket<Self>>> {
+        Ok(Box::new(StatusPacketV1::from_bytes(data, sender_id)?))
     }
 }
 
-#[derive(Debug)]
-pub struct StatusPacket {
-    pub id: u8,
-    pub error: Vec<DynamixelError>,
-    pub payload: Vec<u8>,
+struct InstructionPacketV1 {
+    id: u8,
+    instruction: InstructionKindV1,
+    params: Vec<u8>,
+}
+impl InstructionPacket<PacketV1> for InstructionPacketV1 {
+    fn id(&self) -> u8 {
+        self.id
+    }
+
+    fn instruction(&self) -> <PacketV1 as Packet>::InstructionKind {
+        self.instruction
+    }
+
+    fn params(&self) -> &Vec<u8> {
+        &self.params
+    }
+
+    fn to_bytes(&self) -> Vec<u8> {
+        let mut bytes = Vec::new();
+
+        let payload_length: u8 = (self.params.len() + 2).try_into().unwrap();
+
+        bytes.extend(vec![255, 255, self.id, payload_length].iter());
+        bytes.push(self.instruction.value());
+        bytes.extend(self.params.iter());
+        bytes.push(crc(&bytes[2..]));
+
+        bytes
+    }
 }
 
-impl FromBytes for StatusPacket {
-    fn from_bytes(sender_id: u8, bytes: Vec<u8>) -> Result<Self, CommunicationErrorKind> {
-        if bytes.len() < 6 {
-            return Err(CommunicationErrorKind::ParsingError);
+struct StatusPacketV1 {
+    id: u8,
+    #[allow(dead_code)]
+    errors: Vec<DynamixelErrorV1>,
+    params: Vec<u8>,
+}
+
+impl StatusPacket<PacketV1> for StatusPacketV1 {
+    fn from_bytes(data: &[u8], sender_id: u8) -> Result<Self>
+    where
+        Self: Sized,
+    {
+        if data.len() < 6 {
+            return Err(Box::new(CommunicationErrorKind::ParsingError));
         }
 
-        let read_crc = *bytes.last().unwrap();
-        let computed_crc = crc(&bytes[2..bytes.len() - 1]);
+        let read_crc = *data.last().unwrap();
+        let computed_crc = crc(&data[2..data.len() - 1]);
         if read_crc != computed_crc {
-            return Err(CommunicationErrorKind::ChecksumError);
+            return Err(Box::new(CommunicationErrorKind::ChecksumError));
         }
 
-        if bytes[0] != 255 || bytes[1] != 255 {
-            return Err(CommunicationErrorKind::ParsingError);
-        }
+        // This should already have been catched when parsing the header
+        assert_eq!(data[0], 255);
+        assert_eq!(data[1], 255);
 
-        let id = bytes[2];
+        let id = data[2];
         if id != sender_id {
-            return Err(CommunicationErrorKind::ParsingError);
+            return Err(Box::new(CommunicationErrorKind::ParsingError));
         }
 
-        let payload_length = bytes[3] as usize;
-        let error = DynamixelError::from_byte(bytes[4]);
+        let params_length = data[3] as usize;
+        let errors = DynamixelErrorV1::from_byte(data[4]);
 
-        if payload_length != bytes.len() - HEADER_SIZE || payload_length < 2 {
-            return Err(CommunicationErrorKind::ParsingError);
+        if params_length != data.len() - PacketV1::HEADER_SIZE || params_length < 2 {
+            return Err(Box::new(CommunicationErrorKind::ParsingError));
         }
 
-        let payload = bytes[5..3 + payload_length].to_vec();
+        let params = data[5..3 + params_length].to_vec();
 
-        Ok(StatusPacket { id, error, payload })
+        Ok(StatusPacketV1 { id, errors, params })
+    }
+
+    fn id(&self) -> u8 {
+        self.id
+    }
+
+    fn errors(&self) -> Vec<<PacketV1 as Packet>::ErrorKind> {
+        todo!()
+    }
+
+    fn params(&self) -> &Vec<u8> {
+        &self.params
     }
 }
 
-#[derive(Debug)]
-pub enum Instruction {
+#[derive(Debug, PartialEq, Eq, Hash, Clone, Copy)]
+pub enum DynamixelErrorV1 {
+    Instruction,
+    Overload,
+    Checksum,
+    Range,
+    Overheating,
+    AngleLimit,
+    InputVoltage,
+}
+impl DynamixelErrorV1 {
+    fn from_byte(error: u8) -> Vec<Self> {
+        (0..7)
+            .into_iter()
+            .filter(|i| error & (1 << i) != 0)
+            .map(|i| DynamixelErrorV1::from_bit(i).unwrap())
+            .collect()
+    }
+    fn from_bit(b: u8) -> Option<Self> {
+        match b {
+            6 => Some(DynamixelErrorV1::Instruction),
+            5 => Some(DynamixelErrorV1::Overload),
+            4 => Some(DynamixelErrorV1::Checksum),
+            3 => Some(DynamixelErrorV1::Range),
+            2 => Some(DynamixelErrorV1::Overheating),
+            1 => Some(DynamixelErrorV1::AngleLimit),
+            0 => Some(DynamixelErrorV1::InputVoltage),
+            _ => None,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
+pub enum InstructionKindV1 {
     Ping,
     Read,
     Write,
     SyncWrite,
+    SyncRead,
 }
 
-impl Instruction {
+impl InstructionKindV1 {
     fn value(&self) -> u8 {
         match self {
-            Instruction::Ping => 0x01,
-            Instruction::Read => 0x02,
-            Instruction::Write => 0x03,
-            Instruction::SyncWrite => 0x83,
+            InstructionKindV1::Ping => 0x01,
+            InstructionKindV1::Read => 0x02,
+            InstructionKindV1::Write => 0x03,
+            InstructionKindV1::SyncWrite => 0x83,
+            InstructionKindV1::SyncRead => 0x84,
         }
     }
 }
 
-impl ToBytes for InstructionPacket {
-    fn to_bytes(&self) -> Vec<u8> {
-        let mut bytes = Vec::new();
+pub struct V1;
+impl Protocol<PacketV1> for V1 {
+    fn new() -> Self {
+        V1
+    }
+    fn sync_read(
+        &self,
+        port: &mut dyn serialport::SerialPort,
+        ids: &[u8],
+        addr: u8,
+        length: u8,
+    ) -> Result<Vec<Vec<u8>>> {
+        let instruction_packet = PacketV1::sync_read_packet(ids, addr, length);
+        self.send_instruction_packet(port, instruction_packet.as_ref())?;
+        let status_packet = self.read_status_packet(port, BROADCAST_RESPONSE_ID)?;
 
-        let payload_length: u8 = (self.payload.len() + 2).try_into().unwrap();
+        if status_packet.params().len() != (length as usize * ids.len()) {
+            Err(Box::new(CommunicationErrorKind::ParsingError))
+        } else {
+            let result: Vec<Vec<u8>> = status_packet
+                .params()
+                .chunks(length as usize)
+                .map(|slice| slice.to_vec())
+                .collect();
 
-        bytes.extend(vec![255, 255, self.id, payload_length].iter());
-        bytes.push(self.instr.value());
-        bytes.extend(self.payload.iter());
-        bytes.push(crc(&bytes[2..]));
-
-        bytes
+            Ok(result)
+        }
     }
 }
 
@@ -147,25 +275,25 @@ mod tests {
 
     #[test]
     fn create_ping_packet() {
-        let p = InstructionPacket::ping_packet(1);
+        let p = PacketV1::ping_packet(1);
         let bytes = p.to_bytes();
         assert_eq!(bytes, [0xFF, 0xFF, 0x01, 0x02, 0x01, 0xFB]);
     }
 
     #[test]
     fn create_read_packet() {
-        let p = InstructionPacket::read_packet(1, 0x2B, 1);
+        let p = PacketV1::read_packet(1, 0x2B, 1);
         let bytes = p.to_bytes();
         assert_eq!(bytes, [0xFF, 0xFF, 0x01, 0x04, 0x02, 0x2B, 0x01, 0xCC]);
     }
 
     #[test]
     fn create_write_packet() {
-        let p = InstructionPacket::write_packet(10, 24, vec![1]);
+        let p = PacketV1::write_packet(10, 24, &vec![1]);
         let bytes = p.to_bytes();
         assert_eq!(bytes, [255, 255, 10, 4, 3, 24, 1, 213]);
 
-        let p = InstructionPacket::write_packet(0xFE, 0x03, vec![1]);
+        let p = PacketV1::write_packet(0xFE, 0x03, &vec![1]);
         let bytes = p.to_bytes();
         assert_eq!(bytes, [0xFF, 0xFF, 0xFE, 0x04, 0x03, 0x03, 0x01, 0xF6]);
     }
@@ -173,22 +301,22 @@ mod tests {
     #[test]
     fn parse_status_packet() {
         let bytes = vec![0xFF, 0xFF, 0x01, 0x02, 0x00, 0xFC];
-        let sp = StatusPacket::from_bytes(0x01, bytes).unwrap();
+        let sp = StatusPacketV1::from_bytes(&bytes, 0x01).unwrap();
         assert_eq!(sp.id, 1);
-        assert_eq!(sp.error.len(), 0);
-        assert_eq!(sp.payload.len(), 0);
+        assert_eq!(sp.errors.len(), 0);
+        assert_eq!(sp.params.len(), 0);
 
         let bytes = vec![0xFF, 0xFF, 0x01, 0x03, 0x00, 0x20, 0xDB];
-        let sp = StatusPacket::from_bytes(0x01, bytes).unwrap();
+        let sp = StatusPacketV1::from_bytes(&bytes, 0x01).unwrap();
         assert_eq!(sp.id, 1);
-        assert_eq!(sp.error.len(), 0);
-        assert_eq!(sp.payload.len(), 1);
-        assert_eq!(sp.payload[0], 0x20);
+        assert_eq!(sp.errors.len(), 0);
+        assert_eq!(sp.params.len(), 1);
+        assert_eq!(sp.params[0], 0x20);
     }
     #[test]
     fn check_error_on_wrong_id() {
         let bytes = vec![0xFF, 0xFF, 0x01, 0x03, 0x00, 0x20, 0xDB];
-        let sp = StatusPacket::from_bytes(0x02, bytes);
+        let sp = StatusPacketV1::from_bytes(&bytes, 0x02);
         assert!(sp.is_err());
     }
 }
