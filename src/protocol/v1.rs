@@ -3,6 +3,7 @@ use crate::CommunicationErrorKind;
 
 const HEADER_SIZE: usize = 4;
 const BROADCAST_ID: u8 = 254;
+const BROADCAST_RESPONSE_ID: u8 = 253;
 
 #[derive(Debug)]
 pub struct InstructionPacket {
@@ -56,6 +57,16 @@ impl InstructionPacket {
             payload,
         }
     }
+    pub fn sync_read_packet(ids: Vec<u8>, reg: u8, length: u8) -> Self {
+        let mut payload = vec![reg, length];
+        payload.extend(ids);
+
+        InstructionPacket {
+            id: BROADCAST_ID,
+            instr: Instruction::SyncRead,
+            payload,
+        }
+    }
 }
 
 #[derive(Debug)]
@@ -82,7 +93,7 @@ impl FromBytes for StatusPacket {
         }
 
         let id = bytes[2];
-        if id != sender_id {
+        if id != sender_id && id != BROADCAST_RESPONSE_ID {
             return Err(CommunicationErrorKind::ParsingError);
         }
 
@@ -105,6 +116,7 @@ pub enum Instruction {
     Read,
     Write,
     SyncWrite,
+    SyncRead,
 }
 
 impl Instruction {
@@ -114,6 +126,7 @@ impl Instruction {
             Instruction::Read => 0x02,
             Instruction::Write => 0x03,
             Instruction::SyncWrite => 0x83,
+            Instruction::SyncRead => 0x84,
         }
     }
 }

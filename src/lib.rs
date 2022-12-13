@@ -1,6 +1,6 @@
 use std::error::Error;
-use std::fmt;
 use std::{collections::HashSet, mem::size_of, time::Duration};
+use std::fmt;
 
 use serialport::SerialPort;
 
@@ -58,13 +58,24 @@ impl DynamixelSerialIO {
         ids: Vec<u8>,
         reg: u8,
     ) -> Result<Vec<T>, CommunicationErrorKind> {
-        let mut data = Vec::new();
+        let length = size_of::<T>().try_into().unwrap();
+        let nb_ids = ids.len();
 
-        for id in ids {
-            data.push(self.read_data(id, reg)?);
+        let instruction_packet = InstructionPacket::sync_read_packet(ids, reg, length);
+
+        let status_packet = self.request(instruction_packet)?;
+
+        if status_packet.payload.len() != (length as usize * nb_ids) {
+            Err(CommunicationErrorKind::ParsingError)
+        } else {
+            let result: Vec<T> = status_packet
+                .payload
+                .chunks(length as usize)
+                .map(|slice| T::from_bytes(slice.to_vec()).unwrap())
+                .collect();
+
+            Ok(result)
         }
-
-        Ok(data)
     }
 
     pub fn write_data<T: Serializable>(
@@ -102,6 +113,7 @@ impl DynamixelSerialIO {
         self.send_packet(&instruction_packet);
 
         let data = self.read_packet()?;
+
         let status_packet = StatusPacket::from_bytes(instruction_packet.id, data)?;
         log::debug!("<<< {:?}", status_packet);
 
