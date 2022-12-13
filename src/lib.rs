@@ -53,6 +53,20 @@ impl DynamixelSerialIO {
         T::from_bytes(status_packet.payload).ok_or(CommunicationErrorKind::ParsingError)
     }
 
+    pub fn sync_read_data<T: Serializable>(
+        &mut self,
+        ids: Vec<u8>,
+        reg: u8,
+    ) -> Result<Vec<T>, CommunicationErrorKind> {
+        let mut data = Vec::new();
+
+        for id in ids {
+            data.push(self.read_data(id, reg)?);
+        }
+
+        Ok(data)
+    }
+
     pub fn write_data<T: Serializable>(
         &mut self,
         id: u8,
