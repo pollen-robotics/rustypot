@@ -55,7 +55,11 @@ impl Packet for PacketV1 {
         })
     }
 
-    fn sync_write_packet(ids: &[u8], addr: u8, data: &[&[u8]]) -> Box<dyn InstructionPacket<Self>> {
+    fn sync_write_packet(
+        ids: &[u8],
+        addr: u8,
+        data: &[Vec<u8>],
+    ) -> Box<dyn InstructionPacket<Self>> {
         Box::new(InstructionPacketV1 {
             id: BROADCAST_ID,
             instruction: InstructionKindV1::SyncWrite,
@@ -64,7 +68,7 @@ impl Packet for PacketV1 {
                 let values: Vec<u8> = ids
                     .iter()
                     .zip(data.iter())
-                    .flat_map(|(&id, &val)| {
+                    .flat_map(|(&id, val)| {
                         let mut v = vec![id];
                         v.extend(val);
                         v

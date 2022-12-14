@@ -40,7 +40,7 @@ pub trait Protocol<P: Packet> {
         port: &mut dyn SerialPort,
         ids: &[u8],
         addr: u8,
-        data: &[&[u8]],
+        data: &[Vec<u8>],
     ) -> Result<()> {
         self.send_instruction_packet(port, P::sync_write_packet(ids, addr, data).as_ref())?;
         Ok(())

@@ -12,7 +12,11 @@ pub trait Packet {
     fn read_packet(id: u8, addr: u8, length: u8) -> Box<dyn InstructionPacket<Self>>;
     fn write_packet(id: u8, addr: u8, data: &[u8]) -> Box<dyn InstructionPacket<Self>>;
     fn sync_read_packet(ids: &[u8], addr: u8, length: u8) -> Box<dyn InstructionPacket<Self>>;
-    fn sync_write_packet(ids: &[u8], addr: u8, data: &[&[u8]]) -> Box<dyn InstructionPacket<Self>>;
+    fn sync_write_packet(
+        ids: &[u8],
+        addr: u8,
+        data: &[Vec<u8>],
+    ) -> Box<dyn InstructionPacket<Self>>;
 
     fn status_packet(data: &[u8], sender_id: u8) -> Result<Box<dyn StatusPacket<Self>>>;
 }

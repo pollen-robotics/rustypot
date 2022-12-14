@@ -4,6 +4,8 @@ use protocol::Protocol;
 mod packet;
 use packet::Packet;
 
+pub mod device;
+
 pub type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
 
 pub struct DynamixelSerialIO<P: Packet> {
@@ -55,7 +57,7 @@ impl<P: Packet> DynamixelSerialIO<P> {
         serial_port: &mut dyn serialport::SerialPort,
         ids: &[u8],
         addr: u8,
-        data: &[&[u8]],
+        data: &[Vec<u8>],
     ) -> Result<()> {
         self.inner.sync_write(serial_port, ids, addr, data)
     }
