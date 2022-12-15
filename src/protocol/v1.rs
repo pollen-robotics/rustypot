@@ -14,6 +14,7 @@ impl Packet for PacketV1 {
 
     type ErrorKind = DynamixelErrorV1;
     type InstructionKind = InstructionKindV1;
+    type RegisterSize = u8;
 
     fn ping_packet(id: u8) -> Box<dyn InstructionPacket<Self>> {
         Box::new(InstructionPacketV1 {
@@ -134,7 +135,7 @@ impl StatusPacket<PacketV1> for StatusPacketV1 {
     where
         Self: Sized,
     {
-        if data.len() < 6 {
+        if data.len() < PacketV1::HEADER_SIZE + 2 {
             return Err(Box::new(CommunicationErrorKind::ParsingError));
         }
 
@@ -169,8 +170,8 @@ impl StatusPacket<PacketV1> for StatusPacketV1 {
         self.id
     }
 
-    fn errors(&self) -> Vec<<PacketV1 as Packet>::ErrorKind> {
-        todo!()
+    fn errors(&self) -> &Vec<<PacketV1 as Packet>::ErrorKind> {
+        &self.errors
     }
 
     fn params(&self) -> &Vec<u8> {
