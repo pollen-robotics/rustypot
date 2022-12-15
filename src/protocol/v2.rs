@@ -70,8 +70,8 @@ impl Packet for PacketV2 {
             instruction: InstructionKindV2::Read,
             params: {
                 let mut params = Vec::new();
-                params.extend(addr.to_le_bytes());
-                params.extend(length.to_le_bytes());
+                params.extend((addr as u16).to_le_bytes());
+                params.extend((length as u16).to_le_bytes());
                 params
             },
         })
@@ -156,7 +156,7 @@ impl InstructionPacket<PacketV2> for InstructionPacketV2 {
 
         bytes.push(self.id());
 
-        let nb_params = self.params.len() as u16;
+        let nb_params = self.params.len() as u16 + 3;
         bytes.extend(nb_params.to_le_bytes());
 
         bytes.push(self.instruction().value());
@@ -196,14 +196,14 @@ impl StatusPacket<PacketV2> for StatusPacketV2 {
         assert_eq!(data[0], 0xFF);
         assert_eq!(data[1], 0xFF);
         assert_eq!(data[2], 0xFD);
-        assert_eq!(data[1], 0x00);
+        assert_eq!(data[3], 0x00);
 
         let id = data[4];
         if id != sender_id {
             return Err(Box::new(CommunicationErrorKind::ParsingError));
         }
 
-        let params_length = u16::from_le_bytes(data[5..6].try_into().unwrap()) as usize;
+        let params_length = u16::from_le_bytes(data[5..7].try_into().unwrap()) as usize;
         let errors = DynamixelErrorV2::from_byte(data[8]);
 
         if params_length != data.len() - PacketV2::HEADER_SIZE || params_length < 2 {
