@@ -331,4 +331,82 @@ mod tests {
 
         assert_eq!(crc.to_le_bytes(), [0x16, 0xd2]);
     }
+    #[test]
+    fn create_ping_packet() {
+        let p = PacketV2::ping_packet(2);
+        let bytes = p.to_bytes();
+        assert_eq!(
+            bytes,
+            [0xff, 0xff, 0xfd, 0x0, 0x2, 0x3, 0x0, 0x1, 0x19, 0x72]
+        );
+    }
+
+    #[test]
+    fn create_read_packet() {
+        let p = PacketV2::read_packet(1, 0x2B, 2);
+        let bytes = p.to_bytes();
+        assert_eq!(
+            bytes,
+            [0xff, 0xff, 0xfd, 0x0, 0x1, 0x7, 0x0, 0x2, 0x2b, 0x0, 0x2, 0x0, 0x2e, 0xcd]
+        );
+    }
+
+    #[test]
+    fn create_write_packet() {
+        let p = PacketV2::write_packet(1, 116, &512_u32.to_le_bytes());
+        let bytes = p.to_bytes();
+        assert_eq!(
+            bytes,
+            [
+                0xFF, 0xFF, 0xFD, 0x0, 0x1, 0x9, 0x0, 0x03, 0x74, 0x00, 0x00, 0x02, 0x00, 0x00,
+                0xCA, 0x89
+            ]
+        );
+    }
+
+    #[test]
+    fn create_sync_read_packet() {
+        let p = PacketV2::sync_read_packet(&[1, 2], 132, 4);
+        let bytes = p.to_bytes();
+        assert_eq!(
+            bytes,
+            [
+                0xFF, 0xFF, 0xFD, 0x00, 0xFE, 0x09, 0x00, 0x82, 0x84, 0x00, 0x04, 0x00, 0x01, 0x02,
+                0xCE, 0xFA
+            ]
+        );
+    }
+
+    #[test]
+    fn create_sync_write_packet() {
+        let p = PacketV2::sync_write_packet(
+            &[1, 2],
+            116,
+            &vec![
+                150_u32.to_le_bytes().to_vec(),
+                170_u32.to_le_bytes().to_vec(),
+            ],
+        );
+        let bytes = p.to_bytes();
+        assert_eq!(
+            bytes,
+            [
+                0xFF, 0xFF, 0xFD, 0x00, 0xFE, 0x11, 0x00, 0x83, 0x74, 0x00, 0x04, 0x00, 0x01, 0x96,
+                0x00, 0x00, 0x00, 0x02, 0xAA, 0x00, 0x00, 0x00, 0x82, 0x87
+            ]
+        );
+    }
+
+    #[test]
+    fn parse_status_packet() {
+        let bytes = vec![
+            0xFF, 0xFF, 0xFD, 0x00, 0x01, 0x08, 0x00, 0x55, 0x00, 0xA6, 0x00, 0x00, 0x00, 0x8C,
+            0xC0,
+        ];
+
+        let sp = StatusPacketV2::from_bytes(&bytes, 0x01).unwrap();
+        // assert_eq!(sp.id, 1);
+        // assert_eq!(sp.errors.len(), 0);
+        // assert_eq!(sp.params.len(), 0);
+    }
 }

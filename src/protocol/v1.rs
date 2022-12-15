@@ -303,6 +303,23 @@ mod tests {
     }
 
     #[test]
+    fn create_sync_read_packet() {
+        let p = PacketV1::sync_read_packet(&[11, 12], 30, 2);
+        let bytes = p.to_bytes();
+        assert_eq!(bytes, [0xFF, 0xFF, 0xFE, 0x6, 0x84, 0x1e, 0x2, 0xb, 0xc, 0x40]);
+    }
+
+    #[test]
+    fn create_sync_write_packet() {
+        let p = PacketV1::sync_write_packet(&[11, 12], 30, &vec![
+            vec![0x0, 0x0],
+            vec![0xA, 0x14],
+        ]);
+        let bytes = p.to_bytes();
+        assert_eq!(bytes, [0xFF, 0xFF, 0xFE, 0xA, 0x83, 0x1E, 0x2, 0xB, 0x0, 0x0, 0xC, 0xA, 0x14, 0x1F]);
+    }
+
+    #[test]
     fn parse_status_packet() {
         let bytes = vec![0xFF, 0xFF, 0x01, 0x02, 0x00, 0xFC];
         let sp = StatusPacketV1::from_bytes(&bytes, 0x01).unwrap();
