@@ -108,7 +108,7 @@ impl Packet for PacketV2 {
     fn sync_write_packet(
         ids: &[u8],
         addr: u16,
-        data: &[&[u8]],
+        data: &[Vec<u8>],
     ) -> Box<dyn InstructionPacket<Self>> {
         Box::new(InstructionPacketV2 {
             id: BROADCAST_ID,
