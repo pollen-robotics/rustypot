@@ -203,14 +203,18 @@ impl StatusPacket<PacketV2> for StatusPacketV2 {
             return Err(Box::new(CommunicationErrorKind::ParsingError));
         }
 
-        let params_length = u16::from_le_bytes(data[5..7].try_into().unwrap()) as usize;
+        let payload_length = u16::from_le_bytes(data[5..7].try_into().unwrap()) as usize;
+        if data[7] != 0x55 {
+            return  Err(Box::new(CommunicationErrorKind::ParsingError));
+        }
         let errors = DynamixelErrorV2::from_byte(data[8]);
 
-        if params_length != data.len() - PacketV2::HEADER_SIZE || params_length < 2 {
+        if payload_length != data.len() - PacketV2::HEADER_SIZE || payload_length < 4 {
             return Err(Box::new(CommunicationErrorKind::ParsingError));
         }
 
-        let params = data[9..9 + params_length - 3].to_vec();
+        let params = data[9..msg_length - 2].to_vec();
+        assert_eq!(params.len(), payload_length - 4);
 
         Ok(StatusPacketV2 { id, errors, params })
     }
@@ -405,8 +409,9 @@ mod tests {
         ];
 
         let sp = StatusPacketV2::from_bytes(&bytes, 0x01).unwrap();
-        // assert_eq!(sp.id, 1);
-        // assert_eq!(sp.errors.len(), 0);
-        // assert_eq!(sp.params.len(), 0);
+        assert_eq!(sp.id, 1);
+        assert_eq!(sp.errors.len(), 0);
+        assert_eq!(sp.params.len(), 4);
+        assert_eq!(sp.params, [0xA6, 0x00, 0x00, 0x00])
     }
 }
