@@ -28,7 +28,7 @@ pub trait Packet {
     fn sync_write_packet(
         ids: &[u8],
         addr: Self::RegisterSize,
-        data: &[&[u8]],
+        data: &[Vec<u8>],
     ) -> Box<dyn InstructionPacket<Self>>;
 
     fn status_packet(data: &[u8], sender_id: u8) -> Result<Box<dyn StatusPacket<Self>>>;

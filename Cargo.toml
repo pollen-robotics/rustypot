@@ -7,5 +7,6 @@ edition = "2021"
 
 [dependencies]
 log = "0.4.17"
+paste = "1.0.10"
 serialport = "4.2.0"
 
