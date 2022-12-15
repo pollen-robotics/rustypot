@@ -18,8 +18,8 @@ impl Protocol<PacketV2> for V2 {
         &self,
         port: &mut dyn serialport::SerialPort,
         ids: &[u8],
-        addr: <PacketV2 as Packet>::RegisterSize,
-        length: <PacketV2 as Packet>::RegisterSize,
+        addr: u8,
+        length: u8,
     ) -> Result<Vec<Vec<u8>>> {
         let instruction_packet = PacketV2::sync_read_packet(ids, addr, length);
         self.send_instruction_packet(port, instruction_packet.as_ref())?;
@@ -41,7 +41,6 @@ impl Packet for PacketV2 {
 
     type ErrorKind = DynamixelErrorV2;
     type InstructionKind = InstructionKindV2;
-    type RegisterSize = u16;
 
     fn get_payload_size(header: &[u8]) -> Result<usize> {
         assert_eq!(header.len(), Self::HEADER_SIZE);
@@ -65,7 +64,7 @@ impl Packet for PacketV2 {
         })
     }
 
-    fn read_packet(id: u8, addr: u16, length: u16) -> Box<dyn InstructionPacket<Self>> {
+    fn read_packet(id: u8, addr: u8, length: u8) -> Box<dyn InstructionPacket<Self>> {
         Box::new(InstructionPacketV2 {
             id,
             instruction: InstructionKindV2::Read,
@@ -78,27 +77,27 @@ impl Packet for PacketV2 {
         })
     }
 
-    fn write_packet(id: u8, addr: u16, data: &[u8]) -> Box<dyn InstructionPacket<Self>> {
+    fn write_packet(id: u8, addr: u8, data: &[u8]) -> Box<dyn InstructionPacket<Self>> {
         Box::new(InstructionPacketV2 {
             id,
             instruction: InstructionKindV2::Write,
             params: {
                 let mut params = Vec::new();
-                params.extend(addr.to_le_bytes());
+                params.extend((addr as u16).to_le_bytes());
                 params.extend(data);
                 params
             },
         })
     }
 
-    fn sync_read_packet(ids: &[u8], addr: u16, length: u16) -> Box<dyn InstructionPacket<Self>> {
+    fn sync_read_packet(ids: &[u8], addr: u8, length: u8) -> Box<dyn InstructionPacket<Self>> {
         Box::new(InstructionPacketV2 {
             id: BROADCAST_ID,
             instruction: InstructionKindV2::SyncRead,
             params: {
                 let mut params = Vec::new();
-                params.extend(addr.to_le_bytes());
-                params.extend(length.to_le_bytes());
+                params.extend((addr as u16).to_le_bytes());
+                params.extend((length as u16).to_le_bytes());
                 params.extend(ids);
                 params
             },
@@ -107,7 +106,7 @@ impl Packet for PacketV2 {
 
     fn sync_write_packet(
         ids: &[u8],
-        addr: u16,
+        addr: u8,
         data: &[Vec<u8>],
     ) -> Box<dyn InstructionPacket<Self>> {
         Box::new(InstructionPacketV2 {
@@ -115,10 +114,10 @@ impl Packet for PacketV2 {
             instruction: InstructionKindV2::SyncWrite,
             params: {
                 let mut params = Vec::new();
-                params.extend(addr.to_le_bytes());
+                params.extend((addr as u16).to_le_bytes());
                 params.extend((data[0].len() as u16).to_le_bytes());
 
-                for (&id, &value) in ids.iter().zip(data) {
+                for (&id, value) in ids.iter().zip(data) {
                     params.push(id);
                     params.extend(value);
                 }

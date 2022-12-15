@@ -14,7 +14,6 @@ impl Packet for PacketV1 {
 
     type ErrorKind = DynamixelErrorV1;
     type InstructionKind = InstructionKindV1;
-    type RegisterSize = u8;
 
     fn ping_packet(id: u8) -> Box<dyn InstructionPacket<Self>> {
         Box::new(InstructionPacketV1 {

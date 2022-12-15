@@ -4,30 +4,17 @@ pub trait Packet {
     const HEADER_SIZE: usize;
     type ErrorKind;
     type InstructionKind;
-    type RegisterSize;
 
     fn get_payload_size(header: &[u8]) -> Result<usize>;
 
     fn ping_packet(id: u8) -> Box<dyn InstructionPacket<Self>>;
 
-    fn read_packet(
-        id: u8,
-        addr: Self::RegisterSize,
-        length: Self::RegisterSize,
-    ) -> Box<dyn InstructionPacket<Self>>;
-    fn write_packet(
-        id: u8,
-        addr: Self::RegisterSize,
-        data: &[u8],
-    ) -> Box<dyn InstructionPacket<Self>>;
-    fn sync_read_packet(
-        ids: &[u8],
-        addr: Self::RegisterSize,
-        length: Self::RegisterSize,
-    ) -> Box<dyn InstructionPacket<Self>>;
+    fn read_packet(id: u8, addr: u8, length: u8) -> Box<dyn InstructionPacket<Self>>;
+    fn write_packet(id: u8, addr: u8, data: &[u8]) -> Box<dyn InstructionPacket<Self>>;
+    fn sync_read_packet(ids: &[u8], addr: u8, length: u8) -> Box<dyn InstructionPacket<Self>>;
     fn sync_write_packet(
         ids: &[u8],
-        addr: Self::RegisterSize,
+        addr: u8,
         data: &[Vec<u8>],
     ) -> Box<dyn InstructionPacket<Self>>;
 

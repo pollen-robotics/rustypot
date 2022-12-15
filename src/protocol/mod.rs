@@ -22,24 +22,12 @@ pub trait Protocol<P: Packet> {
         Ok(self.read_status_packet(port, id).is_ok())
     }
 
-    fn read(
-        &self,
-        port: &mut dyn SerialPort,
-        id: u8,
-        addr: P::RegisterSize,
-        length: P::RegisterSize,
-    ) -> Result<Vec<u8>> {
+    fn read(&self, port: &mut dyn SerialPort, id: u8, addr: u8, length: u8) -> Result<Vec<u8>> {
         self.send_instruction_packet(port, P::read_packet(id, addr, length).as_ref())?;
         self.read_status_packet(port, id)
             .map(|sp| sp.params().to_vec())
     }
-    fn write(
-        &self,
-        port: &mut dyn SerialPort,
-        id: u8,
-        addr: P::RegisterSize,
-        data: &[u8],
-    ) -> Result<()> {
+    fn write(&self, port: &mut dyn SerialPort, id: u8, addr: u8, data: &[u8]) -> Result<()> {
         self.send_instruction_packet(port, P::write_packet(id, addr, data).as_ref())?;
         self.read_status_packet(port, id).map(|_| ())
     }
@@ -47,14 +35,14 @@ pub trait Protocol<P: Packet> {
         &self,
         port: &mut dyn SerialPort,
         ids: &[u8],
-        addr: P::RegisterSize,
-        length: P::RegisterSize,
+        addr: u8,
+        length: u8,
     ) -> Result<Vec<Vec<u8>>>;
     fn sync_write(
         &self,
         port: &mut dyn SerialPort,
         ids: &[u8],
-        addr: P::RegisterSize,
+        addr: u8,
         data: &[Vec<u8>],
     ) -> Result<()> {
         self.send_instruction_packet(port, P::sync_write_packet(ids, addr, data).as_ref())?;

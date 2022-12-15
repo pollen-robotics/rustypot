@@ -1,6 +1,6 @@
 use paste::paste;
 use std::mem::size_of;
-    
+
 use crate::{packet::Packet, reg_read_only, reg_read_write, DynamixelSerialIO, Result};
 
 #[macro_export]
