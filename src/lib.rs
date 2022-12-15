@@ -24,8 +24,8 @@ impl<P: Packet> DynamixelSerialIO<P> {
         &self,
         serial_port: &mut dyn serialport::SerialPort,
         id: u8,
-        addr: u8,
-        length: u8,
+        addr: P::RegisterSize,
+        length: P::RegisterSize,
     ) -> Result<Vec<u8>> {
         self.inner.read(serial_port, id, addr, length)
     }
@@ -34,7 +34,7 @@ impl<P: Packet> DynamixelSerialIO<P> {
         &self,
         serial_port: &mut dyn serialport::SerialPort,
         id: u8,
-        addr: u8,
+        addr: P::RegisterSize,
         data: &[u8],
     ) -> Result<()> {
         self.inner.write(serial_port, id, addr, data)
@@ -44,8 +44,8 @@ impl<P: Packet> DynamixelSerialIO<P> {
         &self,
         serial_port: &mut dyn serialport::SerialPort,
         ids: &[u8],
-        addr: u8,
-        length: u8,
+        addr: P::RegisterSize,
+        length: P::RegisterSize,
     ) -> Result<Vec<Vec<u8>>> {
         self.inner.sync_read(serial_port, ids, addr, length)
     }
@@ -54,7 +54,7 @@ impl<P: Packet> DynamixelSerialIO<P> {
         &self,
         serial_port: &mut dyn serialport::SerialPort,
         ids: &[u8],
-        addr: u8,
+        addr: P::RegisterSize,
         data: &[&[u8]],
     ) -> Result<()> {
         self.inner.sync_write(serial_port, ids, addr, data)
