@@ -1,0 +1,1 @@
+# Rustypot: a Rust package to communicate Dynamixel motors
