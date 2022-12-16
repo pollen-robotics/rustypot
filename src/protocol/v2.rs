@@ -205,7 +205,7 @@ impl StatusPacket<PacketV2> for StatusPacketV2 {
 
         let payload_length = u16::from_le_bytes(data[5..7].try_into().unwrap()) as usize;
         if data[7] != 0x55 {
-            return  Err(Box::new(CommunicationErrorKind::ParsingError));
+            return Err(Box::new(CommunicationErrorKind::ParsingError));
         }
         let errors = DynamixelErrorV2::from_byte(data[8]);
 
