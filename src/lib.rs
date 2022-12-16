@@ -1,170 +1,64 @@
-use std::error::Error;
-use std::fmt;
-use std::{collections::HashSet, mem::size_of, time::Duration};
+pub mod protocol;
+use protocol::Protocol;
 
-use serialport::SerialPort;
+mod packet;
+use packet::Packet;
 
-mod protocol;
-use crate::protocol::v1::{InstructionPacket, StatusPacket};
-use crate::protocol::{DynamixelError, FromBytes, ToBytes};
+pub mod device;
 
-mod serialize;
-pub use serialize::Serializable;
+pub type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
 
-pub struct DynamixelSerialIO {
-    serial_port: Box<dyn SerialPort>,
-    errors: HashSet<DynamixelError>,
+pub struct DynamixelSerialIO<P: Packet> {
+    inner: Box<dyn Protocol<P>>,
 }
-
-impl DynamixelSerialIO {
-    pub fn new(path: &str, baudrate: u32, timeout: Duration) -> Result<Self, Box<dyn Error>> {
-        let serial_port = serialport::new(path, baudrate)
-            .timeout(timeout)
-            .open()
-            .unwrap_or_else(|_| panic!("Failed to open port {}", path));
-
-        serial_port.clear(serialport::ClearBuffer::All)?;
-
-        Ok(Self {
-            serial_port,
-            errors: HashSet::new(),
-        })
-    }
-
-    pub fn ping(&mut self, id: u8) -> Result<bool, CommunicationErrorKind> {
-        let instruction_packet = InstructionPacket::ping_packet(id);
-        match self.request(instruction_packet) {
-            Ok(_) => Ok(true),
-            Err(e) => match e {
-                CommunicationErrorKind::TimeoutError => Ok(false),
-                _ => Err(e),
-            },
+impl<P: Packet> DynamixelSerialIO<P> {
+    pub fn new<D: Protocol<P> + 'static>() -> Self {
+        DynamixelSerialIO {
+            inner: Box::new(D::new()),
         }
     }
 
-    pub fn read_data<T: Serializable>(
-        &mut self,
+    pub fn ping(&self, serial_port: &mut dyn serialport::SerialPort, id: u8) -> Result<bool> {
+        self.inner.ping(serial_port, id)
+    }
+
+    pub fn read(
+        &self,
+        serial_port: &mut dyn serialport::SerialPort,
         id: u8,
-        reg: u8,
-    ) -> Result<T, CommunicationErrorKind> {
-        let instruction_packet =
-            InstructionPacket::read_packet(id, reg, size_of::<T>().try_into().unwrap());
-        let status_packet = self.request(instruction_packet)?;
-        T::from_bytes(status_packet.payload).ok_or(CommunicationErrorKind::ParsingError)
+        addr: u8,
+        length: u8,
+    ) -> Result<Vec<u8>> {
+        self.inner.read(serial_port, id, addr, length)
     }
 
-    pub fn sync_read_data<T: Serializable>(
-        &mut self,
-        ids: Vec<u8>,
-        reg: u8,
-    ) -> Result<Vec<T>, CommunicationErrorKind> {
-        let length = size_of::<T>().try_into().unwrap();
-        let nb_ids = ids.len();
-
-        let instruction_packet = InstructionPacket::sync_read_packet(ids, reg, length);
-
-        let status_packet = self.request(instruction_packet)?;
-
-        if status_packet.payload.len() != (length as usize * nb_ids) {
-            Err(CommunicationErrorKind::ParsingError)
-        } else {
-            let result: Vec<T> = status_packet
-                .payload
-                .chunks(length as usize)
-                .map(|slice| T::from_bytes(slice.to_vec()).unwrap())
-                .collect();
-
-            Ok(result)
-        }
-    }
-
-    pub fn write_data<T: Serializable>(
-        &mut self,
+    pub fn write(
+        &self,
+        serial_port: &mut dyn serialport::SerialPort,
         id: u8,
-        reg: u8,
-        value: T,
-    ) -> Result<(), CommunicationErrorKind> {
-        let instruction_packet = InstructionPacket::write_packet(id, reg, value.to_bytes());
-        self.request(instruction_packet)?;
-        Ok(())
+        addr: u8,
+        data: &[u8],
+    ) -> Result<()> {
+        self.inner.write(serial_port, id, addr, data)
     }
 
-    pub fn sync_write_data<T: Serializable>(
-        &mut self,
-        ids: Vec<u8>,
-        reg: u8,
-        values: Vec<T>,
-    ) -> Result<(), CommunicationErrorKind> {
-        assert_eq!(ids.len(), values.len());
-
-        let instruction_packet = InstructionPacket::sync_write_packet(
-            ids,
-            reg,
-            values.iter().map(|value| value.to_bytes()).collect(),
-        );
-        self.send_packet(&instruction_packet);
-        Ok(())
+    pub fn sync_read(
+        &self,
+        serial_port: &mut dyn serialport::SerialPort,
+        ids: &[u8],
+        addr: u8,
+        length: u8,
+    ) -> Result<Vec<Vec<u8>>> {
+        self.inner.sync_read(serial_port, ids, addr, length)
     }
 
-    fn request(
-        &mut self,
-        instruction_packet: InstructionPacket,
-    ) -> Result<StatusPacket, CommunicationErrorKind> {
-        self.send_packet(&instruction_packet);
-
-        let data = self.read_packet()?;
-
-        let status_packet = StatusPacket::from_bytes(instruction_packet.id, data)?;
-        log::debug!("<<< {:?}", status_packet);
-
-        for e in status_packet.error.iter().copied() {
-            self.errors.insert(e);
-        }
-
-        Ok(status_packet)
-    }
-
-    fn send_packet(&mut self, instruction_packet: &InstructionPacket) {
-        log::debug!(">>> {:?}", instruction_packet);
-        self.serial_port
-            .write_all(&instruction_packet.to_bytes())
-            .unwrap();
-    }
-
-    fn read_packet(&mut self) -> Result<Vec<u8>, crate::CommunicationErrorKind> {
-        let mut header = vec![0; 4];
-        if self.serial_port.read_exact(&mut header).is_err() {
-            return Err(crate::CommunicationErrorKind::TimeoutError);
-        }
-
-        let payload_size = header[3];
-
-        let mut payload = vec![0; payload_size.into()];
-        if self.serial_port.read(&mut payload).is_err() {
-            return Err(crate::CommunicationErrorKind::TimeoutError);
-        }
-
-        let mut resp = Vec::new();
-        resp.append(&mut header);
-        resp.append(&mut payload);
-
-        Ok(resp)
+    pub fn sync_write(
+        &self,
+        serial_port: &mut dyn serialport::SerialPort,
+        ids: &[u8],
+        addr: u8,
+        data: &[Vec<u8>],
+    ) -> Result<()> {
+        self.inner.sync_write(serial_port, ids, addr, data)
     }
 }
-
-#[derive(Debug, Clone, Copy)]
-pub enum CommunicationErrorKind {
-    ChecksumError,
-    ParsingError,
-    TimeoutError,
-}
-impl fmt::Display for CommunicationErrorKind {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match self {
-            CommunicationErrorKind::ChecksumError => write!(f, "Checksum error"),
-            CommunicationErrorKind::ParsingError => write!(f, "Parsing error"),
-            CommunicationErrorKind::TimeoutError => write!(f, "Timeout error"),
-        }
-    }
-}
-impl Error for CommunicationErrorKind {}
