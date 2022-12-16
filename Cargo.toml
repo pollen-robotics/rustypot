@@ -2,6 +2,7 @@
 name = "rustypot"
 version = "0.1.0"
 edition = "2021"
+license = "Apache-2.0"
 authors = ["Pollen Robotics"]
 description = "Package to communicate with Dynamixel motors."
 homepage = "https://www.pollen-robotics.com"
