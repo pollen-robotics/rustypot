@@ -1,14 +1,14 @@
 use std::{error::Error, thread, time::Duration};
 
 use rustypot::device::l0_force_fan;
-use rustypot::{protocol, DynamixelSerialIO};
+use rustypot::DynamixelSerialIO;
 
 fn main() -> Result<(), Box<dyn Error>> {
     let mut serial_port = serialport::new("/dev/ttyACM0", 1_000_000)
         .timeout(Duration::from_millis(100))
         .open()?;
 
-    let io = DynamixelSerialIO::new::<protocol::V1>();
+    let io = DynamixelSerialIO::v1();
 
     l0_force_fan::write_fan3_state(&io, serial_port.as_mut(), 40, 0)?;
 

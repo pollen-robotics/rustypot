@@ -1,15 +1,15 @@
 use paste::paste;
 use std::mem::size_of;
 
-use crate::{packet::Packet, reg_read_only, reg_read_write, DynamixelSerialIO, Result};
+use crate::{reg_read_only, reg_read_write, DynamixelSerialIO, Result};
 
 #[macro_export]
 macro_rules! reg_read_only {
     ($name:ident, $addr:expr, $reg_type:ty) => {
 
     paste! {
-        pub fn [<read_ $name>]<P: Packet>(
-            io: &DynamixelSerialIO<P>,
+        pub fn [<read_ $name>](
+            io: &DynamixelSerialIO,
             serial_port: &mut dyn serialport::SerialPort,
             id: u8,
         ) -> Result<$reg_type> {
@@ -19,8 +19,8 @@ macro_rules! reg_read_only {
             Ok(val)
         }
 
-        pub fn [<sync_read_ $name>]<P: Packet>(
-            io: &DynamixelSerialIO<P>,
+        pub fn [<sync_read_ $name>](
+            io: &DynamixelSerialIO,
             serial_port: &mut dyn serialport::SerialPort,
             ids: &[u8],
         ) -> Result<Vec<$reg_type>> {
@@ -41,8 +41,8 @@ macro_rules! reg_read_only {
 macro_rules! reg_write_only {
     ($name:ident, $addr:expr, $reg_type:ty) => {
         paste! {
-            pub fn [<write_ $name>]<P: Packet>(
-                io: &DynamixelSerialIO<P>,
+            pub fn [<write_ $name>](
+                io: &DynamixelSerialIO,
                 serial_port: &mut dyn serialport::SerialPort,
                 id: u8,
                 val: $reg_type,
@@ -50,8 +50,8 @@ macro_rules! reg_write_only {
                 io.write(serial_port, id, $addr, &val.to_le_bytes())
             }
 
-            pub fn [<sync_write_ $name>]<P: Packet>(
-                io: &DynamixelSerialIO<P>,
+            pub fn [<sync_write_ $name>](
+                io: &DynamixelSerialIO,
                 serial_port: &mut dyn serialport::SerialPort,
                 ids: &[u8],
                 values: &[$reg_type],

@@ -1,5 +1,5 @@
 pub mod protocol;
-use protocol::Protocol;
+use protocol::{Protocol, V1, V2};
 
 mod packet;
 use packet::Packet;
@@ -8,18 +8,32 @@ pub mod device;
 
 pub type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
 
-pub struct DynamixelSerialIO<P: Packet> {
-    inner: Box<dyn Protocol<P>>,
+pub enum Protocols {
+    V1(V1),
+    V2(V2),
 }
-impl<P: Packet> DynamixelSerialIO<P> {
-    pub fn new<D: Protocol<P> + 'static>() -> Self {
+
+pub struct DynamixelSerialIO {
+    protocol: Protocols,
+}
+
+impl DynamixelSerialIO {
+    pub fn v1() -> Self {
         DynamixelSerialIO {
-            inner: Box::new(D::new()),
+            protocol: Protocols::V1(V1),
+        }
+    }
+    pub fn v2() -> Self {
+        DynamixelSerialIO {
+            protocol: Protocols::V2(V2),
         }
     }
 
     pub fn ping(&self, serial_port: &mut dyn serialport::SerialPort, id: u8) -> Result<bool> {
-        self.inner.ping(serial_port, id)
+        match &self.protocol {
+            Protocols::V1(p) => p.ping(serial_port, id),
+            Protocols::V2(p) => p.ping(serial_port, id),
+        }
     }
 
     pub fn read(
@@ -29,7 +43,10 @@ impl<P: Packet> DynamixelSerialIO<P> {
         addr: u8,
         length: u8,
     ) -> Result<Vec<u8>> {
-        self.inner.read(serial_port, id, addr, length)
+        match &self.protocol {
+            Protocols::V1(p) => p.read(serial_port, id, addr, length),
+            Protocols::V2(p) => p.read(serial_port, id, addr, length),
+        }
     }
 
     pub fn write(
@@ -39,7 +56,10 @@ impl<P: Packet> DynamixelSerialIO<P> {
         addr: u8,
         data: &[u8],
     ) -> Result<()> {
-        self.inner.write(serial_port, id, addr, data)
+        match &self.protocol {
+            Protocols::V1(p) => p.write(serial_port, id, addr, data),
+            Protocols::V2(p) => p.write(serial_port, id, addr, data),
+        }
     }
 
     pub fn sync_read(
@@ -49,7 +69,10 @@ impl<P: Packet> DynamixelSerialIO<P> {
         addr: u8,
         length: u8,
     ) -> Result<Vec<Vec<u8>>> {
-        self.inner.sync_read(serial_port, ids, addr, length)
+        match &self.protocol {
+            Protocols::V1(p) => p.sync_read(serial_port, ids, addr, length),
+            Protocols::V2(p) => p.sync_read(serial_port, ids, addr, length),
+        }
     }
 
     pub fn sync_write(
@@ -59,6 +82,9 @@ impl<P: Packet> DynamixelSerialIO<P> {
         addr: u8,
         data: &[Vec<u8>],
     ) -> Result<()> {
-        self.inner.sync_write(serial_port, ids, addr, data)
+        match &self.protocol {
+            Protocols::V1(p) => p.sync_write(serial_port, ids, addr, data),
+            Protocols::V2(p) => p.sync_write(serial_port, ids, addr, data),
+        }
     }
 }
