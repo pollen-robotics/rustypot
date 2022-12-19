@@ -38,12 +38,14 @@ reg_read_only!(realtime_tick, 50, u16);
 reg_read_write!(goal_acceleration, 73, u8);
 
 pub mod conv {
+    use std::f64::consts::PI;
+
     pub fn dxl_pos_to_radians(pos: i16) -> f64 {
-        (360.0 * (pos as f64) / 4096.0) - 180.0
+        (2.0 * PI * (pos as f64) / 4096.0) - PI
     }
 
     pub fn radians_to_dxl_pos(rads: f64) -> i16 {
-        (4096.0 * (360.0 / 2.0 + rads) / 360.0) as i16
+        (4096.0 * (2.0 * PI / 2.0 + rads) / 2.0 * PI) as i16
     }
 
     pub fn dxl_abs_speed_to_rad_per_sec(speed: u16) -> f64 {
