@@ -112,12 +112,22 @@ pub mod conv {
 
 #[cfg(test)]
 mod tests {
+    use std::f64::consts::PI;
+
     use super::conv::*;
 
     #[test]
     fn position_conversions() {
         assert_eq!(radians_to_dxl_pos(0.0), 2048);
+        assert_eq!(radians_to_dxl_pos(-PI / 2.0), 1024);
+        assert_eq!(radians_to_dxl_pos(PI / 2.0), 3072);
         assert_eq!(dxl_pos_to_radians(2048), 0.0);
+    }
+
+    #[test]
+    fn abs_speed_conversions() {
+        assert_eq!(rad_per_sec_to_dxl_abs_speed(0.0), 0);
+        assert_eq!(rad_per_sec_to_dxl_abs_speed(0.5), 41);
     }
 
     #[test]
