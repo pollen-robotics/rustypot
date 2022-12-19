@@ -45,7 +45,7 @@ pub mod conv {
     }
 
     pub fn radians_to_dxl_pos(rads: f64) -> i16 {
-        (4096.0 * (2.0 * PI / 2.0 + rads) / 2.0 * PI) as i16
+        (4096.0 * (PI + rads) / (2.0 * PI)) as i16
     }
 
     pub fn dxl_abs_speed_to_rad_per_sec(speed: u16) -> f64 {
