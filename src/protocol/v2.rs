@@ -26,8 +26,8 @@ impl Protocol<PacketV2> for V2 {
 
         let mut result = Vec::new();
 
-        for _ in 0..ids.len() {
-            let status_packet = self.read_status_packet(port, BROADCAST_RESPONSE_ID)?;
+        for &id in ids {
+            let status_packet = self.read_status_packet(port, id)?;
             result.push(status_packet.params().clone());
         }
 
@@ -200,7 +200,7 @@ impl StatusPacket<PacketV2> for StatusPacketV2 {
 
         let id = data[4];
         if id != sender_id {
-            return Err(Box::new(CommunicationErrorKind::ParsingError));
+            return Err(Box::new(CommunicationErrorKind::IncorrectId(id, sender_id)));
         }
 
         let payload_length = u16::from_le_bytes(data[5..7].try_into().unwrap()) as usize;
