@@ -80,3 +80,4 @@ macro_rules! reg_read_write {
 
 pub mod l0_force_fan;
 pub mod mx;
+pub mod xl320;
