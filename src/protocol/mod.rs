@@ -54,6 +54,8 @@ pub trait Protocol<P: Packet> {
         port: &mut dyn SerialPort,
         packet: &dyn InstructionPacket<P>,
     ) -> Result<()> {
+        log::debug!(">>> {:?}", packet.to_bytes());
+
         match port.write_all(&packet.to_bytes()) {
             Ok(_) => Ok(()),
             Err(_) => Err(Box::new(CommunicationErrorKind::TimeoutError)),
@@ -74,6 +76,8 @@ pub trait Protocol<P: Packet> {
         let mut data = Vec::new();
         data.extend(header);
         data.extend(payload);
+
+        log::debug!("<<< {:?}", data);
 
         P::status_packet(&data, sender_id)
     }
