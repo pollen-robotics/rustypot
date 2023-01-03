@@ -50,7 +50,7 @@ impl Packet for PacketV2 {
             return Err(Box::new(CommunicationErrorKind::ParsingError));
         }
 
-        let payload_size: [u8; 2] = header[5..6].try_into().unwrap();
+        let payload_size: [u8; 2] = header[5..7].try_into().unwrap();
         let payload_size = u16::from_le_bytes(payload_size);
 
         Ok(payload_size as usize)
