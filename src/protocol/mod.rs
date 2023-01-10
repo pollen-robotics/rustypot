@@ -69,7 +69,7 @@ pub trait Protocol<P: Packet> {
         let mut header = vec![0u8; P::HEADER_SIZE];
         port.read_exact(&mut header)?;
 
-        let payload_size = P::get_payload_size(&header).unwrap();
+        let payload_size = P::get_payload_size(&header)?;
         let mut payload = vec![0u8; payload_size];
         port.read_exact(&mut payload)?;
 
