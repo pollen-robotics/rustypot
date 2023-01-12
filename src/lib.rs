@@ -86,5 +86,13 @@ impl DynamixelSerialIO {
             Protocols::V1(p) => p.sync_write(serial_port, ids, addr, data),
             Protocols::V2(p) => p.sync_write(serial_port, ids, addr, data),
         }
+    pub fn flush(&self, serial_port: &mut dyn serialport::SerialPort) -> Result<()> {
+        log::debug!("Flushing serial port...");
+
+        let n = serial_port.bytes_to_read()? as usize;
+        let mut buff = vec![0u8; n];
+        serial_port.read_exact(&mut buff)?;
+
+        Ok(())
     }
 }
