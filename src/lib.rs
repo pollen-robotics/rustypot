@@ -34,7 +34,8 @@ impl DynamixelSerialIO {
         match &self.protocol {
             Protocols::V1(p) => p.ping(serial_port, id),
             Protocols::V2(p) => p.ping(serial_port, id),
-        }.map_err(|e| {
+        }
+        .map_err(|e| {
             let _ = self.flush(serial_port);
             e
         })
@@ -50,7 +51,8 @@ impl DynamixelSerialIO {
         match &self.protocol {
             Protocols::V1(p) => p.read(serial_port, id, addr, length),
             Protocols::V2(p) => p.read(serial_port, id, addr, length),
-        }.map_err(|e| {
+        }
+        .map_err(|e| {
             let _ = self.flush(serial_port);
             e
         })
@@ -66,7 +68,8 @@ impl DynamixelSerialIO {
         match &self.protocol {
             Protocols::V1(p) => p.write(serial_port, id, addr, data),
             Protocols::V2(p) => p.write(serial_port, id, addr, data),
-        }.map_err(|e| {
+        }
+        .map_err(|e| {
             let _ = self.flush(serial_port);
             e
         })
@@ -82,7 +85,8 @@ impl DynamixelSerialIO {
         match &self.protocol {
             Protocols::V1(p) => p.sync_read(serial_port, ids, addr, length),
             Protocols::V2(p) => p.sync_read(serial_port, ids, addr, length),
-        }.map_err(|e| {
+        }
+        .map_err(|e| {
             let _ = self.flush(serial_port);
             e
         })
@@ -98,7 +102,8 @@ impl DynamixelSerialIO {
         match &self.protocol {
             Protocols::V1(p) => p.sync_write(serial_port, ids, addr, data),
             Protocols::V2(p) => p.sync_write(serial_port, ids, addr, data),
-        }.map_err(|e| {
+        }
+        .map_err(|e| {
             let _ = self.flush(serial_port);
             e
         })
