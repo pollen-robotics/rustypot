@@ -1,4 +1,5 @@
 pub mod protocol;
+
 use protocol::{Protocol, V1, V2};
 
 mod packet;
@@ -85,6 +86,13 @@ impl DynamixelSerialIO {
         match &self.protocol {
             Protocols::V1(p) => p.sync_write(serial_port, ids, addr, data),
             Protocols::V2(p) => p.sync_write(serial_port, ids, addr, data),
+        }
+    }
+
+    pub fn flush(&self, serial_port: &mut dyn serialport::SerialPort) -> Result<()> {
+        match &self.protocol {
+            Protocols::V1(v) => v.flush(serial_port),
+            Protocols::V2(v) => v.flush(serial_port),
         }
     }
 }
