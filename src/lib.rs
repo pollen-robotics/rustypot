@@ -1,4 +1,3 @@
-pub mod protocol;
 
 use protocol::{Protocol, V1, V2};
 
@@ -7,9 +6,9 @@ use packet::Packet;
 
 pub mod device;
 
-pub type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
+type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
 
-pub enum Protocols {
+enum Protocols {
     V1(V1),
     V2(V2),
 }
@@ -86,13 +85,6 @@ impl DynamixelSerialIO {
         match &self.protocol {
             Protocols::V1(p) => p.sync_write(serial_port, ids, addr, data),
             Protocols::V2(p) => p.sync_write(serial_port, ids, addr, data),
-        }
-    }
-
-    pub fn flush(&self, serial_port: &mut dyn serialport::SerialPort) -> Result<()> {
-        match &self.protocol {
-            Protocols::V1(v) => v.flush(serial_port),
-            Protocols::V2(v) => v.flush(serial_port),
         }
     }
 }
