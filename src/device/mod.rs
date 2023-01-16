@@ -1,13 +1,17 @@
+//! High-level register access functions for a specific dynamixel device
+
 use paste::paste;
 use std::mem::size_of;
 
 use crate::{reg_read_only, reg_read_write, DynamixelSerialIO, Result};
 
+/// Generates read and sync_read functions for given register
 #[macro_export]
 macro_rules! reg_read_only {
     ($name:ident, $addr:expr, $reg_type:ty) => {
 
     paste! {
+        #[doc = concat!("Read register *", stringify!($name), "* (addr: ", stringify!($addr), ", type: ", stringify!($reg_type), ")")]
         pub fn [<read_ $name>](
             io: &DynamixelSerialIO,
             serial_port: &mut dyn serialport::SerialPort,
@@ -19,6 +23,7 @@ macro_rules! reg_read_only {
             Ok(val)
         }
 
+        #[doc = concat!("Sync read register *", stringify!($name), "* (addr: ", stringify!($addr), ", type: ", stringify!($reg_type), ")")]
         pub fn [<sync_read_ $name>](
             io: &DynamixelSerialIO,
             serial_port: &mut dyn serialport::SerialPort,
@@ -37,10 +42,12 @@ macro_rules! reg_read_only {
     }
 }
 
+/// Generates write and sync_write functions for given register
 #[macro_export]
 macro_rules! reg_write_only {
     ($name:ident, $addr:expr, $reg_type:ty) => {
         paste! {
+            #[doc = concat!("Write register *", stringify!($name), "* (addr: ", stringify!($addr), ", type: ", stringify!($reg_type), ")")]
             pub fn [<write_ $name>](
                 io: &DynamixelSerialIO,
                 serial_port: &mut dyn serialport::SerialPort,
@@ -50,6 +57,7 @@ macro_rules! reg_write_only {
                 io.write(serial_port, id, $addr, &val.to_le_bytes())
             }
 
+            #[doc = concat!("Sync write register *", stringify!($name), "* (addr: ", stringify!($addr), ", type: ", stringify!($reg_type), ")")]
             pub fn [<sync_write_ $name>](
                 io: &DynamixelSerialIO,
                 serial_port: &mut dyn serialport::SerialPort,
@@ -70,6 +78,7 @@ macro_rules! reg_write_only {
     };
 }
 
+/// Generates read, sync_read, write and sync_write functions for given register
 #[macro_export]
 macro_rules! reg_read_write {
     ($name:ident, $addr:expr, $reg_type:ty) => {

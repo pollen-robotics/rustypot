@@ -1,3 +1,7 @@
+//! XL-320 robotis register (protocol v2)
+//!
+//! See <https://emanual.robotis.com/docs/en/dxl/x/xl320/> for details.
+
 use crate::device::*;
 
 reg_read_only!(model_number, 0, u16);

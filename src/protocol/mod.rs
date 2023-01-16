@@ -109,11 +109,16 @@ pub trait Protocol<P: Packet> {
 
 use std::fmt;
 
+/// Dynamixel Communication Error
 #[derive(Debug, Clone, Copy)]
 pub enum CommunicationErrorKind {
+    /// Incorrect checksum
     ChecksumError,
+    /// Could not parse incoherent message
     ParsingError,
+    /// Timeout
     TimeoutError,
+    /// Incorrect response id - different from sender (sender id, response id)
     IncorrectId(u8, u8),
 }
 impl fmt::Display for CommunicationErrorKind {

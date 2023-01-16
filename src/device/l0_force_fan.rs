@@ -1,3 +1,9 @@
+//! Custom board for load and fan control that can be connected on a dynamixel bus
+//!
+//! Exposes:
+//!  * a force sensor value
+//!  * 3 fans which can be turned on/off
+
 use crate::device::*;
 
 reg_read_only!(model_number, 0, u16);
