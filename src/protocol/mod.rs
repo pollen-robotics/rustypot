@@ -54,6 +54,14 @@ pub trait Protocol<P: Packet> {
         port: &mut dyn SerialPort,
         packet: &dyn InstructionPacket<P>,
     ) -> Result<()> {
+        // Before we send an instruction
+        // The input buffer should always be empty
+        // (if not, it means that an old corrupted message need to be flushed)
+        if !self.is_input_buffer_empty(port)? {
+            self.flush(port)?;
+        }
+        assert!(self.is_input_buffer_empty(port)?);
+
         log::debug!(">>> {:?}", packet.to_bytes());
 
         match port.write_all(&packet.to_bytes()) {
@@ -81,15 +89,36 @@ pub trait Protocol<P: Packet> {
 
         P::status_packet(&data, sender_id)
     }
+
+    fn is_input_buffer_empty(&self, port: &mut dyn SerialPort) -> Result<bool> {
+        let n = port.bytes_to_read()? as usize;
+        Ok(n == 0)
+    }
+
+    fn flush(&self, port: &mut dyn SerialPort) -> Result<()> {
+        let n = port.bytes_to_read()? as usize;
+        if n > 0 {
+            log::info!("Needed to flush serial port ({} bytes)...", n);
+            let mut buff = vec![0u8; n];
+            port.read_exact(&mut buff)?;
+        }
+
+        Ok(())
+    }
 }
 
 use std::fmt;
 
+/// Dynamixel Communication Error
 #[derive(Debug, Clone, Copy)]
 pub enum CommunicationErrorKind {
+    /// Incorrect checksum
     ChecksumError,
+    /// Could not parse incoherent message
     ParsingError,
+    /// Timeout
     TimeoutError,
+    /// Incorrect response id - different from sender (sender id, response id)
     IncorrectId(u8, u8),
 }
 impl fmt::Display for CommunicationErrorKind {
