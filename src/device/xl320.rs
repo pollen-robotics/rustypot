@@ -37,6 +37,27 @@ reg_read_only!(moving, 49, u8);
 reg_read_only!(hardware_error_status, 50, u8);
 reg_read_write!(punch, 51, u16);
 
+// reg_read_only!(present_position_speed_load, 36, (i16, u16, u16))
+pub fn sync_read_present_position_speed_load(
+    io: &DynamixelSerialIO,
+    serial_port: &mut dyn serialport::SerialPort,
+    ids: &[u8],
+) -> Result<Vec<(i16, u16, u16)>> {
+    let val = io.sync_read(serial_port, ids, 37, 2 + 2 + 2)?;
+    let val = val
+        .iter()
+        .map(|v| {
+            (
+                i16::from_le_bytes(v[0..2].try_into().unwrap()),
+                u16::from_le_bytes(v[2..4].try_into().unwrap()),
+                u16::from_le_bytes(v[4..6].try_into().unwrap()),
+            )
+        })
+        .collect();
+
+    Ok(val)
+}
+
 pub mod conv {
     use std::f64::consts::PI;
 
