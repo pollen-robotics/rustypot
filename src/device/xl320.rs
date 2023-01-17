@@ -62,19 +62,17 @@ pub fn sync_read_present_position_speed_load(
 
 /// Unit conversion for XL-320 motors
 pub mod conv {
-    use std::f64::consts::PI;
-
     /// Dynamixel angular position to radians
     ///
     /// Works in joint and multi-turn mode
     pub fn xl320_pos_to_radians(pos: i16) -> f64 {
-        (300.0_f64.to_radians() * (pos as f64) / 1024.0) - PI
+        (300.0_f64.to_radians() * (pos as f64) / 1024.0) - 150.0_f64.to_radians()
     }
     /// Radians to dynamixel angular position
     ///
     /// Works in joint and multi-turn mode
     pub fn radians_to_xl320_pos(rads: f64) -> i16 {
-        (1024.0 * (PI + rads) / 300.0_f64.to_radians()) as i16
+        (1024.0 * (150.0_f64.to_radians() + rads) / 300.0_f64.to_radians()) as i16
     }
 
     /// Dynamixel absolute speed to radians per second
@@ -152,5 +150,55 @@ pub mod conv {
             true => load,
             false => load + 1024,
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::conv::*;
+
+    #[test]
+    fn position_conversions() {
+        assert_eq!(radians_to_xl320_pos(0.0), 512);
+        assert_eq!(radians_to_xl320_pos(-150.0_f64.to_radians()), 0);
+        assert_eq!(radians_to_xl320_pos(150.0_f64.to_radians()), 1024);
+
+        assert_eq!(xl320_pos_to_radians(0), -150.0_f64.to_radians());
+        assert_eq!(xl320_pos_to_radians(512), 0.0);
+        assert_eq!(xl320_pos_to_radians(1024), 150.0_f64.to_radians());
+    }
+
+    #[test]
+    fn abs_speed_conversions() {
+        assert_eq!(rad_per_sec_to_xl320_abs_speed(0.0), 0);
+        assert_eq!(rad_per_sec_to_xl320_abs_speed(0.5), 43);
+
+        assert_eq!(
+            rad_per_sec_to_xl320_abs_speed(xl320_abs_speed_to_rad_per_sec(66)),
+            66
+        );
+    }
+
+    #[test]
+    fn speed_conversions() {
+        assert_eq!(xl320_oriented_speed_to_rad_per_sec(99), -1.15076808);
+        assert_eq!(xl320_oriented_speed_to_rad_per_sec(2048 + 99), 1.15076808);
+
+        assert_eq!(
+            rad_per_sec_to_xl320_oriented_speed(xl320_oriented_speed_to_rad_per_sec(42)),
+            42
+        );
+    }
+
+    #[test]
+    fn load_conversions() {
+        assert_eq!(xl320_load_to_abs_torque(512), 50.0);
+        assert_eq!(xl320_load_to_oriented_torque(512), -50.0);
+        assert_eq!(xl320_load_to_oriented_torque(1024 + 512), 50.0);
+
+        assert_eq!(
+            xl320_load_to_oriented_torque(oriented_torque_to_xl320_load(25.0)),
+            25.0
+        );
     }
 }
