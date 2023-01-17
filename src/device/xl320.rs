@@ -37,7 +37,9 @@ reg_read_only!(moving, 49, u8);
 reg_read_only!(hardware_error_status, 50, u8);
 reg_read_write!(punch, 51, u16);
 
-// reg_read_only!(present_position_speed_load, 36, (i16, u16, u16))
+/// Sync read present_position, present_speed and present_load in one message
+///
+/// reg_read_only!(present_position_speed_load, 36, (i16, u16, u16))
 pub fn sync_read_present_position_speed_load(
     io: &DynamixelSerialIO,
     serial_port: &mut dyn serialport::SerialPort,
@@ -58,27 +60,40 @@ pub fn sync_read_present_position_speed_load(
     Ok(val)
 }
 
+/// Unit conversion for XL-320 motors
 pub mod conv {
     use std::f64::consts::PI;
 
+    /// Dynamixel angular position to radians
+    ///
+    /// Works in joint and multi-turn mode
     pub fn xl320_pos_to_radians(pos: i16) -> f64 {
         (300.0_f64.to_radians() * (pos as f64) / 1024.0) - PI
     }
-
+    /// Radians to dynamixel angular position
+    ///
+    /// Works in joint and multi-turn mode
     pub fn radians_to_xl320_pos(rads: f64) -> i16 {
         (1024.0 * (PI + rads) / 300.0_f64.to_radians()) as i16
     }
 
+    /// Dynamixel absolute speed to radians per second
+    ///
+    /// Works for moving_speed in joint mode for instance
     pub fn xl320_abs_speed_to_rad_per_sec(speed: u16) -> f64 {
         let rpm = speed as f64 * 0.111;
         rpm * 0.10472
     }
-
+    /// Radians per second to dynamixel absolute speed
+    ///
+    /// Works for moving_speed in joint mode for instance
     pub fn rad_per_sec_to_xl320_abs_speed(speed: f64) -> u16 {
         let rpm = speed / 0.10472;
         (rpm / 0.111) as u16
     }
-
+    /// Dynamixel speed to radians per second
+    ///
+    /// Works for present_speed for instance
     pub fn xl320_oriented_speed_to_rad_per_sec(speed: u16) -> f64 {
         let cw = (speed >> 11) == 1;
 
@@ -89,7 +104,9 @@ pub mod conv {
             false => -rad_per_sec,
         }
     }
-
+    /// Radians per second to dynamixel speed
+    ///
+    /// Works for present_speed for instance
     pub fn rad_per_sec_to_xl320_oriented_speed(speed: f64) -> u16 {
         let raw = rad_per_sec_to_xl320_abs_speed(speed.abs());
 
@@ -99,26 +116,24 @@ pub mod conv {
         }
     }
 
+    /// Dynamixel absolute load to torque percentage
+    ///
+    /// Works for torque_limit for instance
+    pub fn xl320_load_to_abs_torque(load: u16) -> f64 {
+        load as f64 / 1024.0 * 100.0
+    }
+    /// Torque percentage to dynamixel absolute load
+    ///
+    /// Works for torque_limit for instance
     pub fn torque_to_xl320_abs_load(torque: f64) -> u16 {
         assert!(torque >= 0.0);
         assert!(torque <= 100.0);
 
         (torque * 1024.0 / 100.0) as u16
     }
-
-    pub fn oriented_torque_to_xl320_load(torque: f64) -> u16 {
-        let load = torque_to_xl320_abs_load(torque.abs());
-
-        match torque < 0.0 {
-            true => load,
-            false => load + 1024,
-        }
-    }
-
-    pub fn xl320_load_to_abs_torque(load: u16) -> f64 {
-        load as f64 / 1024.0 * 100.0
-    }
-
+    /// Dynamixel load to torque percentage
+    ///
+    /// Works for present_torque for instance
     pub fn xl320_load_to_oriented_torque(load: u16) -> f64 {
         let cw = (load >> 10) == 1;
 
@@ -127,6 +142,15 @@ pub mod conv {
         match cw {
             true => torque,
             false => -torque,
+        }
+    }
+    /// Torque percentage to dynamixel load
+    pub fn oriented_torque_to_xl320_load(torque: f64) -> u16 {
+        let load = torque_to_xl320_abs_load(torque.abs());
+
+        match torque < 0.0 {
+            true => load,
+            false => load + 1024,
         }
     }
 }
