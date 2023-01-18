@@ -260,6 +260,15 @@ impl Protocol<PacketV1> for V1 {
                 .map(|slice| slice.to_vec())
                 .collect();
 
+            // In protocol v1, timeout are detected because all expected values are replaced by 255
+            let timeout: Vec<_> = result
+                .iter()
+                .filter(|r| r.iter().all(|&el| el == u8::MAX))
+                .collect();
+            if !timeout.is_empty() {
+                return Err(Box::new(CommunicationErrorKind::TimeoutError));
+            }
+
             Ok(result)
         }
     }
