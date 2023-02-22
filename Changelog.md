@@ -1,3 +1,7 @@
+## Version 0.3.0
+
+- Add support for orbita-foc device.
+
 ## Version 0.2.0
 
 - Add support for timeout in sync read v1
