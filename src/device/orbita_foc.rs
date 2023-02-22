@@ -88,9 +88,6 @@ reg_read_only!(imu_gyro_y, 135, f32);
 reg_read_only!(imu_gyro_z, 139, f32);
 reg_read_only!(imu_temperature, 143, f32);
 
-
-
-
 impl<T: PartialEq> PartialEq for DiskValue<T> {
     fn eq(&self, other: &Self) -> bool {
         self.top == other.top && self.middle == other.middle && self.bottom == other.bottom
