@@ -1,5 +1,8 @@
+//! Orbita Serial SimpleFOC register (protocol v1)
+
 use crate::device::*;
 
+/// Wrapper for a value per disk (top, middle, bottom)
 #[derive(Clone, Copy, Debug)]
 pub struct DiskValue<T> {
     pub top: T,
@@ -7,6 +10,7 @@ pub struct DiskValue<T> {
     pub bottom: T,
 }
 
+/// Wrapper for a 3D vector (x, y, z)
 #[derive(Clone, Copy, Debug)]
 pub struct Vec3d<T> {
     pub x: T,
@@ -14,12 +18,14 @@ pub struct Vec3d<T> {
     pub z: T,
 }
 
+/// Wrapper for a Position/Speed/Load value for each disk
 #[derive(Clone, Copy, Debug)]
 pub struct DiskPositionSpeedLoad {
     pub position: DiskValue<f32>,
     pub speed: DiskValue<f32>,
     pub load: DiskValue<f32>,
 }
+/// Wrapper for PID gains.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Pid {
     pub p: f32,
