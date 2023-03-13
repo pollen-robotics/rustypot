@@ -41,7 +41,7 @@ reg_write_only!(system_check, 8, u8);
 reg_read_only!(motors_drivers_states, 9, u8);
 
 reg_read_write!(voltage_limit, 10, f32);
-reg_read_write!(intensity_limit, 14, f32);
+// reg_read_write!(intensity_limit, 14, f32);
 
 reg_read_write!(velocity_pid, 18, Pid);
 reg_read_write!(velocity_p_gain, 18, f32);
@@ -56,7 +56,7 @@ reg_read_write!(angle_i_gain, 42, f32);
 reg_read_write!(angle_d_gain, 46, f32);
 reg_read_write!(angle_velocity_limit, 50, f32);
 
-reg_read_write!(temperature_limit, 54, f32);
+// reg_read_write!(temperature_limit, 54, f32);
 
 reg_read_write!(torque_enable, 58, u8);
 
@@ -65,34 +65,34 @@ reg_read_write!(top_goal_position, 59, f32);
 reg_read_write!(middle_goal_position, 63, f32);
 reg_read_write!(bottom_goal_position, 67, f32);
 
-reg_read_only!(present_position_speed_load, 71, DiskPositionSpeedLoad);
+// reg_read_only!(present_position_speed_load, 71, DiskPositionSpeedLoad);
 reg_read_only!(present_position, 71, DiskValue::<f32>);
 reg_read_only!(top_present_position, 71, f32);
 reg_read_only!(middle_present_position, 75, f32);
 reg_read_only!(bottom_present_position, 79, f32);
-reg_read_only!(present_speed, 83, DiskValue::<f32>);
-reg_read_only!(top_present_speed, 83, f32);
-reg_read_only!(middle_present_speed, 87, f32);
-reg_read_only!(bottom_present_speed, 91, f32);
-reg_read_only!(present_load, 95, DiskValue::<f32>);
-reg_read_only!(top_present_load, 95, f32);
-reg_read_only!(middle_present_load, 99, f32);
-reg_read_only!(bottom_present_load, 103, f32);
+// reg_read_only!(present_speed, 83, DiskValue::<f32>);
+// reg_read_only!(top_present_speed, 83, f32);
+// reg_read_only!(middle_present_speed, 87, f32);
+// reg_read_only!(bottom_present_speed, 91, f32);
+// reg_read_only!(present_load, 95, DiskValue::<f32>);
+// reg_read_only!(top_present_load, 95, f32);
+// reg_read_only!(middle_present_load, 99, f32);
+// reg_read_only!(bottom_present_load, 103, f32);
 
-reg_read_only!(present_temperature, 107, DiskValue::<f32>);
-reg_read_only!(top_present_temperature, 107, f32);
-reg_read_only!(middle_present_temperature, 111, f32);
-reg_read_only!(bottom_present_temperature, 115, f32);
+// reg_read_only!(present_temperature, 107, DiskValue::<f32>);
+// reg_read_only!(top_present_temperature, 107, f32);
+// reg_read_only!(middle_present_temperature, 111, f32);
+// reg_read_only!(bottom_present_temperature, 115, f32);
 
-reg_read_only!(imu_acc, 119, Vec3d::<f32>);
-reg_read_only!(imu_acc_x, 119, f32);
-reg_read_only!(imu_acc_y, 123, f32);
-reg_read_only!(imu_acc_z, 127, f32);
-reg_read_only!(imu_gyro, 131, Vec3d::<f32>);
-reg_read_only!(imu_gyro_x, 131, f32);
-reg_read_only!(imu_gyro_y, 135, f32);
-reg_read_only!(imu_gyro_z, 139, f32);
-reg_read_only!(imu_temperature, 143, f32);
+// reg_read_only!(imu_acc, 119, Vec3d::<f32>);
+// reg_read_only!(imu_acc_x, 119, f32);
+// reg_read_only!(imu_acc_y, 123, f32);
+// reg_read_only!(imu_acc_z, 127, f32);
+// reg_read_only!(imu_gyro, 131, Vec3d::<f32>);
+// reg_read_only!(imu_gyro_x, 131, f32);
+// reg_read_only!(imu_gyro_y, 135, f32);
+// reg_read_only!(imu_gyro_z, 139, f32);
+// reg_read_only!(imu_temperature, 143, f32);
 
 impl<T: PartialEq> PartialEq for DiskValue<T> {
     fn eq(&self, other: &Self) -> bool {
