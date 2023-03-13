@@ -15,8 +15,8 @@ jobs:
 
     - name: Deps
       run: |
-      sudo apt-get update
-      sudo apt install -y libudev-dev
+        sudo apt-get update
+        sudo apt install -y libudev-dev
 
     - name: Build
       run: cargo build --verbose
