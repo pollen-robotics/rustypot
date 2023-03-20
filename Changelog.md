@@ -1,3 +1,7 @@
+### Version 0.3.1
+
+- Patch torque limit conversion.
+
 ## Version 0.3.0
 
 - Add support for orbita-foc device.
