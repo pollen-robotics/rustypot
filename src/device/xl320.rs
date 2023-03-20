@@ -118,7 +118,7 @@ pub mod conv {
     ///
     /// Works for torque_limit for instance
     pub fn xl320_load_to_abs_torque(load: u16) -> f64 {
-        load as f64 / 1024.0 * 100.0
+        load as f64 / 1023.0 * 100.0
     }
     /// Torque percentage to dynamixel absolute load
     ///
@@ -127,7 +127,7 @@ pub mod conv {
         assert!(torque >= 0.0);
         assert!(torque <= 100.0);
 
-        (torque * 1024.0 / 100.0) as u16
+        (torque * 1023.0 / 100.0) as u16
     }
     /// Dynamixel load to torque percentage
     ///
@@ -191,14 +191,24 @@ mod tests {
     }
 
     #[test]
-    fn load_conversions() {
-        assert_eq!(xl320_load_to_abs_torque(512), 50.0);
-        assert_eq!(xl320_load_to_oriented_torque(512), -50.0);
-        assert_eq!(xl320_load_to_oriented_torque(1024 + 512), 50.0);
+    fn torque_conversions() {
+        assert_eq!(torque_to_xl320_abs_load(0.0), 0);
+        assert_eq!(torque_to_xl320_abs_load(50.0), 511);
+        assert_eq!(torque_to_xl320_abs_load(100.0), 1023);
 
-        assert_eq!(
-            xl320_load_to_oriented_torque(oriented_torque_to_xl320_load(25.0)),
-            25.0
+        assert_eq!(xl320_load_to_abs_torque(0), 0.0);
+        assert!((xl320_load_to_abs_torque(511) - 50.0).abs() < 1e-1);
+        assert_eq!(xl320_load_to_abs_torque(1023), 100.0);
+    }
+
+    #[test]
+    fn load_conversions() {
+        assert!((xl320_load_to_abs_torque(511) - 50.0).abs() < 1e-1);
+        assert!((xl320_load_to_oriented_torque(1024 + 511) - 50.0).abs() < 1e-1);
+
+        assert!(
+            (xl320_load_to_oriented_torque(oriented_torque_to_xl320_load(25.0)) - 25.0).abs()
+                < 1e-1
         );
     }
 }
