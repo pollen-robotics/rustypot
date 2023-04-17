@@ -94,27 +94,25 @@ reg_read_only!(imu_gyro_x, 131, f32);
 reg_read_only!(imu_gyro_y, 135, f32);
 reg_read_only!(imu_gyro_z, 139, f32);
 reg_read_only!(imu_temperature, 143, f32);
-/*
+
 impl<T: PartialEq> PartialEq for DiskValue<T> {
     fn eq(&self, other: &Self) -> bool {
-        self.top == other.top && self.middle == other.middle && self.bottom == other.bottom
+        self.a == other.a && self.b == other.b
     }
 }
 
 impl DiskValue<f32> {
-    pub fn from_le_bytes(bytes: [u8; 12]) -> Self {
+    pub fn from_le_bytes(bytes: [u8; 8]) -> Self {
         DiskValue {
-            top: f32::from_le_bytes(bytes[0..4].try_into().unwrap()),
-            middle: f32::from_le_bytes(bytes[4..8].try_into().unwrap()),
-            bottom: f32::from_le_bytes(bytes[8..12].try_into().unwrap()),
+            a: f32::from_le_bytes(bytes[0..4].try_into().unwrap()),
+            b: f32::from_le_bytes(bytes[4..8].try_into().unwrap()),
         }
     }
-    pub fn to_le_bytes(&self) -> [u8; 12] {
+    pub fn to_le_bytes(&self) -> [u8; 8] {
         let mut bytes = Vec::new();
 
-        bytes.extend_from_slice(&self.top.to_le_bytes());
-        bytes.extend_from_slice(&self.middle.to_le_bytes());
-        bytes.extend_from_slice(&self.bottom.to_le_bytes());
+        bytes.extend_from_slice(&self.a.to_le_bytes());
+        bytes.extend_from_slice(&self.b.to_le_bytes());
 
         bytes.try_into().unwrap()
     }
@@ -124,7 +122,7 @@ impl<T: PartialEq> PartialEq for Vec3d<T> {
     fn eq(&self, other: &Self) -> bool {
         self.x == other.x && self.y == other.y && self.z == other.z
     }
-}*/
+}
 
 impl Vec3d<f32> {
     pub fn from_le_bytes(bytes: [u8; 12]) -> Self {

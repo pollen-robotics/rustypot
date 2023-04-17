@@ -25,6 +25,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     println!("firmware_version: {:#04x}", reg);
     let reg = orbita2dof_foc::read_id(&io, serial_port_motor_a.as_mut(), id_motor_a)?;
     println!("id: {:?}", reg);
+    let reg = orbita2dof_foc::write_voltage_limit(&io, serial_port_motor_a.as_mut(), id_motor_a, 5.0)?;
     let reg = orbita2dof_foc::read_voltage_limit(&io, serial_port_motor_a.as_mut(), id_motor_a)?;
     println!("voltage_limit: {:?}", reg);
     
@@ -58,6 +59,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     println!("firmware_version: {:#04x}", reg);
     let reg = orbita2dof_foc::read_id(&io, serial_port_motor_b.as_mut(), id_motor_b)?;
     println!("id: {:?}", reg);
+    let reg = orbita2dof_foc::write_voltage_limit(&io, serial_port_motor_b.as_mut(), id_motor_b, 1.1)?;
     let reg = orbita2dof_foc::read_voltage_limit(&io, serial_port_motor_b.as_mut(), id_motor_b)?;
     println!("voltage_limit: {:?}", reg);
     
@@ -83,36 +85,12 @@ fn main() -> Result<(), Box<dyn Error>> {
         print!("A[t: {:?} - a: {:?}]", w_pos, r_pos);*/
         let w_pos = orbita2dof_foc::read_motor_a_goal_position(&io, serial_port_motor_b.as_mut(), id_motor_b)?;
         let r_pos = orbita2dof_foc::read_motor_a_present_position(&io, serial_port_motor_b.as_mut(), id_motor_b)?;
-        print!(" - B[t: {:?} - a: {:?}]", w_pos, r_pos);
+        let v_lim = orbita2dof_foc::read_voltage_limit(&io, serial_port_motor_a.as_mut(), id_motor_a)?;
+        print!("B[t: {:?} - a: {:?} - v_lim: {:?}]", w_pos, r_pos, v_lim);
         
         println!("");
         thread::sleep(Duration::from_millis(10));
     }
-        
- /*       
-//        orbita_foc::write_system_check(&io, serial_port_motor_a.as_mut(), id, 0b00000001)?;
-
-        let pos = orbita_foc::read_present_position(&io, serial_port_motor_a.as_mut(), id)?;
-        println!("{:?}", pos);
-
-    loop {
-        let t = now.elapsed().unwrap().as_secs_f32();
-        let target = 4.267_f32*180.0_f32.to_radians() * (2.0 * PI * 0.1 * t).sin();
-        orbita_foc::write_top_goal_position(&io, serial_port_motor_a.as_mut(), id, target)?;
-        // println!("{}", t);
-
-        orbita_foc::write_goal_position(
-            &io,
-            serial_port_motor_a.as_mut(),
-            id,
-            DiskValue {
-                top:    pos.top + target,
-                middle: pos.middle + target,
-                bottom: pos.bottom + target,
-            },
-        )?;
-
-        thread::sleep(Duration::from_millis(10));
-    }*/
 }
+
 
