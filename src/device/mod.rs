@@ -88,6 +88,7 @@ macro_rules! reg_read_write {
 }
 
 pub mod l0_force_fan;
+pub mod gripper_pressure;
 pub mod mx;
 pub mod orbita_foc;
 pub mod xl320;
