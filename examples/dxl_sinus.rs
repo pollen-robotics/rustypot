@@ -81,5 +81,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         thread::sleep(Duration::from_millis(10));
     }
     // mx::write_torque_enable(&io, serial_port.as_mut(), id, false)?;
+    mx::write_torque_enable(&io, serial_port.as_mut(), id, 0)?;
+
     Ok(())
 }
