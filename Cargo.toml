@@ -1,6 +1,6 @@
 [package]
 name = "rustypot"
-version = "0.3.1"
+version = "0.3.0"
 edition = "2021"
 license = "Apache-2.0"
 authors = ["Pollen Robotics"]
@@ -19,6 +19,7 @@ log = "0.4.17"
 paste = "1.0.10"
 serialport = "4.2.0"
 clap = { version = "4.0.32", features = ["derive"] }
+signal-hook = "0.3.4"
 
 [dev-dependencies]
 env_logger = "0.10.0"
