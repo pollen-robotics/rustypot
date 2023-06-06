@@ -94,6 +94,14 @@ reg_read_only!(bottom_present_position, 79, f32);
 // reg_read_only!(imu_gyro_z, 139, f32);
 // reg_read_only!(imu_temperature, 143, f32);
 
+// add read only registers for current sensing
+reg_read_only!(top_current_a, 147, f32);
+reg_read_only!(top_current_b, 151, f32);
+reg_read_only!(mid_current_a, 159, f32);
+reg_read_only!(mid_current_b, 163, f32);
+reg_read_only!(bot_current_a, 171, f32);
+reg_read_only!(bot_current_b, 175, f32);
+
 impl<T: PartialEq> PartialEq for DiskValue<T> {
     fn eq(&self, other: &Self) -> bool {
         self.top == other.top && self.middle == other.middle && self.bottom == other.bottom
