@@ -65,8 +65,8 @@ reg_read_write!(pitch_goal_position, 63, f32);
 
 //reg_read_only!(present_position_speed_load, 67, DiskPositionSpeedLoad);
 //reg_read_only!(present_position, 67, DiskValue::<f32>);
-reg_read_only!(roll_present_position, 67, f32);
-reg_read_only!(pitch_present_position, 71, f32);
+reg_read_only!(sensor_ring_present_position, 67, f32);
+reg_read_only!(sensor_center_present_position, 71, f32);
 
 //reg_read_only!(motors_goal_position, 75, DiskValue::<f32>);
 reg_read_write!(motor_a_goal_position, 75, f32);
