@@ -33,9 +33,9 @@ fn main() -> Result<(), Box<dyn Error>> {
         .timeout(Duration::from_millis(100))
         .open()?;
 
-    // let mut serial_port_right_wrist = serialport::new("/dev/right_wrist", 1_000_000)
-    //     .timeout(Duration::from_millis(100))
-    //     .open()?;
+    let mut serial_port_right_wrist = serialport::new("/dev/right_wrist", 1_000_000)
+        .timeout(Duration::from_millis(100))
+        .open()?;
 
     let now = SystemTime::now();
 
@@ -69,8 +69,8 @@ fn main() -> Result<(), Box<dyn Error>> {
     );
     println!("Ping (id_right_elbow_motor_b): {:?}", x);
 
-    // let x = io.ping(serial_port_right_wrist.as_mut(), id_right_wrist);
-    // println!("Ping (id_right_wrist): {:?}", x);
+    let x = io.ping(serial_port_right_wrist.as_mut(), id_right_wrist);
+    println!("Ping (id_right_wrist): {:?}", x);
 
     // Set power
     let _reg = orbita2dof_foc::write_voltage_limit(
@@ -192,6 +192,8 @@ fn main() -> Result<(), Box<dyn Error>> {
         println!(":-(");
     }
 
+    orbita_foc::write_torque_enable(&io, serial_port_right_wrist.as_mut(), id_right_wrist, 0x01)?;
+
     // let _reg = orbita2dof_foc::write_torque_enable(&io, serial_port_right_wrist.as_mut(), id_right_wrist, 0x01)?;
     // let reg = orbita2dof_foc::read_torque_enable(&io, serial_port_right_wrist.as_mut(), id_right_wrist)?;
     // if reg == 0x01 {
@@ -231,17 +233,22 @@ fn main() -> Result<(), Box<dyn Error>> {
         )?;
 
         let target_wrist = 60.0_f32.to_radians() * (2.0 * PI * 0.5 * t).sin();
+        let disks = orbita_foc::read_present_position(
+            &io,
+            serial_port_right_wrist.as_mut(),
+            id_right_wrist,
+        )?;
 
-        /*        orbita_foc::write_goal_position(
+        orbita_foc::write_goal_position(
             &io,
             serial_port_right_wrist.as_mut(),
             id_right_wrist,
             DiskValue {
-                top:    target_wrist,
-                middle: target_wrist,
-                bottom: target_wrist,
+                top: disks.top + target_wrist,
+                middle: disks.middle + target_wrist,
+                bottom: disks.bottom + target_wrist,
             },
-        )?;*/
+        )?;
 
         if display_counter == 0 {
             let shoulder_ring_pos = orbita2dof_foc::read_sensor_ring_present_position(
