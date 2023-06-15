@@ -60,10 +60,8 @@ reg_read_write!(temperature_limit, 54, f32);
 reg_read_write!(torque_enable, 58, u8);
 
 //reg_read_write!(goal_position, 59, DiskValue::<f32>);
-reg_read_write!(roll_goal_position, 59, f32);
-reg_read_write!(pitch_goal_position, 63, f32);
-
-//reg_read_only!(present_position_speed_load, 67, DiskPositionSpeedLoad);
+reg_read_write!(ring_sensor_goal_position, 59, f32);
+reg_read_write!(center_sensor_goal_position, 63, f32);
 //reg_read_only!(present_position, 67, DiskValue::<f32>);
 reg_read_only!(sensor_ring_present_position, 67, f32);
 reg_read_only!(sensor_center_present_position, 71, f32);
@@ -94,6 +92,11 @@ reg_read_only!(imu_gyro_x, 131, f32);
 reg_read_only!(imu_gyro_y, 135, f32);
 reg_read_only!(imu_gyro_z, 139, f32);
 reg_read_only!(imu_temperature, 143, f32);
+
+reg_read_only!(motor_a_current_phase_u, 143, f32);
+reg_read_only!(motor_a_current_phase_v, 147, f32);
+reg_read_only!(motor_a_current_phase_w, 151, f32);
+reg_read_only!(motor_a_dc_current, 155, f32);
 
 impl<T: PartialEq> PartialEq for DiskValue<T> {
     fn eq(&self, other: &Self) -> bool {
