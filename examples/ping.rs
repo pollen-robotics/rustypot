@@ -33,7 +33,7 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     for id in 1..254 {
         let x = io.ping(serial_port.as_mut(), id);
-        println!("{id} {:?}", x);
+        println!("{id:>4} {:?}", x);
         thread::sleep(Duration::from_millis(5));
         // match x {
         //     Ok(v) => {
