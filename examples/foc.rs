@@ -7,12 +7,15 @@ use rustypot::DynamixelSerialIO;
 
 fn main() -> Result<(), Box<dyn Error>> {
     let mut serial_port = serialport::new("/dev/ttyUSB0", 1_000_000)
-        .timeout(Duration::from_millis(20))
+        .timeout(Duration::from_millis(100))
         .open()?;
 
     let io = DynamixelSerialIO::v1();
 
-    let id = 42;
+    let id = 70;
+    orbita_foc::write_torque_enable(&io, serial_port.as_mut(), id, 0)?;
+
+    thread::sleep(Duration::from_millis(100));
 
     let now = SystemTime::now();
     // let x = io.ping(serial_port.as_mut(), id);
