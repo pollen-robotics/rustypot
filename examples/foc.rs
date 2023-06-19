@@ -13,7 +13,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     let io = DynamixelSerialIO::v1();
 
     let id = 70;
-    orbita_foc::write_torque_enable(&io, serial_port.as_mut(), id, 0);
+    orbita_foc::write_torque_enable(&io, serial_port.as_mut(), id, 0)?;
 
     thread::sleep(Duration::from_millis(100));
 
