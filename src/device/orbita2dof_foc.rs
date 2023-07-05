@@ -2,6 +2,13 @@
 
 use crate::device::*;
 
+/// Wrapper for a value per motor (A and B)
+#[derive(Clone, Copy, Debug)]
+pub struct MotorValue<T> {
+    pub a: T,
+    pub b: T,
+}
+
 /// Wrapper for a 3D vector (x, y, z)
 #[derive(Clone, Copy, Debug)]
 pub struct Vec3d<T> {
@@ -10,6 +17,13 @@ pub struct Vec3d<T> {
     pub z: T,
 }
 
+/// Wrapper for a Position/Speed/Load value for each motor
+#[derive(Clone, Copy, Debug)]
+pub struct MotorPositionSpeedLoad {
+    pub position: MotorValue<f32>,
+    pub speed: MotorValue<f32>,
+    pub load: MotorValue<f32>,
+}
 /// Wrapper for PID gains.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Pid {
@@ -47,15 +61,19 @@ reg_read_write!(torque_enable, 58, u8);
 
 reg_read_write!(ring_sensor_goal_position, 59, f32);
 reg_read_write!(center_sensor_goal_position, 63, f32);
+
 reg_read_only!(sensor_ring_present_position, 67, f32);
 reg_read_only!(sensor_center_present_position, 71, f32);
 
 reg_read_write!(motor_a_goal_position, 75, f32);
 reg_read_write!(motor_b_goal_position, 79, f32);
+
 reg_read_only!(motor_a_present_position, 83, f32);
 reg_read_only!(motor_b_present_position, 87, f32);
+
 reg_read_only!(motor_a_present_velocity, 91, f32);
 reg_read_only!(motor_b_present_velocity, 95, f32);
+
 reg_read_only!(motor_a_present_load, 99, f32);
 reg_read_only!(motor_b_present_load, 103, f32);
 
@@ -76,6 +94,33 @@ reg_read_only!(motor_a_current_phase_u, 143, f32);
 reg_read_only!(motor_a_current_phase_v, 147, f32);
 reg_read_only!(motor_a_current_phase_w, 151, f32);
 reg_read_only!(motor_a_dc_current, 155, f32);
+
+reg_read_write!(debug_float_1, 159, f32);
+reg_read_write!(debug_float_2, 163, f32);
+reg_read_write!(debug_float_3, 167, f32);
+
+impl<T: PartialEq> PartialEq for MotorValue<T> {
+    fn eq(&self, other: &Self) -> bool {
+        self.a == other.a && self.b == other.b
+    }
+}
+
+impl MotorValue<f32> {
+    pub fn from_le_bytes(bytes: [u8; 8]) -> Self {
+        MotorValue {
+            a: f32::from_le_bytes(bytes[0..4].try_into().unwrap()),
+            b: f32::from_le_bytes(bytes[4..8].try_into().unwrap()),
+        }
+    }
+    pub fn to_le_bytes(&self) -> [u8; 8] {
+        let mut bytes = Vec::new();
+
+        bytes.extend_from_slice(&self.a.to_le_bytes());
+        bytes.extend_from_slice(&self.b.to_le_bytes());
+
+        bytes.try_into().unwrap()
+    }
+}
 
 impl<T: PartialEq> PartialEq for Vec3d<T> {
     fn eq(&self, other: &Self) -> bool {
