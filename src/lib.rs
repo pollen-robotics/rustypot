@@ -38,11 +38,13 @@ pub mod device;
 
 type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
 
+#[derive(Debug)]
 enum Protocols {
     V1(V1),
     V2(V2),
 }
 
+#[derive(Debug)]
 /// Raw dynamixel communication messages controller (protocol v1 or v2)
 pub struct DynamixelSerialIO {
     protocol: Protocols,
