@@ -5,6 +5,7 @@ use crate::{
 
 use super::{CommunicationErrorKind, Protocol};
 
+#[derive(Debug)]
 pub struct V2;
 impl Protocol<PacketV2> for V2 {
     fn new() -> Self
@@ -35,6 +36,7 @@ impl Protocol<PacketV2> for V2 {
     }
 }
 
+#[derive(Debug)]
 pub struct PacketV2;
 impl Packet for PacketV2 {
     const HEADER_SIZE: usize = 7;
@@ -132,6 +134,7 @@ impl Packet for PacketV2 {
     }
 }
 
+#[derive(Debug)]
 struct InstructionPacketV2 {
     id: u8,
     instruction: InstructionKindV2,
@@ -169,6 +172,7 @@ impl InstructionPacket<PacketV2> for InstructionPacketV2 {
     }
 }
 
+#[derive(Debug)]
 struct StatusPacketV2 {
     id: u8,
     errors: Vec<DynamixelErrorV2>,
