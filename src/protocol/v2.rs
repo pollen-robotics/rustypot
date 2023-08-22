@@ -271,7 +271,6 @@ pub enum DynamixelErrorV2 {
 impl DynamixelErrorV2 {
     fn from_byte(error: u8) -> Vec<Self> {
         (1..7)
-            .into_iter()
             .filter(|i| error & (1 << i) != 0)
             .map(|i| DynamixelErrorV2::from_bit(i).unwrap())
             .collect()
@@ -389,7 +388,7 @@ mod tests {
         let p = PacketV2::sync_write_packet(
             &[1, 2],
             116,
-            &vec![
+            &[
                 150_u32.to_le_bytes().to_vec(),
                 170_u32.to_le_bytes().to_vec(),
             ],
