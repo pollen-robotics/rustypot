@@ -8,6 +8,7 @@ use super::{CommunicationErrorKind, Packet};
 const BROADCAST_ID: u8 = 254;
 const BROADCAST_RESPONSE_ID: u8 = 253;
 
+#[derive(Debug)]
 pub struct PacketV1;
 impl Packet for PacketV1 {
     const HEADER_SIZE: usize = 4;
@@ -94,6 +95,7 @@ impl Packet for PacketV1 {
     }
 }
 
+#[derive(Debug)]
 struct InstructionPacketV1 {
     id: u8,
     instruction: InstructionKindV1,
@@ -126,6 +128,7 @@ impl InstructionPacket<PacketV1> for InstructionPacketV1 {
     }
 }
 
+#[derive(Debug)]
 struct StatusPacketV1 {
     id: u8,
     #[allow(dead_code)]
@@ -235,6 +238,7 @@ impl InstructionKindV1 {
     }
 }
 
+#[derive(Debug)]
 pub struct V1;
 impl Protocol<PacketV1> for V1 {
     fn new() -> Self {
