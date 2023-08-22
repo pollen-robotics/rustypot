@@ -195,7 +195,6 @@ pub enum DynamixelErrorV1 {
 impl DynamixelErrorV1 {
     fn from_byte(error: u8) -> Vec<Self> {
         (0..7)
-            .into_iter()
             .filter(|i| error & (1 << i) != 0)
             .map(|i| DynamixelErrorV1::from_bit(i).unwrap())
             .collect()
@@ -302,11 +301,11 @@ mod tests {
 
     #[test]
     fn create_write_packet() {
-        let p = PacketV1::write_packet(10, 24, &vec![1]);
+        let p = PacketV1::write_packet(10, 24, &[1]);
         let bytes = p.to_bytes();
         assert_eq!(bytes, [255, 255, 10, 4, 3, 24, 1, 213]);
 
-        let p = PacketV1::write_packet(0xFE, 0x03, &vec![1]);
+        let p = PacketV1::write_packet(0xFE, 0x03, &[1]);
         let bytes = p.to_bytes();
         assert_eq!(bytes, [0xFF, 0xFF, 0xFE, 0x04, 0x03, 0x03, 0x01, 0xF6]);
     }
@@ -323,7 +322,7 @@ mod tests {
 
     #[test]
     fn create_sync_write_packet() {
-        let p = PacketV1::sync_write_packet(&[11, 12], 30, &vec![vec![0x0, 0x0], vec![0xA, 0x14]]);
+        let p = PacketV1::sync_write_packet(&[11, 12], 30, &[vec![0x0, 0x0], vec![0xA, 0x14]]);
         let bytes = p.to_bytes();
         assert_eq!(
             bytes,

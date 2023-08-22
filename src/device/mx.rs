@@ -135,7 +135,7 @@ pub mod conv {
     ///
     /// Works for torque_limit for instance
     pub fn torque_to_dxl_abs_load(torque: f64) -> u16 {
-        assert!(torque >= 0.0 && torque <= 100.0);
+        assert!((0.0..=100.0).contains(&torque));
 
         (torque * 1023.0 / 100.0) as u16
     }
