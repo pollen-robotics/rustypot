@@ -2,7 +2,7 @@ use std::f32::consts::PI;
 use std::time::SystemTime;
 use std::{error::Error, thread, time::Duration, time::Instant};
 
-use rustypot::device::poulpe3d::{self, MotorValue};
+use rustypot::device::orbita3d_poulpe::{self, MotorValue};
 use rustypot::DynamixelSerialIO;
 
 use clap::Parser;
@@ -11,14 +11,14 @@ use clap::Parser;
 #[command(author, version, about, long_about = None)]
 struct Args {
     /// tty
-    #[arg(short, long)]
+    #[arg(short, long, default_value = "/dev/ttyUSB0")]
     serialport: String,
     /// baud
-    #[arg(short, long, default_value_t = 1_000_000)]
+    #[arg(short, long, default_value_t = 2_000_000)]
     baudrate: u32,
 
     /// id
-    #[arg(short, long)]
+    #[arg(short, long, default_value_t = 42)]
     id: u8,
 
     ///sinus amplitude (f64)
@@ -30,7 +30,7 @@ struct Args {
     frequency: f32,
 }
 
-const MOTOR_A: u8 = 42;
+
 
 fn main() -> Result<(), Box<dyn Error>> {
     let args = Args::parse();
@@ -61,11 +61,15 @@ fn main() -> Result<(), Box<dyn Error>> {
     let x = io.ping(serial_port.as_mut(), id);
     println!("Ping : {:?}", x);
 
-    let _ = poulpe3d::write_torque_enable(&io, serial_port.as_mut(), id, MotorValue::<bool>{top:true, middle:true, bottom:true})?;
+    let _ = orbita3d_poulpe::write_torque_enable(&io, serial_port.as_mut(), id, MotorValue::<bool>{top:true, middle:true, bottom:true})?;
     thread::sleep(Duration::from_millis(1000));
-    let torque = poulpe3d::read_torque_enable(&io, serial_port.as_mut(), id)?;
+    let torque = orbita3d_poulpe::read_torque_enable(&io, serial_port.as_mut(), id)?;
     println!("torque: {:?}", torque);
     thread::sleep(Duration::from_millis(1000));
+
+
+    let curr_pos= orbita3d_poulpe::read_current_position(&io, serial_port.as_mut(), id)?;
+
 
     let mut t = now.elapsed().unwrap().as_secs_f32();
     loop {
@@ -81,7 +85,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         t = now.elapsed().unwrap().as_secs_f32();
         let target = amplitude * 180.0_f32.to_radians() * (2.0 * PI * 0.5 * t).sin();
 
-        let feedback = poulpe3d::write_target_position(&io, serial_port.as_mut(), id, MotorValue::<f32>{top:target, middle:target, bottom:target})?;
+        let feedback = orbita3d_poulpe::write_target_position(&io, serial_port.as_mut(), id, MotorValue::<f32>{top:target+curr_pos.top, middle:target+curr_pos.middle, bottom:target+curr_pos.bottom})?;
 
 
         println!("target: {} feedback pos: {} {} {} feedback vel: {} {} {} feedback torque: {} {} {} ", target, feedback.position.top,feedback.position.middle,feedback.position.bottom,feedback.speed.top,feedback.speed.middle,feedback.speed.bottom,feedback.load.top,feedback.load.middle,feedback.load.bottom);
@@ -91,14 +95,8 @@ fn main() -> Result<(), Box<dyn Error>> {
         thread::sleep(Duration::from_millis(1));
     }
 
-    // orbita2dof_foc::write_torque_enable(&io, serial_port.as_mut(), id, 0x00)?;
-    // let reg = orbita2dof_foc::read_torque_enable(&io, serial_port.as_mut(), id)?;
-    // if reg == 0x01 {
-    //     println!("Motor on");
-    // } else {
-    //     println!("Motor off");
-    // }
-    let _ = poulpe3d::write_torque_enable(&io, serial_port.as_mut(), id, MotorValue::<bool>{top:false, middle:false, bottom:false})?;
+
+    let _ = orbita3d_poulpe::write_torque_enable(&io, serial_port.as_mut(), id, MotorValue::<bool>{top:false, middle:false, bottom:false})?;
 
 
     thread::sleep(Duration::from_millis(2000));

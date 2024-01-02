@@ -1,4 +1,4 @@
-//! Orbita 2DoF Serial SimpleFOC register (protocol v1)
+//! Orbita 3Dof Poulpe version
 
 use crate::device::*;
 

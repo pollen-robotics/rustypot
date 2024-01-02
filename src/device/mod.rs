@@ -141,4 +141,4 @@ pub mod orbita2dof_foc;
 pub mod orbita_foc;
 
 pub mod xl320;
-pub mod poulpe3d;
+pub mod orbita3d_poulpe;
