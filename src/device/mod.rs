@@ -78,6 +78,45 @@ macro_rules! reg_write_only {
     };
 }
 
+/// Generates write and sync_write functions with feedback for given register
+#[macro_export]
+macro_rules! reg_write_only_fb {
+    ($name:ident, $addr:expr, $reg_type:ty, $fb_type: ty) => {
+        paste! {
+            #[doc = concat!("Write register with fb *", stringify!($name), "* (addr: ", stringify!($addr), ", type: ", stringify!($reg_type), ")")]
+            pub fn [<write_ $name>](
+                io: &DynamixelSerialIO,
+                serial_port: &mut dyn serialport::SerialPort,
+                id: u8,
+                val: $reg_type,
+            ) -> Result<$fb_type> {
+                let fb=io.write_fb(serial_port, id, $addr, &val.to_le_bytes())?;
+		let fb = $fb_type::from_le_bytes(fb.try_into().unwrap());
+		Ok(fb)
+            }
+
+            #[doc = concat!("Sync write register *", stringify!($name), "* (addr: ", stringify!($addr), ", type: ", stringify!($reg_type), ")")]
+            pub fn [<sync_write_ $name>](
+                io: &DynamixelSerialIO,
+                serial_port: &mut dyn serialport::SerialPort,
+                ids: &[u8],
+                values: &[$reg_type],
+            ) -> Result<()> {
+                io.sync_write(
+                    serial_port,
+                    ids,
+                    $addr,
+                    &values
+                        .iter()
+                        .map(|v| v.to_le_bytes().to_vec())
+                        .collect::<Vec<Vec<u8>>>(),
+                )
+            }
+        }
+    };
+}
+
+
 /// Generates read, sync_read, write and sync_write functions for given register
 #[macro_export]
 macro_rules! reg_read_write {
@@ -87,10 +126,20 @@ macro_rules! reg_read_write {
     };
 }
 
+#[macro_export]
+macro_rules! reg_read_write_fb {
+    ($name:ident, $addr:expr, $reg_type:ty, $fb_type: ty) => {
+        reg_read_only!($name, $addr, $reg_type);
+        reg_write_only_fb!($name, $addr, $reg_type, $fb_type);
+    };
+}
+
+
 pub mod l0_force_fan;
 pub mod mx;
 pub mod orbita2d_poulpe;
 pub mod orbita2dof_foc;
-pub mod orbita3d_poulpe;
 pub mod orbita_foc;
+
 pub mod xl320;
+pub mod orbita3d_poulpe;

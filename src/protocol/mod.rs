@@ -31,6 +31,12 @@ pub trait Protocol<P: Packet> {
         self.send_instruction_packet(port, P::write_packet(id, addr, data).as_ref())?;
         self.read_status_packet(port, id).map(|_| ())
     }
+
+    fn write_fb(&self, port: &mut dyn SerialPort, id: u8, addr: u8, data: &[u8]) -> Result<Vec<u8>> {
+        self.send_instruction_packet(port, P::write_packet(id, addr, data).as_ref())?;
+        self.read_status_packet(port, id).map(|sp| sp.params().to_vec())
+    }
+
     fn sync_read(
         &self,
         port: &mut dyn SerialPort,
@@ -120,6 +126,9 @@ pub enum CommunicationErrorKind {
     TimeoutError,
     /// Incorrect response id - different from sender (sender id, response id)
     IncorrectId(u8, u8),
+
+    /// Operation not supported
+    Unsupported,
 }
 impl fmt::Display for CommunicationErrorKind {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
@@ -130,6 +139,7 @@ impl fmt::Display for CommunicationErrorKind {
             CommunicationErrorKind::IncorrectId(sender_id, resp_id) => {
                 write!(f, "Incorrect id ({} instead of {})", resp_id, sender_id)
             }
+            CommunicationErrorKind::Unsupported => write!(f, "Operation not supported"),
         }
     }
 }
