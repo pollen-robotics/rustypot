@@ -46,6 +46,7 @@ reg_read_write_fb!(target_position, 60, MotorValue::<f32>,MotorPositionSpeedLoad
 
 reg_read_only!(axis_sensor, 90, MotorValue::<f32>);
 
+
 reg_read_only!(full_state, 100, MotorPositionSpeedLoad);
 
 

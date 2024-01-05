@@ -55,7 +55,7 @@ reg_read_only!(current_torque, 52, MotorValue::<f32>);
 reg_read_write_fb!(target_position, 60, MotorValue::<f32>,MotorPositionSpeedLoad);
 
 reg_read_only!(axis_sensor, 90, MotorValue::<f32>);
-
+reg_read_only!(index_sensor, 99, MotorValue::<u8>);
 reg_read_only!(full_state, 100, MotorPositionSpeedLoad);
 
 
@@ -122,6 +122,26 @@ impl MotorValue<bool> {
         bytes.extend_from_slice(&[self.top as u8]);
         bytes.extend_from_slice(&[self.middle as u8]);
         bytes.extend_from_slice(&[self.bottom as u8]);
+
+        bytes.try_into().unwrap()
+    }
+}
+
+
+impl MotorValue<u8> {
+    pub fn from_le_bytes(bytes: [u8; 3]) -> Self {
+        MotorValue {
+            top: bytes[0],
+            middle: bytes[1],
+            bottom: bytes[2],
+        }
+    }
+    pub fn to_le_bytes(&self) -> [u8; 3] {
+        let mut bytes = Vec::new();
+
+        bytes.extend_from_slice(&[self.top]);
+        bytes.extend_from_slice(&[self.middle]);
+        bytes.extend_from_slice(&[self.bottom]);
 
         bytes.try_into().unwrap()
     }
