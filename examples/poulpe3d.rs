@@ -62,7 +62,8 @@ fn main() -> Result<(), Box<dyn Error>> {
     let x = io.ping(serial_port.as_mut(), id);
     println!("Ping {:?}: {:?}", id,x);
 
-    let _ = orbita3d_poulpe::write_torque_enable(&io, serial_port.as_mut(), id, MotorValue::<bool>{top:true, middle:true, bottom:true})?;
+    // let _ = orbita3d_poulpe::write_torque_enable(&io, serial_port.as_mut(), id, MotorValue::<bool>{top:true, middle:true, bottom:true})?;
+    let _ = orbita3d_poulpe::write_torque_enable(&io, serial_port.as_mut(), id, MotorValue::<bool>{top:false, middle:false, bottom:false})?;
     thread::sleep(Duration::from_millis(1000));
     // let torque = orbita3d_poulpe::read_torque_enable(&io, serial_port.as_mut(), id)?;
     // println!("torque: {:?}", torque);
@@ -74,6 +75,25 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     // let index_sensor = orbita3d_poulpe::read_index_sensor(&io, serial_port.as_mut(), id)?;
     // println!("index_sensor: {:?} {:?} {:?}", index_sensor.top, index_sensor.middle, index_sensor.bottom);
+
+
+    let limit= orbita3d_poulpe::read_velocity_limit(&io, serial_port.as_mut(), id)?;
+    println!("vel_limit: {:?} {:?} {:?}", limit.top, limit.middle, limit.bottom);
+    let limit= orbita3d_poulpe::read_torque_flux_limit(&io, serial_port.as_mut(), id)?;
+    println!("tf_limit: {:?} {:?} {:?}", limit.top, limit.middle, limit.bottom);
+    let limit= orbita3d_poulpe::read_uq_ud_limit(&io, serial_port.as_mut(), id)?;
+    println!("uq_ud_limit: {:?} {:?} {:?}", limit.top, limit.middle, limit.bottom);
+
+    let pid =orbita3d_poulpe::read_flux_pid(&io, serial_port.as_mut(), id)?;
+    println!("flux_pid: {:?} {:?} {:?}", pid.top, pid.middle, pid.bottom);
+    let pid =orbita3d_poulpe::read_torque_pid(&io, serial_port.as_mut(), id)?;
+    println!("torque_pid: {:?} {:?} {:?}", pid.top, pid.middle, pid.bottom);
+    let pid =orbita3d_poulpe::read_velocity_pid(&io, serial_port.as_mut(), id)?;
+    println!("velocity_pid: {:?} {:?} {:?}", pid.top, pid.middle, pid.bottom);
+    let pid =orbita3d_poulpe::read_position_pid(&io, serial_port.as_mut(), id)?;
+    println!("position_pid: {:?} {:?} {:?}", pid.top, pid.middle, pid.bottom);
+
+
 
     let mut t = now.elapsed().unwrap().as_secs_f32();
     let mut nberr=0;

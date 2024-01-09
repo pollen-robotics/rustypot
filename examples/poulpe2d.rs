@@ -19,7 +19,7 @@ struct Args {
     baudrate: u32,
 
     /// id
-    #[arg(short, long, default_value_t = 42)]
+    #[arg(short, long, default_value_t = 43)]
     id: u8,
 
     ///sinus amplitude (f64)
@@ -63,7 +63,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     println!("Ping {:?}: {:?}", id,x);
     thread::sleep(Duration::from_millis(100));
 
-    let _ = orbita2d_poulpe::write_torque_enable(&io, serial_port.as_mut(), id, MotorValue::<bool>{motor_a:true, motor_b:true})?;
+    // let _ = orbita2d_poulpe::write_torque_enable(&io, serial_port.as_mut(), id, MotorValue::<bool>{motor_a:true, motor_b:true})?;
     thread::sleep(Duration::from_millis(1000));
     // let torque = orbita3d_poulpe::read_torque_enable(&io, serial_port.as_mut(), id)?;
     // println!("torque: {:?}", torque);
@@ -72,6 +72,7 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     let curr_pos= orbita2d_poulpe::read_current_position(&io, serial_port.as_mut(), id)?;
 
+    println!("curr_pos: {:?} {:?}", curr_pos.motor_a, curr_pos.motor_b);
 
     // let index_sensor = orbita3d_poulpe::read_index_sensor(&io, serial_port.as_mut(), id)?;
     // println!("index_sensor: {:?} {:?} {:?}", index_sensor.top, index_sensor.middle, index_sensor.bottom);

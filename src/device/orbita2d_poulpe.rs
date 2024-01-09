@@ -27,9 +27,9 @@ reg_read_only!(model_number, 0, u16);
 reg_read_only!(firmware_version, 6, u8);
 reg_read_write!(id, 7, u8);
 
-reg_read_write!(velocity_limit, 10, MotorValue::<f32>);
-reg_read_write!(torque_flux_limit, 14, MotorValue::<f32>);
-reg_read_write!(uq_ud_limit, 18, MotorValue::<f32>);
+reg_read_write!(velocity_limit, 10, MotorValue::<u32>);
+reg_read_write!(torque_flux_limit, 14, MotorValue::<u16>);
+reg_read_write!(uq_ud_limit, 18, MotorValue::<i16>);
 
 reg_read_write!(flux_pid, 20, MotorValue::<Pid>);
 reg_read_write!(torque_pid, 24, MotorValue::<Pid>);
@@ -52,11 +52,11 @@ reg_read_only!(full_state, 100, MotorPositionSpeedLoad);
 
 
 impl MotorPositionSpeedLoad {
-	pub fn from_le_bytes(bytes: [u8; 36]) -> Self {
+	pub fn from_le_bytes(bytes: [u8; 24]) -> Self {
 		MotorPositionSpeedLoad {
-			position: MotorValue::<f32>::from_le_bytes(bytes[0..12].try_into().unwrap()),
-			speed: MotorValue::<f32>::from_le_bytes(bytes[12..24].try_into().unwrap()),
-			load: MotorValue::<f32>::from_le_bytes(bytes[24..36].try_into().unwrap()),
+			position: MotorValue::<f32>::from_le_bytes(bytes[0..8].try_into().unwrap()),
+			speed: MotorValue::<f32>::from_le_bytes(bytes[8..16].try_into().unwrap()),
+			load: MotorValue::<f32>::from_le_bytes(bytes[16..24].try_into().unwrap()),
 		}
 	}
 	// pub fn to_le_bytes(&self) -> [u8; 36] {
@@ -95,6 +95,79 @@ impl MotorValue<f32> {
         bytes.try_into().unwrap()
     }
 }
+
+
+
+impl MotorValue<u32> {
+    pub fn from_le_bytes(bytes: [u8; 8]) -> Self {
+        MotorValue {
+            motor_a: u32::from_le_bytes(bytes[0..4].try_into().unwrap()),
+            motor_b: u32::from_le_bytes(bytes[4..8].try_into().unwrap()),
+        }
+    }
+    pub fn to_le_bytes(&self) -> [u8; 8] {
+        let mut bytes = Vec::new();
+
+        bytes.extend_from_slice(&self.motor_a.to_le_bytes());
+        bytes.extend_from_slice(&self.motor_b.to_le_bytes());
+
+        bytes.try_into().unwrap()
+    }
+}
+
+impl MotorValue<i32> {
+    pub fn from_le_bytes(bytes: [u8; 8]) -> Self {
+        MotorValue {
+            motor_a: i32::from_le_bytes(bytes[0..4].try_into().unwrap()),
+            motor_b: i32::from_le_bytes(bytes[4..8].try_into().unwrap()),
+        }
+    }
+    pub fn to_le_bytes(&self) -> [u8; 8] {
+        let mut bytes = Vec::new();
+
+        bytes.extend_from_slice(&self.motor_a.to_le_bytes());
+        bytes.extend_from_slice(&self.motor_b.to_le_bytes());
+
+        bytes.try_into().unwrap()
+    }
+}
+
+impl MotorValue<i16> {
+    pub fn from_le_bytes(bytes: [u8; 4]) -> Self {
+        MotorValue {
+            motor_a: i16::from_le_bytes(bytes[0..2].try_into().unwrap()),
+            motor_b: i16::from_le_bytes(bytes[2..4].try_into().unwrap()),
+        }
+    }
+    pub fn to_le_bytes(&self) -> [u8; 4] {
+        let mut bytes = Vec::new();
+
+        bytes.extend_from_slice(&self.motor_a.to_le_bytes());
+        bytes.extend_from_slice(&self.motor_b.to_le_bytes());
+
+        bytes.try_into().unwrap()
+    }
+}
+
+
+impl MotorValue<u16> {
+    pub fn from_le_bytes(bytes: [u8; 4]) -> Self {
+        MotorValue {
+            motor_a: u16::from_le_bytes(bytes[0..2].try_into().unwrap()),
+            motor_b: u16::from_le_bytes(bytes[2..4].try_into().unwrap()),
+        }
+    }
+    pub fn to_le_bytes(&self) -> [u8; 4] {
+        let mut bytes = Vec::new();
+
+        bytes.extend_from_slice(&self.motor_a.to_le_bytes());
+        bytes.extend_from_slice(&self.motor_b.to_le_bytes());
+
+        bytes.try_into().unwrap()
+    }
+}
+
+
 
 
 impl MotorValue<bool> {
