@@ -1,4 +1,3 @@
-
 //! Orbita 3Dof Poulpe version
 
 use crate::device::*;
@@ -37,9 +36,9 @@ reg_read_only!(model_number, 0, u16);
 reg_read_only!(firmware_version, 6, u8);
 reg_read_write!(id, 7, u8);
 
-reg_read_write!(velocity_limit, 10, MotorValue::<u32>);
-reg_read_write!(torque_flux_limit, 14, MotorValue::<u16>);
-reg_read_write!(uq_ud_limit, 18, MotorValue::<i16>);
+reg_read_write!(velocity_limit, 10, MotorValue::<f32>);
+reg_read_write!(torque_flux_limit, 14, MotorValue::<f32>);
+reg_read_write!(uq_ud_limit, 18, MotorValue::<f32>);
 
 reg_read_write!(flux_pid, 20, MotorValue::<Pid>);
 reg_read_write!(torque_pid, 24, MotorValue::<Pid>);
@@ -52,35 +51,35 @@ reg_read_only!(current_position, 50, MotorValue::<f32>);
 reg_read_only!(current_velocity, 51, MotorValue::<f32>);
 reg_read_only!(current_torque, 52, MotorValue::<f32>);
 
-reg_read_write_fb!(target_position, 60, MotorValue::<f32>,MotorPositionSpeedLoad);
+reg_read_write_fb!(
+    target_position,
+    60,
+    MotorValue::<f32>,
+    MotorPositionSpeedLoad
+);
 
 reg_read_only!(axis_sensor, 90, MotorValue::<f32>);
 reg_read_only!(index_sensor, 99, MotorValue::<u8>);
 reg_read_only!(full_state, 100, MotorPositionSpeedLoad);
 
-
-
 impl MotorPositionSpeedLoad {
-	pub fn from_le_bytes(bytes: [u8; 36]) -> Self {
-		MotorPositionSpeedLoad {
-			position: MotorValue::<f32>::from_le_bytes(bytes[0..12].try_into().unwrap()),
-			speed: MotorValue::<f32>::from_le_bytes(bytes[12..24].try_into().unwrap()),
-			load: MotorValue::<f32>::from_le_bytes(bytes[24..36].try_into().unwrap()),
-		}
-	}
-	// pub fn to_le_bytes(&self) -> [u8; 36] {
-	// 	let mut bytes = Vec::new();
+    pub fn from_le_bytes(bytes: [u8; 36]) -> Self {
+        MotorPositionSpeedLoad {
+            position: MotorValue::<f32>::from_le_bytes(bytes[0..12].try_into().unwrap()),
+            speed: MotorValue::<f32>::from_le_bytes(bytes[12..24].try_into().unwrap()),
+            load: MotorValue::<f32>::from_le_bytes(bytes[24..36].try_into().unwrap()),
+        }
+    }
+    // pub fn to_le_bytes(&self) -> [u8; 36] {
+    // 	let mut bytes = Vec::new();
 
-	// 	bytes.extend_from_slice(&self.position.to_le_bytes());
-	// 	bytes.extend_from_slice(&self.speed.to_le_bytes());
-	// 	bytes.extend_from_slice(&self.load.to_le_bytes());
+    // 	bytes.extend_from_slice(&self.position.to_le_bytes());
+    // 	bytes.extend_from_slice(&self.speed.to_le_bytes());
+    // 	bytes.extend_from_slice(&self.load.to_le_bytes());
 
-	// 	bytes.try_into().unwrap()
-	// }
+    // 	bytes.try_into().unwrap()
+    // }
 }
-
-
-
 
 impl<T: PartialEq> PartialEq for MotorValue<T> {
     fn eq(&self, other: &Self) -> bool {
@@ -106,7 +105,6 @@ impl MotorValue<f32> {
         bytes.try_into().unwrap()
     }
 }
-
 
 impl MotorValue<u32> {
     pub fn from_le_bytes(bytes: [u8; 12]) -> Self {
@@ -165,7 +163,6 @@ impl MotorValue<i16> {
     }
 }
 
-
 impl MotorValue<u16> {
     pub fn from_le_bytes(bytes: [u8; 6]) -> Self {
         MotorValue {
@@ -185,13 +182,12 @@ impl MotorValue<u16> {
     }
 }
 
-
 impl MotorValue<bool> {
     pub fn from_le_bytes(bytes: [u8; 3]) -> Self {
         MotorValue {
-            top: bytes[0] !=0,
-            middle: bytes[1] !=0,
-            bottom: bytes[2] !=0,
+            top: bytes[0] != 0,
+            middle: bytes[1] != 0,
+            bottom: bytes[2] != 0,
         }
     }
     pub fn to_le_bytes(&self) -> [u8; 3] {
@@ -204,7 +200,6 @@ impl MotorValue<bool> {
         bytes.try_into().unwrap()
     }
 }
-
 
 impl MotorValue<u8> {
     pub fn from_le_bytes(bytes: [u8; 3]) -> Self {
@@ -225,7 +220,6 @@ impl MotorValue<u8> {
     }
 }
 
-
 impl MotorValue<Pid> {
     pub fn from_le_bytes(bytes: [u8; 12]) -> Self {
         MotorValue {
@@ -244,7 +238,6 @@ impl MotorValue<Pid> {
         bytes.try_into().unwrap()
     }
 }
-
 
 impl<T: PartialEq> PartialEq for Vec3d<T> {
     fn eq(&self, other: &Self) -> bool {

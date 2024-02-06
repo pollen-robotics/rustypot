@@ -62,8 +62,8 @@ fn main() -> Result<(), Box<dyn Error>> {
     let x = io.ping(serial_port.as_mut(), id);
     println!("Ping {:?}: {:?}", id,x);
 
-    // let _ = orbita3d_poulpe::write_torque_enable(&io, serial_port.as_mut(), id, MotorValue::<bool>{top:true, middle:true, bottom:true})?;
-    let _ = orbita3d_poulpe::write_torque_enable(&io, serial_port.as_mut(), id, MotorValue::<bool>{top:false, middle:false, bottom:false})?;
+    let _ = orbita3d_poulpe::write_torque_enable(&io, serial_port.as_mut(), id, MotorValue::<bool>{top:true, middle:true, bottom:true})?;
+    // let _ = orbita3d_poulpe::write_torque_enable(&io, serial_port.as_mut(), id, MotorValue::<bool>{top:false, middle:false, bottom:false})?;
     thread::sleep(Duration::from_millis(1000));
     // let torque = orbita3d_poulpe::read_torque_enable(&io, serial_port.as_mut(), id)?;
     // println!("torque: {:?}", torque);
@@ -103,7 +103,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     loop {
 	let t0 = Instant::now();
 
-        if t > 10.0 {
+        if t > 100.0 {
             break;
         }
 
