@@ -22,8 +22,8 @@ pub struct Vec3d<T> {
 #[derive(Clone, Copy, Debug)]
 pub struct MotorPositionSpeedLoad {
     pub position: MotorValue<f32>,
-    pub speed: MotorValue<f32>,
-    pub load: MotorValue<f32>,
+    // pub speed: MotorValue<f32>,
+    // pub load: MotorValue<f32>,
 }
 /// Wrapper for PID gains.
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -66,8 +66,8 @@ impl MotorPositionSpeedLoad {
     pub fn from_le_bytes(bytes: [u8; 36]) -> Self {
         MotorPositionSpeedLoad {
             position: MotorValue::<f32>::from_le_bytes(bytes[0..12].try_into().unwrap()),
-            speed: MotorValue::<f32>::from_le_bytes(bytes[12..24].try_into().unwrap()),
-            load: MotorValue::<f32>::from_le_bytes(bytes[24..36].try_into().unwrap()),
+            // speed: MotorValue::<f32>::from_le_bytes(bytes[12..24].try_into().unwrap()),
+            // load: MotorValue::<f32>::from_le_bytes(bytes[24..36].try_into().unwrap()),
         }
     }
     // pub fn to_le_bytes(&self) -> [u8; 36] {
