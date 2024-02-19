@@ -63,7 +63,7 @@ reg_read_only!(index_sensor, 99, MotorValue::<u8>);
 reg_read_only!(full_state, 100, MotorPositionSpeedLoad);
 
 impl MotorPositionSpeedLoad {
-    pub fn from_le_bytes(bytes: [u8; 36]) -> Self {
+    pub fn from_le_bytes(bytes: [u8; 12]) -> Self {
         MotorPositionSpeedLoad {
             position: MotorValue::<f32>::from_le_bytes(bytes[0..12].try_into().unwrap()),
             // speed: MotorValue::<f32>::from_le_bytes(bytes[12..24].try_into().unwrap()),
