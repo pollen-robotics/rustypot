@@ -10,8 +10,8 @@ pub struct MotorValue<T> {
 #[derive(Clone, Copy, Debug)]
 pub struct MotorPositionSpeedLoad {
     pub position: MotorValue<f32>,
-    pub speed: MotorValue<f32>,
-    pub load: MotorValue<f32>,
+    // pub speed: MotorValue<f32>,
+    // pub load: MotorValue<f32>,
 }
 /// Wrapper for PID gains.
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -19,9 +19,6 @@ pub struct Pid {
     pub p: i16,
     pub i: i16,
 }
-
-
-
 
 reg_read_only!(model_number, 0, u16);
 reg_read_only!(firmware_version, 6, u8);
@@ -42,36 +39,35 @@ reg_read_only!(current_position, 50, MotorValue::<f32>);
 reg_read_only!(current_velocity, 51, MotorValue::<f32>);
 reg_read_only!(current_torque, 52, MotorValue::<f32>);
 
-reg_read_write_fb!(target_position, 60, MotorValue::<f32>,MotorPositionSpeedLoad);
+reg_read_write_fb!(
+    target_position,
+    60,
+    MotorValue::<f32>,
+    MotorPositionSpeedLoad
+);
 
 reg_read_only!(axis_sensor, 90, MotorValue::<f32>);
 
-
 reg_read_only!(full_state, 100, MotorPositionSpeedLoad);
 
-
-
 impl MotorPositionSpeedLoad {
-	pub fn from_le_bytes(bytes: [u8; 24]) -> Self {
-		MotorPositionSpeedLoad {
-			position: MotorValue::<f32>::from_le_bytes(bytes[0..8].try_into().unwrap()),
-			speed: MotorValue::<f32>::from_le_bytes(bytes[8..16].try_into().unwrap()),
-			load: MotorValue::<f32>::from_le_bytes(bytes[16..24].try_into().unwrap()),
-		}
-	}
-	// pub fn to_le_bytes(&self) -> [u8; 36] {
-	// 	let mut bytes = Vec::new();
+    pub fn from_le_bytes(bytes: [u8; 8]) -> Self {
+        MotorPositionSpeedLoad {
+            position: MotorValue::<f32>::from_le_bytes(bytes[0..8].try_into().unwrap()),
+            // speed: MotorValue::<f32>::from_le_bytes(bytes[8..16].try_into().unwrap()),
+            // load: MotorValue::<f32>::from_le_bytes(bytes[16..24].try_into().unwrap()),
+        }
+    }
+    // pub fn to_le_bytes(&self) -> [u8; 36] {
+    // 	let mut bytes = Vec::new();
 
-	// 	bytes.extend_from_slice(&self.position.to_le_bytes());
-	// 	bytes.extend_from_slice(&self.speed.to_le_bytes());
-	// 	bytes.extend_from_slice(&self.load.to_le_bytes());
+    // 	bytes.extend_from_slice(&self.position.to_le_bytes());
+    // 	bytes.extend_from_slice(&self.speed.to_le_bytes());
+    // 	bytes.extend_from_slice(&self.load.to_le_bytes());
 
-	// 	bytes.try_into().unwrap()
-	// }
+    // 	bytes.try_into().unwrap()
+    // }
 }
-
-
-
 
 impl<T: PartialEq> PartialEq for MotorValue<T> {
     fn eq(&self, other: &Self) -> bool {
@@ -95,8 +91,6 @@ impl MotorValue<f32> {
         bytes.try_into().unwrap()
     }
 }
-
-
 
 impl MotorValue<u32> {
     pub fn from_le_bytes(bytes: [u8; 8]) -> Self {
@@ -149,7 +143,6 @@ impl MotorValue<i16> {
     }
 }
 
-
 impl MotorValue<u16> {
     pub fn from_le_bytes(bytes: [u8; 4]) -> Self {
         MotorValue {
@@ -167,14 +160,11 @@ impl MotorValue<u16> {
     }
 }
 
-
-
-
 impl MotorValue<bool> {
     pub fn from_le_bytes(bytes: [u8; 2]) -> Self {
         MotorValue {
-            motor_a: bytes[0] !=0,
-            motor_b: bytes[1] !=0,
+            motor_a: bytes[0] != 0,
+            motor_b: bytes[1] != 0,
         }
     }
     pub fn to_le_bytes(&self) -> [u8; 2] {
@@ -186,7 +176,6 @@ impl MotorValue<bool> {
         bytes.try_into().unwrap()
     }
 }
-
 
 impl MotorValue<Pid> {
     pub fn from_le_bytes(bytes: [u8; 8]) -> Self {
@@ -205,7 +194,6 @@ impl MotorValue<Pid> {
     }
 }
 
-
 impl Pid {
     pub fn from_le_bytes(bytes: [u8; 4]) -> Self {
         Pid {
@@ -222,17 +210,6 @@ impl Pid {
         bytes.try_into().unwrap()
     }
 }
-
-
-
-
-
-
-
-
-
-
-
 
 // ///////////////////
 // reg_read_write!(torque_enable, 40, MotorValue::<u8>);
