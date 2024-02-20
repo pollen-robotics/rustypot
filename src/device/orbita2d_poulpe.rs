@@ -24,8 +24,8 @@ reg_read_only!(model_number, 0, u16);
 reg_read_only!(firmware_version, 6, u8);
 reg_read_write!(id, 7, u8);
 
-reg_read_write!(velocity_limit, 10, MotorValue::<u32>);
-reg_read_write!(torque_flux_limit, 14, MotorValue::<u16>);
+reg_read_write!(velocity_limit, 10, MotorValue::<f32>);
+reg_read_write!(torque_flux_limit, 14, MotorValue::<f32>);
 reg_read_write!(uq_ud_limit, 18, MotorValue::<i16>);
 
 reg_read_write!(flux_pid, 20, MotorValue::<Pid>);
