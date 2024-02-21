@@ -241,6 +241,23 @@ impl DynamixelSerialIO {
         Ok(())
     }
 
+
+
+    pub fn write_fb(
+        &self,
+        serial_port: &mut dyn serialport::SerialPort,
+        id: u8,
+        addr: u8,
+        data: &[u8],
+    ) -> Result<Vec<u8>> {
+        match &self.protocol {
+            Protocols::V1(p) => p.write_fb(serial_port, id, addr, data),
+	    Protocols::V2(p) => Err(Box::new(CommunicationErrorKind::Unsupported)),
+        }
+    }
+
+
+
     /// Reads raw register bytes from multiple ids at once.
     ///
     /// Sends a sync read instruction to the specified motors and wait for the status packet in response.
