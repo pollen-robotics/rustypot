@@ -116,7 +116,6 @@ macro_rules! reg_write_only_fb {
     };
 }
 
-
 /// Generates read, sync_read, write and sync_write functions for given register
 #[macro_export]
 macro_rules! reg_read_write {
@@ -134,12 +133,11 @@ macro_rules! reg_read_write_fb {
     };
 }
 
-
 pub mod l0_force_fan;
 pub mod mx;
 pub mod orbita2d_poulpe;
 pub mod orbita2dof_foc;
 pub mod orbita_foc;
 
-pub mod xl320;
 pub mod orbita3d_poulpe;
+pub mod xl320;
