@@ -10,7 +10,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         .timeout(Duration::from_millis(100))
         .open()?;
 
-    let io = DynamixelSerialIO::v1();
+    let io = DynamixelSerialIO::v1().with_post_delay(Duration::from_millis(1));
 
     let id = 70;
     let mut state = orbita_foc::read_motors_drivers_states(&io, serial_port.as_mut(), id)?;

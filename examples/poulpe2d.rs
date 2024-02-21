@@ -1,8 +1,7 @@
-use std::f32::consts::PI;
 use std::time::SystemTime;
 use std::{error::Error, thread, time::Duration, time::Instant};
 
-use rustypot::device::orbita2d_poulpe::{self, MotorPositionSpeedLoad, MotorValue};
+use rustypot::device::orbita2d_poulpe::{self, MotorValue};
 // use rustypot::device::orbita3d_poulpe::{self, MotorValue};
 use rustypot::DynamixelSerialIO;
 
@@ -123,14 +122,8 @@ fn main() -> Result<(), Box<dyn Error>> {
             Ok(feedback) => {
                 nbok += 1;
                 println!(
-                    "42 target: {} feedback pos: {} {} feedback vel: {} {} feedback torque: {} {}",
-                    target,
-                    feedback.position.motor_a,
-                    feedback.position.motor_b,
-                    feedback.speed.motor_a,
-                    feedback.speed.motor_b,
-                    feedback.load.motor_a,
-                    feedback.load.motor_b
+                    "42 target: {} feedback pos: {} {}",
+                    target, feedback.position.motor_a, feedback.position.motor_b,
                 );
             }
             Err(e) => {

@@ -1,9 +1,11 @@
 use serialport::SerialPort;
 
 mod v1;
+#[allow(unused_imports)]
 pub use v1::{PacketV1, V1};
 
 mod v2;
+#[allow(unused_imports)]
 pub use v2::{PacketV2, V2};
 
 use crate::{
@@ -32,9 +34,16 @@ pub trait Protocol<P: Packet> {
         self.read_status_packet(port, id).map(|_| ())
     }
 
-    fn write_fb(&self, port: &mut dyn SerialPort, id: u8, addr: u8, data: &[u8]) -> Result<Vec<u8>> {
+    fn write_fb(
+        &self,
+        port: &mut dyn SerialPort,
+        id: u8,
+        addr: u8,
+        data: &[u8],
+    ) -> Result<Vec<u8>> {
         self.send_instruction_packet(port, P::write_packet(id, addr, data).as_ref())?;
-        self.read_status_packet(port, id).map(|sp| sp.params().to_vec())
+        self.read_status_packet(port, id)
+            .map(|sp| sp.params().to_vec())
     }
 
     fn sync_read(
