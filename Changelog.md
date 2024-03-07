@@ -1,3 +1,7 @@
+## Version 0.5.0
+
+- Add an post delay option to the read and write method.
+
 ## Version 0.4.0
 
 - Add support for orbita-2dof-foc device.
