@@ -25,7 +25,9 @@ reg_read_only!(firmware_version, 6, u8);
 reg_read_write!(id, 7, u8);
 
 reg_read_write!(velocity_limit, 10, MotorValue::<f32>);
+reg_read_write!(velocity_limit_max, 12, MotorValue::<f32>);
 reg_read_write!(torque_flux_limit, 14, MotorValue::<f32>);
+reg_read_write!(torque_flux_limit_max, 16, MotorValue::<f32>);
 reg_read_write!(uq_ud_limit, 18, MotorValue::<i16>);
 
 reg_read_write!(flux_pid, 20, MotorValue::<Pid>);
@@ -45,6 +47,8 @@ reg_read_write_fb!(
     MotorValue::<f32>,
     MotorPositionSpeedLoad
 );
+
+reg_read_write!(board_state, 80, u8);
 
 reg_read_only!(axis_sensor, 90, MotorValue::<f32>);
 
