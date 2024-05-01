@@ -18,6 +18,7 @@ categories = ["science::robotics"]
 log = "0.4.17"
 paste = "1.0.10"
 serialport = "4.2.0"
+rayon = "1.10"
 clap = { version = "4.0.32", features = ["derive"] }
 
 [dev-dependencies]

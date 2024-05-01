@@ -1,6 +1,8 @@
 //! High-level register access functions for a specific dynamixel device
 
 use paste::paste;
+use rayon::iter::IntoParallelRefIterator;
+use rayon::iter::ParallelIterator;
 use std::mem::size_of;
 
 use crate::{reg_read_only, reg_read_write, DynamixelSerialIO, Result};
@@ -31,7 +33,7 @@ macro_rules! reg_read_only {
         ) -> Result<Vec<$reg_type>> {
             let val = io.sync_read(serial_port, ids, $addr, size_of::<$reg_type>().try_into().unwrap())?;
             let val = val
-                .iter()
+                .par_iter()
                 .map(|v| $reg_type::from_le_bytes(v.as_slice().try_into().unwrap()))
                 .collect();
 
@@ -69,7 +71,7 @@ macro_rules! reg_write_only {
                     ids,
                     $addr,
                     &values
-                        .iter()
+                        .par_iter()
                         .map(|v| v.to_le_bytes().to_vec())
                         .collect::<Vec<Vec<u8>>>(),
                 )
