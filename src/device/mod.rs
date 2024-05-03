@@ -140,15 +140,17 @@ macro_rules! reg_read_write_fb {
 // If not, return an error
 // response is a Vec<u8>
 macro_rules! check_response_size {
-    ($response:expr, $reg_type:ty) => {
-        {
-            let response = $response;
-            if response.len() != std::mem::size_of::<$reg_type>() {
-                let message = format!("Invalid response size, expected {} received {}", std::mem::size_of::<$reg_type>(), response.len());
-                return Err(message.into());
-            }
+    ($response:expr, $reg_type:ty) => {{
+        let response = $response;
+        if response.len() != std::mem::size_of::<$reg_type>() {
+            let message = format!(
+                "Invalid response size, expected {} received {}",
+                std::mem::size_of::<$reg_type>(),
+                response.len()
+            );
+            return Err(message.into());
         }
-    };
+    }};
 }
 
 pub mod l0_force_fan;
