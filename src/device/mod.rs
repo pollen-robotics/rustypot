@@ -92,4 +92,6 @@ pub mod mx;
 pub mod orbita2dof_foc;
 pub mod orbita_foc;
 pub mod xl320;
+pub mod xl330;
+pub mod xl430;
 pub mod xm;
