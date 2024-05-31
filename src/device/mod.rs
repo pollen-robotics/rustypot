@@ -161,3 +161,4 @@ pub mod orbita_foc;
 
 pub mod orbita3d_poulpe;
 pub mod xl320;
+pub mod xm;
