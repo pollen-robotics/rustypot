@@ -120,6 +120,7 @@ pub enum CommunicationErrorKind {
     TimeoutError,
     /// Incorrect response id - different from sender (sender id, response id)
     IncorrectId(u8, u8),
+    Unsupported,
 }
 impl fmt::Display for CommunicationErrorKind {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
