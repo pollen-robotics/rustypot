@@ -45,10 +45,10 @@ reg_read_write!(bus_watchdog, 98, u8);
 
 reg_read_write!(goal_pwm, 100, u16);
 reg_read_write!(goal_current, 102, u16);
-reg_read_write!(goal_velocity, 104, u32);
+reg_read_write!(goal_velocity, 104, i32);
 reg_read_write!(profile_acceleration, 108, u32);
 reg_read_write!(profile_velocity, 112, u32);
-reg_read_write!(goal_position, 116, u32);
+reg_read_write!(goal_position, 116, i32);
 reg_read_only!(realtime_tick, 120, u16);
 reg_read_only!(moving, 122, u8);
 reg_read_only!(moving_status, 123, u8);
