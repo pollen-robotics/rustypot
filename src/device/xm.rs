@@ -77,7 +77,7 @@ pub mod conv {
     ///
     /// Works in joint and multi-turn mode
     pub fn radians_to_dxl_pos(rads: f64) -> i32 {
-        (4096.0 * (PI + rads) / (2.0 * PI)) as i16
+        (4096.0 * (PI + rads) / (2.0 * PI)) as i32
     }
 
     /// Dynamixel absolute speed to radians per second
@@ -92,7 +92,7 @@ pub mod conv {
     /// Works for moving_speed in joint mode for instance
     pub fn rad_per_sec_to_dxl_abs_speed(speed: f64) -> u32 {
         let rpm = speed / 0.10472;
-        (rpm / 0.229) as u16
+        (rpm / 0.229) as u32
     }
     /// Dynamixel speed to radians per second
     ///
