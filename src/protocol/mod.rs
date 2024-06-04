@@ -31,6 +31,17 @@ pub trait Protocol<P: Packet> {
         self.send_instruction_packet(port, P::write_packet(id, addr, data).as_ref())?;
         self.read_status_packet(port, id).map(|_| ())
     }
+    fn write_fb(
+        &self,
+        port: &mut dyn SerialPort,
+        id: u8,
+        addr: u8,
+        data: &[u8],
+    ) -> Result<Vec<u8>> {
+        self.send_instruction_packet(port, P::write_packet(id, addr, data).as_ref())?;
+        self.read_status_packet(port, id)
+            .map(|sp| sp.params().to_vec())
+    }
     fn sync_read(
         &self,
         port: &mut dyn SerialPort,
