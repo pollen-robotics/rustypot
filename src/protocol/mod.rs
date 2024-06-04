@@ -130,6 +130,7 @@ impl fmt::Display for CommunicationErrorKind {
             CommunicationErrorKind::IncorrectId(sender_id, resp_id) => {
                 write!(f, "Incorrect id ({} instead of {})", resp_id, sender_id)
             }
+	    CommunicationErrorKind::Unsupported => write!(f, "Operation not supported"),
         }
     }
 }
