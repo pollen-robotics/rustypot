@@ -69,4 +69,3 @@ reg_read_write!(indirect_data_3, 226, u8);
 reg_read_write!(indirect_data_4, 227, u8);
 reg_read_write!(indirect_data_5, 228, u8);
 reg_read_write!(indirect_data_6, 229, u8);
-
