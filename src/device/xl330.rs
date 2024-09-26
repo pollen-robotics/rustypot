@@ -1,14 +1,14 @@
-//! XL-430 robotis register (protocol v2)
+//! XL-330 robotis register (protocol v2)
 //!
-//! See <https://emanual.robotis.com/docs/en/dxl/x/xm430-w350/> for details.
+//! See <https://emanual.robotis.com/docs/en/dxl/x/xl330-m077/> for details.
 
 use crate::device::*;
 
 reg_read_only!(model_number, 0, u16);
 reg_read_only!(model_information, 2, u32);
-reg_read_only!(firmware_version, 6, u8);
+reg_read_write!(firmware_version, 6, u8);
 reg_read_write!(id, 7, u8);
-reg_read_write!(buad_rate, 8, u8);
+reg_read_write!(baud_rate, 8, u8);
 reg_read_write!(return_delay_time, 9, u8);
 reg_read_write!(drive_mode, 10, u8);
 reg_read_write!(operating_mode, 11, u8);
@@ -21,16 +21,19 @@ reg_read_write!(max_voltage_limit, 32, u16);
 reg_read_write!(min_voltage_limit, 34, u16);
 reg_read_write!(pwm_limit, 36, u16);
 reg_read_write!(current_limit, 38, u16);
+reg_read_write!(acceleration_limit, 40, u32);
 reg_read_write!(velocity_limit, 44, u32);
 reg_read_write!(max_position_limit, 48, u32);
 reg_read_write!(min_position_limit, 52, u32);
 reg_read_write!(startup_configuration, 60, u8);
+reg_read_write!(pwm_slope, 62, u8);
 reg_read_write!(shutdown, 63, u8);
+
 reg_read_write!(torque_enable, 64, u8);
 reg_read_write!(led, 65, u8);
 reg_read_write!(status_return_level, 68, u8);
-reg_read_only!(registered_instruction, 69, u8);
-reg_read_only!(hardware_error_status, 70, u8);
+reg_read_write!(registered_instruction, 69, u8);
+reg_read_write!(hardware_error_status, 70, u8);
 reg_read_write!(velocity_i_gain, 76, u16);
 reg_read_write!(velocity_p_gain, 78, u16);
 reg_read_write!(position_d_gain, 80, u16);
@@ -70,4 +73,3 @@ reg_read_write!(indirect_data_3, 226, u8);
 reg_read_write!(indirect_data_4, 227, u8);
 reg_read_write!(indirect_data_5, 228, u8);
 reg_read_write!(indirect_data_6, 229, u8);
-
