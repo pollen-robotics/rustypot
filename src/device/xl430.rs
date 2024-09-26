@@ -57,7 +57,6 @@ reg_read_only!(position_trajectory, 140, u32);
 reg_read_only!(present_input_voltage, 144, u16);
 reg_read_only!(present_temperature, 146, u8);
 reg_read_only!(backup_ready, 147, u8);
-
 reg_read_write!(indirect_address_1, 168, u16);
 reg_read_write!(indirect_address_2, 170, u16);
 reg_read_write!(indirect_address_3, 172, u16);
