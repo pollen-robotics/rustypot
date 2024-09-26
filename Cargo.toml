@@ -1,6 +1,6 @@
 [package]
 name = "rustypot"
-version = "0.3.0"
+version = "0.5.0"
 edition = "2021"
 license = "Apache-2.0"
 authors = ["Pollen Robotics"]
@@ -10,6 +10,7 @@ repository = "https://github.com/pollen-robotics/rustypot"
 readme = "README.md"
 keywords = ["robotics", "dynamixel"]
 categories = ["science::robotics"]
+#autoexamples = false #disable auto discovery of examples
 
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
@@ -20,6 +21,7 @@ paste = "1.0.10"
 serialport = "4.2.0"
 clap = { version = "4.0.32", features = ["derive"] }
 signal-hook = "0.3.4"
+proc-macro2 = { version = "=1.0.67", features=["default", "proc-macro"] }
 
 [dev-dependencies]
 env_logger = "0.10.0"

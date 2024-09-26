@@ -28,6 +28,8 @@
 //! ```
 
 mod protocol;
+use std::time::Duration;
+
 pub use protocol::CommunicationErrorKind;
 use protocol::{Protocol, V1, V2};
 
@@ -38,14 +40,17 @@ pub mod device;
 
 type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
 
+#[derive(Debug)]
 enum Protocols {
     V1(V1),
     V2(V2),
 }
 
+#[derive(Debug)]
 /// Raw dynamixel communication messages controller (protocol v1 or v2)
 pub struct DynamixelSerialIO {
     protocol: Protocols,
+    post_delay: Option<Duration>,
 }
 
 impl DynamixelSerialIO {
@@ -72,6 +77,7 @@ impl DynamixelSerialIO {
     pub fn v1() -> Self {
         DynamixelSerialIO {
             protocol: Protocols::V1(V1),
+            post_delay: None,
         }
     }
     /// Creates a protocol v2 communication IO.
@@ -97,6 +103,15 @@ impl DynamixelSerialIO {
     pub fn v2() -> Self {
         DynamixelSerialIO {
             protocol: Protocols::V2(V2),
+            post_delay: None,
+        }
+    }
+
+    /// Set a delay after each communication.
+    pub fn with_post_delay(self, delay: Duration) -> Self {
+        DynamixelSerialIO {
+            post_delay: Some(delay),
+            ..self
         }
     }
 
@@ -170,10 +185,14 @@ impl DynamixelSerialIO {
         addr: u8,
         length: u8,
     ) -> Result<Vec<u8>> {
-        match &self.protocol {
+        let res = match &self.protocol {
             Protocols::V1(p) => p.read(serial_port, id, addr, length),
             Protocols::V2(p) => p.read(serial_port, id, addr, length),
+        };
+        if let Some(delay) = self.post_delay {
+            std::thread::sleep(delay);
         }
+        res
     }
 
     /// Writes raw bytes to register.
@@ -215,6 +234,29 @@ impl DynamixelSerialIO {
         match &self.protocol {
             Protocols::V1(p) => p.write(serial_port, id, addr, data),
             Protocols::V2(p) => p.write(serial_port, id, addr, data),
+        }?;
+        if let Some(delay) = self.post_delay {
+            std::thread::sleep(delay);
+        }
+        Ok(())
+    }
+
+    pub fn write_fb(
+        &self,
+        serial_port: &mut dyn serialport::SerialPort,
+        id: u8,
+        addr: u8,
+        data: &[u8],
+    ) -> Result<Vec<u8>> {
+        match &self.protocol {
+            Protocols::V1(p) => {
+                let res = p.write_fb(serial_port, id, addr, data);
+                if let Some(delay) = self.post_delay {
+                    std::thread::sleep(delay);
+                }
+                res
+            }
+            Protocols::V2(_) => Err(Box::new(CommunicationErrorKind::Unsupported)),
         }
     }
 
