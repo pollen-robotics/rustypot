@@ -22,7 +22,7 @@ serialport = "4.2.0"
 clap = { version = "4.0.32", features = ["derive"] }
 proc-macro2 = { version = "=1.0.67", features=["default", "proc-macro"] }
 signal-hook = "0.3.4"
-
+num_enum = "0.7.3"
 
 [dev-dependencies]
 env_logger = "0.10.0"

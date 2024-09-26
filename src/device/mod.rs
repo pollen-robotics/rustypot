@@ -1,9 +1,58 @@
 //! High-level register access functions for a specific dynamixel device
 
+use num_enum::IntoPrimitive;
+use num_enum::TryFromPrimitive;
+
 use paste::paste;
 use std::mem::size_of;
 
 use crate::{reg_read_only, reg_read_write, DynamixelSerialIO, Result};
+
+#[derive(Debug, IntoPrimitive, TryFromPrimitive)]
+#[repr(u16)]
+pub enum DxlModel {
+    AX12A = 12,
+    AX12W = 300,
+    AX18A = 18,
+    RX10 = 10,
+    RX24F = 24,
+    RX28 = 28,
+    RX64 = 64,
+    EX106 = 107,
+    MX12W = 360,
+    MX28 = 29,
+    MX282 = 30,
+    MX64 = 310,
+    MX642 = 311,
+    MX106 = 320,
+    MX1062 = 321,
+    XL320 = 350,
+    XL330M077 = 1190,
+    XL330M288 = 1200,
+    XC330M181 = 1230,
+    XC330M288 = 1240,
+    XC330T181 = 1210,
+    XC330T288 = 1220,
+    XL430W250 = 1060,
+    XL430W2502 = 1090,
+    XC430W2502 = 1160,
+    XC430W150 = 1070,
+    XC430W240 = 1080,
+    XM430W210 = 1030,
+    XM430W350 = 1020,
+    XM540W150 = 1130,
+    XM540W270 = 1120,
+    XH430W210 = 1010,
+    XH430W350 = 1000,
+    XH430V210 = 1050,
+    XH430V350 = 1040,
+    XH540W150 = 1110,
+    XH540W270 = 1100,
+    XH540V150 = 1150,
+    XH540V270 = 1140,
+    XW540T260 = 1170,
+    XW540T140 = 1180,
+}
 
 /// Generates read and sync_read functions for given register
 #[macro_export]
