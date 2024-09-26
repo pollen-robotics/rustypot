@@ -105,7 +105,7 @@ pub mod conv {
     ///
     /// It should be in [-current_limit, +current_limit] with an absolute max at 1193 (3209.17mA)
     /// Works for goal_current for instance
-    pub fn current_to_dxl_ma(current: f32) -> i16 {
+    pub fn ma_to_dxl_current(current: f32) -> i16 {
         (current / 2.69) as i16
     }
 
