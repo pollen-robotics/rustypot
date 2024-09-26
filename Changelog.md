@@ -1,6 +1,7 @@
 ## Version 0.5.0
 
 - Add an post delay option to the read and write method.
+- Add dxl XM motor device
 
 ## Version 0.4.0
 
