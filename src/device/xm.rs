@@ -30,6 +30,7 @@ reg_read_write!(max_position_limit, 48, u32);
 reg_read_write!(min_position_limit, 52, u32);
 
 reg_read_write!(shutdown, 63, u8);
+
 reg_read_write!(torque_enable, 64, u8);
 reg_read_write!(led, 65, u8);
 reg_read_write!(status_return_level, 68, u8);
