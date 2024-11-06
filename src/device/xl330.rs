@@ -114,7 +114,7 @@ pub mod conv {
     /// Dynamixel current to mA
     ///
     /// Works for present_current instance
-    pub fn dxl_current_to_ma(current: i16) -> f32 {
+    pub fn dxl_current_to_ma(current: u16) -> f32 {
         current as f32 * 1.0
     }
     /// Current (mA) to dynamixel current
