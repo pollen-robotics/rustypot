@@ -115,14 +115,14 @@ pub mod conv {
     ///
     /// Works for present_current instance
     pub fn dxl_current_to_ma(current: i16) -> f32 {
-        current as f32 * 2.69
+        current as f32 * 1.0
     }
     /// Current (mA) to dynamixel current
     ///
     /// It should be in [-current_limit, +current_limit] with an absolute max at 1193 (3209.17mA)
     /// Works for goal_current for instance
     pub fn ma_to_dxl_current(current: f32) -> i16 {
-        (current / 2.69) as i16
+        (current / 1.0) as i16
     }
 
     /// Dxl Temperature (°C)
