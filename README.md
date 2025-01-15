@@ -52,4 +52,4 @@ This library is licensed under the [Apache License 2.0](./LICENSE).
 ## Support
 
 Rustypot is developed and maintained by [Pollen-Robotics](https://pollen-robotics.com). They developped open-source tools for robotics manipulation.
-Visit https://pollen-robotics.com to learn more or join the [Dicord community](https://discord.com/invite/Kg3mZHTKgs) if you have any questions or want to share your projects. 
+Visit https://pollen-robotics.com to learn more or join the [Discord community](https://discord.com/invite/Kg3mZHTKgs) if you have any questions or want to share your projects. 
