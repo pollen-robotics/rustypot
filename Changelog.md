@@ -1,3 +1,7 @@
+## Version 0.6.0
+
+- Add dxl XL330 support
+
 ## Version 0.5.0
 
 - Add an post delay option to the read and write method.

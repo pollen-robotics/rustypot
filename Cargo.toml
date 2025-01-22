@@ -1,6 +1,6 @@
 [package]
 name = "rustypot"
-version = "0.5.0"
+version = "0.6.0"
 edition = "2021"
 license = "Apache-2.0"
 authors = ["Pollen Robotics"]
@@ -10,7 +10,7 @@ repository = "https://github.com/pollen-robotics/rustypot"
 readme = "README.md"
 keywords = ["robotics", "dynamixel"]
 categories = ["science::robotics"]
-#autoexamples = false #disable auto discovery of examples
+autoexamples = false #disable auto discovery of examples
 
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
