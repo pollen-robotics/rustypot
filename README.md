@@ -17,7 +17,7 @@ Rustypot is yet another communication library for robotis Dynamixel motors. It i
 * Relies on [serialport](https://docs.rs/serialport/latest/serialport/) for serial communication
 * Support for dynamixel protocol v1 and v2 (can also use both on the same bus)
 * Support for sync read and sync write operations
-* Easy support for new type of motors (register definition through macros)
+* Easy support for new type of motors (register definition through macros). Currently support for dynamixel XL320, XL330, XL430, XM430, MX*, Orbita 2D & 3D.
 * Pure Rust
 
 ### Examples
