@@ -1,6 +1,6 @@
 use std::{error::Error, thread, time::Duration};
 
-use rustypot::{device::feetech_STS3215, DynamixelSerialIO};
+use rustypot::{device::feetech_sts3215, DynamixelSerialIO};
 fn main() -> Result<(), Box<dyn Error>> {
     let serialportname: String = "/dev/tty.usbmodem58FD0164681".to_string();
     let baudrate: u32 = 1_000_000;
@@ -21,10 +21,10 @@ fn main() -> Result<(), Box<dyn Error>> {
         let start_time = std::time::Instant::now();
 
         // let x: i16 = feetech_STS3215::read_present_position(&io, serial_port.as_mut(), ids[0])?;
-        let x = feetech_STS3215::sync_read_present_position(&io, serial_port.as_mut(), &ids)?;
+        let x = feetech_sts3215::sync_read_present_position(&io, serial_port.as_mut(), &ids)?;
         let x: Vec<f64> = x
             .iter()
-            .map(|p| feetech_STS3215::conv::dxl_pos_to_radians(*p))
+            .map(|p| feetech_sts3215::conv::dxl_pos_to_radians(*p))
             .map(f64::to_degrees)
             .collect();
         println!("present pos: {:?}", x);

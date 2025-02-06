@@ -17,10 +17,6 @@ use crate::{
 };
 
 pub trait Protocol<P: Packet> {
-    fn new() -> Self
-    where
-        Self: Sized;
-
     fn ping(&self, port: &mut dyn SerialPort, id: u8) -> Result<bool> {
         self.send_instruction_packet(port, P::ping_packet(id).as_ref())?;
 

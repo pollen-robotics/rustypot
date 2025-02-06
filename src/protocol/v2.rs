@@ -8,13 +8,6 @@ use super::{CommunicationErrorKind, Protocol};
 #[derive(Debug)]
 pub struct V2;
 impl Protocol<PacketV2> for V2 {
-    fn new() -> Self
-    where
-        Self: Sized,
-    {
-        V2
-    }
-
     fn sync_read(
         &self,
         port: &mut dyn serialport::SerialPort,

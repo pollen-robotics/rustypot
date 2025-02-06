@@ -244,9 +244,6 @@ impl InstructionKindFeetech {
 #[derive(Debug)]
 pub struct Feetech;
 impl Protocol<PacketFeetech> for Feetech {
-    fn new() -> Self {
-        Feetech
-    }
     fn sync_read(
         &self,
         port: &mut dyn serialport::SerialPort,

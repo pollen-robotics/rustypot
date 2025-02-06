@@ -245,9 +245,6 @@ impl InstructionKindV1 {
 #[derive(Debug)]
 pub struct V1;
 impl Protocol<PacketV1> for V1 {
-    fn new() -> Self {
-        V1
-    }
     fn sync_read(
         &self,
         port: &mut dyn serialport::SerialPort,
