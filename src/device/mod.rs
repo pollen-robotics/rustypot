@@ -203,12 +203,12 @@ macro_rules! check_response_size {
 }
 
 pub mod l0_force_fan;
-pub mod mx;
 pub mod orbita2d_poulpe;
 pub mod orbita2dof_foc;
+pub mod orbita3d_poulpe;
 pub mod orbita_foc;
 
-pub mod orbita3d_poulpe;
+pub mod mx;
 pub mod xl320;
 pub mod xl330;
 pub mod xl430;
