@@ -52,6 +52,7 @@ pub enum DxlModel {
     XH540V270 = 1140,
     XW540T260 = 1170,
     XW540T140 = 1180,
+    FeetechSTS3215 = 2307,
 }
 
 /// Generates read and sync_read functions for given register
