@@ -50,3 +50,21 @@ reg_read_only!(status, 65, u8);
 reg_read_only!(moving, 66, u8);
 reg_read_only!(present_current, 69, u16);
 reg_read_write!(maximum_acceleration, 85, u16);
+
+/// Unit conversion for Feetech motors
+pub mod conv {
+    use std::f64::consts::PI;
+
+    /// Feetech STS3215 angular position to radians
+    ///
+    /// Works in joint and multi-turn mode
+    pub fn dxl_pos_to_radians(pos: i16) -> f64 {
+        (2.0 * PI * (pos as f64) / 4096.0) - PI
+    }
+    /// Radians to Feetech STS3215 angular position
+    ///
+    /// Works in joint and multi-turn mode
+    pub fn radians_to_dxl_pos(rads: f64) -> i16 {
+        (4096.0 * (PI + rads) / (2.0 * PI)) as i16
+    }
+}

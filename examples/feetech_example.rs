@@ -21,6 +21,8 @@ fn main() -> Result<(), Box<dyn Error>> {
         let start_time = std::time::Instant::now();
 
         let x: i16 = feetech_STS3215::read_present_position(&io, serial_port.as_mut(), id)?;
+        let x = feetech_STS3215::conv::dxl_pos_to_radians(x);
+        let x = x.to_degrees();
         println!("present pos: {}", x);
 
         let elapsed_time = start_time.elapsed();
