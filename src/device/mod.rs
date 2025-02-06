@@ -79,8 +79,12 @@ macro_rules! reg_read_only {
             serial_port: &mut dyn serialport::SerialPort,
             ids: &[u8],
         ) -> Result<Vec<$reg_type>> {
-            let val = io.sync_read(serial_port, ids, $addr, size_of::<$reg_type>().try_into().unwrap())?;
-            check_response_size!(&val, $reg_type);
+            let val: Vec<Vec<u8>> = io.sync_read(serial_port, ids, $addr, size_of::<$reg_type>().try_into().unwrap())?;
+
+            for v in val.iter() {
+                check_response_size!(&v, $reg_type);
+            }
+
             let val = val
                 .iter()
                 .map(|v| $reg_type::from_le_bytes(v.as_slice().try_into().unwrap()))
