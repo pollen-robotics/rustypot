@@ -213,3 +213,5 @@ pub mod xl320;
 pub mod xl330;
 pub mod xl430;
 pub mod xm;
+
+pub mod feetech_STS3215;

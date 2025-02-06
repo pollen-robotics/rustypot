@@ -8,6 +8,9 @@ mod v2;
 #[allow(unused_imports)]
 pub use v2::{PacketV2, V2};
 
+mod feetech;
+pub use feetech::Feetech;
+
 use crate::{
     packet::{InstructionPacket, StatusPacket},
     Packet, Result,
