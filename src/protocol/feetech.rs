@@ -236,7 +236,7 @@ impl InstructionKindFeetech {
             InstructionKindFeetech::Read => 0x02,
             InstructionKindFeetech::Write => 0x03,
             InstructionKindFeetech::SyncWrite => 0x83,
-            InstructionKindFeetech::SyncRead => 0x84,
+            InstructionKindFeetech::SyncRead => 0x82,
         }
     }
 }
