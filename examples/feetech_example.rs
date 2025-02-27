@@ -2,9 +2,9 @@ use std::{error::Error, thread, time::Duration};
 
 use rustypot::{device::feetech_sts3215, DynamixelSerialIO};
 fn main() -> Result<(), Box<dyn Error>> {
-    let serialportname: String = "/dev/tty.usbmodem58FD0164681".to_string();
+    let serialportname: String = "/dev/ttyACM0".to_string();
     let baudrate: u32 = 1_000_000;
-    let ids = vec![1];
+    let ids = vec![20, 21, 22, 23, 24, 10, 11, 12, 13, 14, 30, 31, 32, 33];
 
     let mut serial_port = serialport::new(serialportname, baudrate)
         .timeout(Duration::from_millis(1000))
