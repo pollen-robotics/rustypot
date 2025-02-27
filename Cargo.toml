@@ -17,7 +17,7 @@ categories = ["science::robotics"]
 [dependencies]
 log = "0.4.17"
 paste = "1.0.10"
-serialport = "4.2.0"
+serialport = { version = "4.2.0", default-features = false}
 clap = { version = "4.0.32", features = ["derive"] }
 proc-macro2 = { version = "=1.0.89", features=["default", "proc-macro"] }
 signal-hook = "0.3.4"
