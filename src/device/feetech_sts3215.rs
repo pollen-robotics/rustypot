@@ -103,24 +103,24 @@ pub mod conv {
     //     // (360.0 * (value as f64)) / (4096.0 - 1.0)// * 0.111
     // }
 
-    pub fn dxl_to_speed(value: i32) -> f64 {
+    pub fn dxl_to_speed(value: i16) -> f64 {
         let mut value = value;
         if value > (1 << 15) {
             value = -(value - (1 << 15));
         }
-    
+
         let value = (360.0 * value as f64) / (4096.0 - 1.0);
-        value// * 0.111
+        value // * 0.111
     }
 
-    pub fn speed_to_dxl(value: f64) -> i32 {
+    pub fn speed_to_dxl(value: f64) -> f64 {
         let mut value = ((4096.0 - 1.0) * (value / 360.0)).round() as i32;
-    
+
         if value < 0 {
             value = (1 << 15) - value;
         }
-    
-        (value as f64 * (1.0 / 0.111)) as i32
+
+        (value as f64 * (1.0 / 0.111)) as f64
     }
 
     // pub fn speed_to_dxl(value: f64) -> f64 {
