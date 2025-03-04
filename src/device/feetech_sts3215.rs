@@ -85,12 +85,22 @@ pub mod conv {
     // return value * 1/0.111
 
     pub fn dxl_to_speed(value: i16) -> f64 {
-        let value = if value > 2_i16.pow(15) {
-            -(value - 2_i16.pow(15))
+        let val;
+
+        if value > 2_i16.pow(15) {
+            val = -(value - 2_i16.pow(15));
         } else {
-            value
-        };
-        (360.0 * (value as f64)) / (4096.0 - 1.0)// * 0.111
+            val = value;
+        }
+
+        (360.0 * (val as f64)) / (4096.0 - 1.0)// * 0.111
+
+        // let value = if value > 2_i16.pow(15) {
+        //     -(value - 2_i16.pow(15))
+        // } else {
+        //     value
+        // };
+        // (360.0 * (value as f64)) / (4096.0 - 1.0)// * 0.111
     }
 
     pub fn speed_to_dxl(value: f64) -> f64 {
