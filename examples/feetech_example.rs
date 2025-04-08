@@ -11,7 +11,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         .open()?;
     println!("serial port opened");
 
-    let io = DynamixelSerialIO::feetech();
+    let io = DynamixelSerialIO::v1();
 
     let mut times: Vec<f64> = Vec::new();
     let duration = Duration::new(5, 0);
