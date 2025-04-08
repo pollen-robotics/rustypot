@@ -6,7 +6,6 @@ use crate::{
 use super::{CommunicationErrorKind, Packet};
 
 const BROADCAST_ID: u8 = 254;
-const BROADCAST_RESPONSE_ID: u8 = 253;
 
 #[derive(Debug)]
 pub struct PacketV1;
@@ -236,8 +235,8 @@ impl InstructionKindV1 {
             InstructionKindV1::Ping => 0x01,
             InstructionKindV1::Read => 0x02,
             InstructionKindV1::Write => 0x03,
+            InstructionKindV1::SyncRead => 0x82,
             InstructionKindV1::SyncWrite => 0x83,
-            InstructionKindV1::SyncRead => 0x84,
         }
     }
 }
@@ -254,28 +253,15 @@ impl Protocol<PacketV1> for V1 {
     ) -> Result<Vec<Vec<u8>>> {
         let instruction_packet = PacketV1::sync_read_packet(ids, addr, length);
         self.send_instruction_packet(port, instruction_packet.as_ref())?;
-        let status_packet = self.read_status_packet(port, BROADCAST_RESPONSE_ID)?;
 
-        if status_packet.params().len() != (length as usize * ids.len()) {
-            Err(Box::new(CommunicationErrorKind::ParsingError))
-        } else {
-            let result: Vec<Vec<u8>> = status_packet
-                .params()
-                .chunks(length as usize)
-                .map(|slice| slice.to_vec())
-                .collect();
+        let mut result = Vec::new();
 
-            // In protocol v1, timeout are detected because all expected values are replaced by 255
-            let timeout: Vec<_> = result
-                .iter()
-                .filter(|r| r.iter().all(|&el| el == u8::MAX))
-                .collect();
-            if !timeout.is_empty() {
-                return Err(Box::new(CommunicationErrorKind::TimeoutError));
-            }
-
-            Ok(result)
+        for &id in ids {
+            let status_packet = self.read_status_packet(port, id)?;
+            result.push(status_packet.params().clone());
         }
+
+        Ok(result)
     }
 }
 
@@ -322,7 +308,7 @@ mod tests {
         let bytes = p.to_bytes();
         assert_eq!(
             bytes,
-            [0xFF, 0xFF, 0xFE, 0x6, 0x84, 0x1e, 0x2, 0xb, 0xc, 0x40]
+            [0xFF, 0xFF, 0xFE, 0x6, 0x82, 0x1e, 0x2, 0xb, 0xc, 0x42]
         );
     }
 
