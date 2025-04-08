@@ -31,7 +31,7 @@ mod protocol;
 use std::time::Duration;
 
 pub use protocol::CommunicationErrorKind;
-use protocol::{Feetech, Protocol, V1, V2};
+use protocol::{Protocol, V1, V2};
 
 mod packet;
 use packet::Packet;
@@ -44,7 +44,6 @@ type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
 enum Protocols {
     V1(V1),
     V2(V2),
-    Feetech(Feetech),
 }
 
 #[derive(Debug)]
@@ -108,13 +107,6 @@ impl DynamixelSerialIO {
         }
     }
 
-    pub fn feetech() -> Self {
-        DynamixelSerialIO {
-            protocol: Protocols::Feetech(Feetech),
-            post_delay: None,
-        }
-    }
-
     /// Set a delay after each communication.
     pub fn with_post_delay(self, delay: Duration) -> Self {
         DynamixelSerialIO {
@@ -152,7 +144,6 @@ impl DynamixelSerialIO {
         match &self.protocol {
             Protocols::V1(p) => p.ping(serial_port, id),
             Protocols::V2(p) => p.ping(serial_port, id),
-            Protocols::Feetech(p) => p.ping(serial_port, id),
         }
     }
 
@@ -197,7 +188,6 @@ impl DynamixelSerialIO {
         let res = match &self.protocol {
             Protocols::V1(p) => p.read(serial_port, id, addr, length),
             Protocols::V2(p) => p.read(serial_port, id, addr, length),
-            Protocols::Feetech(p) => p.read(serial_port, id, addr, length),
         };
         if let Some(delay) = self.post_delay {
             std::thread::sleep(delay);
@@ -244,7 +234,6 @@ impl DynamixelSerialIO {
         match &self.protocol {
             Protocols::V1(p) => p.write(serial_port, id, addr, data),
             Protocols::V2(p) => p.write(serial_port, id, addr, data),
-            Protocols::Feetech(p) => p.write(serial_port, id, addr, data),
         }?;
         if let Some(delay) = self.post_delay {
             std::thread::sleep(delay);
@@ -268,7 +257,6 @@ impl DynamixelSerialIO {
                 res
             }
             Protocols::V2(_) => Err(Box::new(CommunicationErrorKind::Unsupported)),
-            Protocols::Feetech(_) => Err(Box::new(CommunicationErrorKind::Unsupported)),
         }
     }
 
@@ -319,7 +307,6 @@ impl DynamixelSerialIO {
         match &self.protocol {
             Protocols::V1(p) => p.sync_read(serial_port, ids, addr, length),
             Protocols::V2(p) => p.sync_read(serial_port, ids, addr, length),
-            Protocols::Feetech(p) => p.sync_read(serial_port, ids, addr, length),
         }
     }
 
@@ -364,7 +351,6 @@ impl DynamixelSerialIO {
         match &self.protocol {
             Protocols::V1(p) => p.sync_write(serial_port, ids, addr, data),
             Protocols::V2(p) => p.sync_write(serial_port, ids, addr, data),
-            Protocols::Feetech(p) => p.sync_write(serial_port, ids, addr, data),
         }
     }
 }
