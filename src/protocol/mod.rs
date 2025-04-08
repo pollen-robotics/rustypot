@@ -48,7 +48,15 @@ pub trait Protocol<P: Packet> {
         ids: &[u8],
         addr: u8,
         length: u8,
-    ) -> Result<Vec<Vec<u8>>>;
+    ) -> Result<Vec<Vec<u8>>> {
+        self.send_instruction_packet(port, P::sync_read_packet(ids, addr, length).as_ref())?;
+        let mut result = Vec::new();
+        for id in ids {
+            let sp = self.read_status_packet(port, *id)?;
+            result.push(sp.params().to_vec());
+        }
+        Ok(result)
+    }
     fn sync_write(
         &self,
         port: &mut dyn SerialPort,

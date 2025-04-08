@@ -1,6 +1,7 @@
 use crate::{
     packet::{InstructionPacket, StatusPacket},
-    Protocol, Result,
+    protocol::Protocol,
+    Result,
 };
 
 use super::{CommunicationErrorKind, Packet};
@@ -243,27 +244,7 @@ impl InstructionKindV1 {
 
 #[derive(Debug)]
 pub struct V1;
-impl Protocol<PacketV1> for V1 {
-    fn sync_read(
-        &self,
-        port: &mut dyn serialport::SerialPort,
-        ids: &[u8],
-        addr: u8,
-        length: u8,
-    ) -> Result<Vec<Vec<u8>>> {
-        let instruction_packet = PacketV1::sync_read_packet(ids, addr, length);
-        self.send_instruction_packet(port, instruction_packet.as_ref())?;
-
-        let mut result = Vec::new();
-
-        for &id in ids {
-            let status_packet = self.read_status_packet(port, id)?;
-            result.push(status_packet.params().clone());
-        }
-
-        Ok(result)
-    }
-}
+impl Protocol<PacketV1> for V1 {}
 
 fn crc(data: &[u8]) -> u8 {
     let mut crc: u8 = 0;
