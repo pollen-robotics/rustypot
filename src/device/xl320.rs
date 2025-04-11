@@ -41,11 +41,11 @@ reg_read_write!(punch, 51, u16);
 ///
 /// reg_read_only!(present_position_speed_load, 36, (i16, u16, u16))
 pub fn sync_read_present_position_speed_load(
-    io: &DynamixelSerialIO,
+    dph: &DynamixelProtocolHandler,
     serial_port: &mut dyn serialport::SerialPort,
     ids: &[u8],
 ) -> Result<Vec<(i16, u16, u16)>> {
-    let val = io.sync_read(serial_port, ids, 37, 2 + 2 + 2)?;
+    let val = dph.sync_read(serial_port, ids, 37, 2 + 2 + 2)?;
     let val = val
         .iter()
         .map(|v| {

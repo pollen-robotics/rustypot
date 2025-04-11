@@ -3,14 +3,14 @@ use std::time::SystemTime;
 use std::{error::Error, thread, time::Duration};
 
 use rustypot::device::orbita_foc::{self, DiskValue};
-use rustypot::DynamixelSerialIO;
+use rustypot::DynamixelProtocolHandler;
 
 fn main() -> Result<(), Box<dyn Error>> {
     let mut serial_port = serialport::new("/dev/ttyUSB0", 1_000_000)
         .timeout(Duration::from_millis(100))
         .open()?;
 
-    let io = DynamixelSerialIO::v1().with_post_delay(Duration::from_millis(1));
+    let io = DynamixelProtocolHandler::v1().with_post_delay(Duration::from_millis(1));
 
     let id = 70;
     let mut state = orbita_foc::read_motors_drivers_states(&io, serial_port.as_mut(), id)?;

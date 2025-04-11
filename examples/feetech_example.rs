@@ -1,7 +1,10 @@
 use std::{error::Error, thread, time::Duration};
 
-use rustypot::{device::feetech_sts3215, DynamixelSerialIO};
+use rustypot::{device::feetech_sts3215, DynamixelProtocolHandler};
 fn main() -> Result<(), Box<dyn Error>> {
+    // let mut c = feetech_sts3215::FeetechFts3215Controller::new();
+    // let _models = c.sync_read_model(&vec![1, 2, 3])?;
+
     let serialportname: String = "/dev/ttyACM0".to_string();
     let baudrate: u32 = 1_000_000;
     let ids = vec![20, 21, 22, 23, 24, 10, 11, 12, 13, 14, 30, 31, 32, 33];
@@ -11,7 +14,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         .open()?;
     println!("serial port opened");
 
-    let io = DynamixelSerialIO::v1();
+    let io = DynamixelProtocolHandler::v1();
 
     let mut times: Vec<f64> = Vec::new();
     let duration = Duration::new(5, 0);

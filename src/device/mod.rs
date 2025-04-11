@@ -1,12 +1,11 @@
 //! High-level register access functions for a specific dynamixel device
-
 use num_enum::IntoPrimitive;
 use num_enum::TryFromPrimitive;
 
 use paste::paste;
 use std::mem::size_of;
 
-use crate::{reg_read_only, reg_read_write, DynamixelSerialIO, Result};
+use crate::{reg_read_only, reg_read_write, DynamixelProtocolHandler, Result};
 
 #[derive(Debug, IntoPrimitive, TryFromPrimitive)]
 #[repr(u16)]
@@ -63,11 +62,11 @@ macro_rules! reg_read_only {
     paste! {
         #[doc = concat!("Read register *", stringify!($name), "* (addr: ", stringify!($addr), ", type: ", stringify!($reg_type), ")")]
         pub fn [<read_ $name>](
-            io: &DynamixelSerialIO,
+            dph: &DynamixelProtocolHandler,
             serial_port: &mut dyn serialport::SerialPort,
             id: u8,
         ) -> Result<$reg_type> {
-            let val = io.read(serial_port, id, $addr, size_of::<$reg_type>().try_into().unwrap())?;
+            let val = dph.read(serial_port, id, $addr, size_of::<$reg_type>().try_into().unwrap())?;
             check_response_size!(&val, $reg_type);
             let val = $reg_type::from_le_bytes(val.try_into().unwrap());
 
@@ -76,11 +75,11 @@ macro_rules! reg_read_only {
 
         #[doc = concat!("Sync read register *", stringify!($name), "* (addr: ", stringify!($addr), ", type: ", stringify!($reg_type), ")")]
         pub fn [<sync_read_ $name>](
-            io: &DynamixelSerialIO,
+            dph: &DynamixelProtocolHandler,
             serial_port: &mut dyn serialport::SerialPort,
             ids: &[u8],
         ) -> Result<Vec<$reg_type>> {
-            let val: Vec<Vec<u8>> = io.sync_read(serial_port, ids, $addr, size_of::<$reg_type>().try_into().unwrap())?;
+            let val: Vec<Vec<u8>> = dph.sync_read(serial_port, ids, $addr, size_of::<$reg_type>().try_into().unwrap())?;
 
             for v in val.iter() {
                 check_response_size!(&v, $reg_type);
@@ -105,22 +104,22 @@ macro_rules! reg_write_only {
         paste! {
             #[doc = concat!("Write register *", stringify!($name), "* (addr: ", stringify!($addr), ", type: ", stringify!($reg_type), ")")]
             pub fn [<write_ $name>](
-                io: &DynamixelSerialIO,
+                dph: &DynamixelProtocolHandler,
                 serial_port: &mut dyn serialport::SerialPort,
                 id: u8,
                 val: $reg_type,
             ) -> Result<()> {
-                io.write(serial_port, id, $addr, &val.to_le_bytes())
+                dph.write(serial_port, id, $addr, &val.to_le_bytes())
             }
 
             #[doc = concat!("Sync write register *", stringify!($name), "* (addr: ", stringify!($addr), ", type: ", stringify!($reg_type), ")")]
             pub fn [<sync_write_ $name>](
-                io: &DynamixelSerialIO,
+                dph: &DynamixelProtocolHandler,
                 serial_port: &mut dyn serialport::SerialPort,
                 ids: &[u8],
                 values: &[$reg_type],
             ) -> Result<()> {
-                io.sync_write(
+                dph.sync_write(
                     serial_port,
                     ids,
                     $addr,
@@ -141,12 +140,12 @@ macro_rules! reg_write_only_fb {
         paste! {
             #[doc = concat!("Write register with fb *", stringify!($name), "* (addr: ", stringify!($addr), ", type: ", stringify!($reg_type), ")")]
             pub fn [<write_ $name>](
-                io: &DynamixelSerialIO,
+                dph: &DynamixelProtocolHandler,
                 serial_port: &mut dyn serialport::SerialPort,
                 id: u8,
                 val: $reg_type,
             ) -> Result<$fb_type> {
-                let fb=io.write_fb(serial_port, id, $addr, &val.to_le_bytes())?;
+                let fb = dph.write_fb(serial_port, id, $addr, &val.to_le_bytes())?;
                 check_response_size!(&fb, $fb_type);
                 let fb = $fb_type::from_le_bytes(fb.try_into().unwrap());
                 Ok(fb)
@@ -154,12 +153,12 @@ macro_rules! reg_write_only_fb {
 
             #[doc = concat!("Sync write register *", stringify!($name), "* (addr: ", stringify!($addr), ", type: ", stringify!($reg_type), ")")]
             pub fn [<sync_write_ $name>](
-                io: &DynamixelSerialIO,
+                dph: &DynamixelProtocolHandler,
                 serial_port: &mut dyn serialport::SerialPort,
                 ids: &[u8],
                 values: &[$reg_type],
             ) -> Result<()> {
-                io.sync_write(
+                dph.sync_write(
                     serial_port,
                     ids,
                     $addr,

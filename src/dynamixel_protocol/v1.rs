@@ -1,15 +1,14 @@
-use crate::{
-    packet::{InstructionPacket, StatusPacket},
-    protocol::Protocol,
-    Result,
-};
+use crate::Result;
 
-use super::{CommunicationErrorKind, Packet};
+use super::{
+    packet::{InstructionPacket, Packet, StatusPacket},
+    CommunicationErrorKind, Protocol,
+};
 
 const BROADCAST_ID: u8 = 254;
 
 #[derive(Debug)]
-pub struct PacketV1;
+pub(crate) struct PacketV1;
 impl Packet for PacketV1 {
     const HEADER_SIZE: usize = 4;
 
@@ -191,7 +190,7 @@ impl StatusPacket<PacketV1> for StatusPacketV1 {
 }
 
 #[derive(Debug, PartialEq, Eq, Hash, Clone, Copy)]
-pub enum DynamixelErrorV1 {
+pub(crate) enum DynamixelErrorV1 {
     Instruction,
     Overload,
     Checksum,
@@ -222,7 +221,7 @@ impl DynamixelErrorV1 {
 }
 
 #[derive(Debug, Clone, Copy)]
-pub enum InstructionKindV1 {
+pub(crate) enum InstructionKindV1 {
     Ping,
     Read,
     Write,
@@ -243,7 +242,7 @@ impl InstructionKindV1 {
 }
 
 #[derive(Debug)]
-pub struct V1;
+pub(crate) struct V1;
 impl Protocol<PacketV1> for V1 {}
 
 fn crc(data: &[u8]) -> u8 {

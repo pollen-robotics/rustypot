@@ -1,7 +1,7 @@
 use std::{error::Error, thread, time::Duration};
 
 use rustypot::device::xl320;
-use rustypot::DynamixelSerialIO;
+use rustypot::DynamixelProtocolHandler;
 
 fn main() -> Result<(), Box<dyn Error>> {
     env_logger::init();
@@ -10,7 +10,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         .timeout(Duration::from_millis(10))
         .open()?;
 
-    let io = DynamixelSerialIO::v2();
+    let io = DynamixelProtocolHandler::v2();
 
     loop {
         // println!("PING {:?}", io.ping(serial_port.as_mut(), 30));

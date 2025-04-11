@@ -1,14 +1,14 @@
 use std::{error::Error, thread, time::Duration};
 
 use rustypot::device::mx;
-use rustypot::DynamixelSerialIO;
+use rustypot::DynamixelProtocolHandler;
 
 fn main() -> Result<(), Box<dyn Error>> {
     let mut serial_port = serialport::new("/dev/tty.usbmodem142401", 1_000_000)
         .timeout(Duration::from_millis(10))
         .open()?;
 
-    let io = DynamixelSerialIO::v1();
+    let io = DynamixelProtocolHandler::v1();
 
     let _x: i16 = mx::read_present_position(&io, serial_port.as_mut(), 11)?;
     let _x: Vec<i16> = mx::sync_read_present_position(&io, serial_port.as_mut(), &[11, 12])?;

@@ -1,16 +1,16 @@
-use crate::{
+use crate::Result;
+
+use super::{
     packet::{InstructionPacket, Packet, StatusPacket},
-    Result,
+    CommunicationErrorKind, Protocol,
 };
 
-use super::{CommunicationErrorKind, Protocol};
-
 #[derive(Debug)]
-pub struct V2;
+pub(crate) struct V2;
 impl Protocol<PacketV2> for V2 {}
 
 #[derive(Debug)]
-pub struct PacketV2;
+pub(crate) struct PacketV2;
 impl Packet for PacketV2 {
     const HEADER_SIZE: usize = 7;
 
@@ -210,7 +210,7 @@ impl StatusPacket<PacketV2> for StatusPacketV2 {
 }
 
 #[derive(Debug, Clone, Copy)]
-pub enum InstructionKindV2 {
+pub(crate) enum InstructionKindV2 {
     Ping,
     Read,
     Write,
@@ -231,7 +231,7 @@ impl InstructionKindV2 {
 }
 
 #[derive(Debug, Clone, Copy)]
-pub enum DynamixelErrorV2 {
+pub(crate) enum DynamixelErrorV2 {
     ResultFail,
     Instruction,
     Checksum,

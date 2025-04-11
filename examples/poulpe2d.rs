@@ -3,7 +3,7 @@ use std::{error::Error, thread, time::Duration, time::Instant};
 
 use rustypot::device::orbita2d_poulpe::{self, MotorValue};
 // use rustypot::device::orbita3d_poulpe::{self, MotorValue};
-use rustypot::DynamixelSerialIO;
+use rustypot::DynamixelProtocolHandler;
 
 use clap::Parser;
 
@@ -53,7 +53,7 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     let now = SystemTime::now();
 
-    let io = DynamixelSerialIO::v1();
+    let io = DynamixelProtocolHandler::v1();
 
     // Ping
     let x = io.ping(serial_port.as_mut(), id);

@@ -3,7 +3,7 @@ use std::time::SystemTime;
 use std::{error::Error, thread, time::Duration};
 
 use rustypot::device::mx;
-use rustypot::DynamixelSerialIO;
+use rustypot::DynamixelProtocolHandler;
 
 use clap::Parser;
 use rustypot::device::mx::conv::radians_to_dxl_pos;
@@ -59,7 +59,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         .open()?;
     println!("serial port opened");
 
-    let io = DynamixelSerialIO::v1();
+    let io = DynamixelProtocolHandler::v1();
 
     let x: i16 = mx::read_present_position(&io, serial_port.as_mut(), id)?;
     println!("present pos: {}", x);

@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use std::{error::Error, time::Duration};
 
 use rustypot::device::DxlModel;
-use rustypot::DynamixelSerialIO;
+use rustypot::DynamixelProtocolHandler;
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
 struct Args {
@@ -46,8 +46,8 @@ fn main() -> Result<(), Box<dyn Error>> {
         .open()?;
 
     let io = match protocol {
-        ProtocolVersion::V1 => DynamixelSerialIO::v1(),
-        ProtocolVersion::V2 => DynamixelSerialIO::v2(),
+        ProtocolVersion::V1 => DynamixelProtocolHandler::v1(),
+        ProtocolVersion::V2 => DynamixelProtocolHandler::v2(),
     };
 
     for id in 1..253 {
