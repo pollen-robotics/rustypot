@@ -45,16 +45,16 @@ fn main() -> Result<(), Box<dyn Error>> {
         .timeout(Duration::from_millis(10))
         .open()?;
 
-    let io = match protocol {
+    let dph = match protocol {
         ProtocolVersion::V1 => DynamixelProtocolHandler::v1(),
         ProtocolVersion::V2 => DynamixelProtocolHandler::v2(),
     };
 
     for id in 1..253 {
-        match io.ping(serial_port.as_mut(), id) {
+        match dph.ping(serial_port.as_mut(), id) {
             Ok(present) => {
                 if present {
-                    let model = io.read(serial_port.as_mut(), id, 0, 2).unwrap();
+                    let model = dph.read(serial_port.as_mut(), id, 0, 2).unwrap();
 
                     found.insert(id, u16::from_le_bytes([model[0], model[1]]));
                 }
