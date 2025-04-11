@@ -27,7 +27,6 @@
 //! println!("Motor 11 present position: {:?}", pos);
 //! ```
 
-
 pub mod device;
 
 mod dynamixel_protocol;
