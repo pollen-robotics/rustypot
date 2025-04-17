@@ -31,7 +31,7 @@ impl DynamixelProtocolHandler {
     ///
     /// # Examples
     /// ```no_run
-    /// use rustypot::{DynamixelProtocolHandler, device::mx};
+    /// use rustypot::{DynamixelProtocolHandler, servo::dynamixel::mx};
     /// use std::time::Duration;
     ///
     /// let mut serial_port = serialport::new("/dev/ttyACM0", 1_000_000)
@@ -57,7 +57,7 @@ impl DynamixelProtocolHandler {
     ///
     /// # Examples
     /// ```no_run
-    /// use rustypot::{DynamixelProtocolHandler, device::xl320};
+    /// use rustypot::{DynamixelProtocolHandler, servo::dynamixel::xl320};
     /// use std::time::Duration;
     ///
     /// let mut serial_port = serialport::new("/dev/ttyACM0", 1_000_000)

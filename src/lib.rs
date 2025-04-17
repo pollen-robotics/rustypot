@@ -38,19 +38,21 @@
 //! ### With the high-level API
 //! ```no_run
 //! use rustypot::servo::feetech::sts3215::STS3215Controller;
+//! use std::time::Duration;
 //!
-//! let serial_port = serialport::new(serialportname, baudrate)
+//! let serial_port = serialport::new("/dev/ttyUSB0", 1_000_000)
 //!     .timeout(Duration::from_millis(1000))
-//!     .open()?;
+//!     .open()
+//!     .unwrap();
 //!
 //! let mut c = STS3215Controller::new()
 //!         .with_protocol_v1()
 //!         .with_serial_port(serial_port);
 //!
-//! let pos = c.read_present_position(&vec![1, 2])?;
+//! let pos = c.read_present_position(&vec![1, 2]).unwrap();
 //! println!("Motors present position: {:?}", pos);
 //!
-//! c.write_goal_position(&vec![1, 2], &vec![1000, 2000])?;
+//! c.write_goal_position(&vec![1, 2], &vec![1000, 2000]).unwrap();
 //! ```
 
 pub mod servo;
@@ -59,3 +61,5 @@ mod dynamixel_protocol;
 pub use dynamixel_protocol::{CommunicationErrorKind, DynamixelProtocolHandler};
 
 type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
+
+// TODO: clippy

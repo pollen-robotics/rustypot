@@ -53,6 +53,7 @@ fn main() {
 
 ```rust
 use rustypot::servo::feetech::sts3215::STS3215Controller;
+use std::time::Duration;
 
 fn main() {
     let serial_port = serialport::new("/dev/ttyUSB0", 1_000_000)
