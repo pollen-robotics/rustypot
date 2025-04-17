@@ -118,7 +118,7 @@ impl InstructionPacket<PacketV1> for InstructionPacketV1 {
 
         let payload_length: u8 = (self.params.len() + 2).try_into().unwrap();
 
-        bytes.extend(vec![255, 255, self.id, payload_length].iter());
+        bytes.extend([255, 255, self.id, payload_length].iter());
         bytes.push(self.instruction.value());
         bytes.extend(self.params.iter());
         bytes.push(crc(&bytes[2..]));

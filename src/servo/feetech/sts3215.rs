@@ -74,7 +74,7 @@ pub mod conv {
             value = -(value - ((1 << 15) as f64));
         }
 
-        (2.0 * PI * value as f64) / (4096.0 - 1.0)
+        (2.0 * PI * value) / (4096.0 - 1.0)
 
         // value // * 0.111
     }

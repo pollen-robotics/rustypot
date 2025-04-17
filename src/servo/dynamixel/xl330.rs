@@ -85,7 +85,6 @@ pub mod conv {
     ///
     /// Works in joint and multi-turn mode
     /// 2048->180° is the center position with 0.088 [deg/pulse]
-
     pub fn dxl_pos_to_radians(pos: i32) -> f32 {
         (2.0 * PI * (pos as f32) / 4096.0) - PI
     }

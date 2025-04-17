@@ -5,10 +5,15 @@ macro_rules! generate_servo {
     ) => {
         paste::paste! {
             pub struct [<$servo_name Controller>] {
-                dph: Option<crate::DynamixelProtocolHandler>,
+                dph: Option<$crate::DynamixelProtocolHandler>,
                 serial_port: Option<Box<dyn serialport::SerialPort>>,
             }
 
+            impl Default for [<$servo_name Controller>] {
+                fn default() -> Self {
+                    Self::new()
+                }
+            }
 
             impl [<$servo_name Controller>] {
                 pub fn new() -> Self {
@@ -25,10 +30,10 @@ macro_rules! generate_servo {
             }
         }
 
-        crate::generate_protocol_constructor!($servo_name, $protocol);
+        $crate::generate_protocol_constructor!($servo_name, $protocol);
 
         $(
-            crate::generate_reg_access!($servo_name, $reg_name, $reg_access, $reg_addr, $reg_type);
+            $crate::generate_reg_access!($servo_name, $reg_name, $reg_access, $reg_addr, $reg_type);
         )*
     };
 }
@@ -42,7 +47,7 @@ macro_rules! generate_protocol_constructor {
                     self,
                 ) -> Self {
                     Self {
-                        dph: Some(crate::DynamixelProtocolHandler::v1()),
+                        dph: Some($crate::DynamixelProtocolHandler::v1()),
                         ..self
                     }
                 }
@@ -56,7 +61,7 @@ macro_rules! generate_protocol_constructor {
                     self,
                 ) -> Self {
                     Self {
-                        dph: Some(crate::DynamixelProtocolHandler::v2()),
+                        dph: Some($crate::DynamixelProtocolHandler::v2()),
                         ..self
                     }
                 }
@@ -68,14 +73,14 @@ macro_rules! generate_protocol_constructor {
 #[macro_export]
 macro_rules! generate_reg_access {
     ($servo_name:ident, $reg_name:ident, r, $reg_addr:expr, $reg_type:ty) => {
-        crate::generate_reg_read!($servo_name, $reg_name, $reg_addr, $reg_type);
+        $crate::generate_reg_read!($servo_name, $reg_name, $reg_addr, $reg_type);
     };
     ($servo_name:ident, $reg_name:ident, w, $reg_addr:expr, $reg_type:ty) => {
-        crate::generate_reg_write!($servo_name, $reg_name, $reg_addr, $reg_type);
+        $crate::generate_reg_write!($servo_name, $reg_name, $reg_addr, $reg_type);
     };
     ($servo_name:ident, $reg_name:ident, rw, $reg_addr:expr, $reg_type:ty) => {
-        crate::generate_reg_read!($servo_name, $reg_name, $reg_addr, $reg_type);
-        crate::generate_reg_write!($servo_name, $reg_name, $reg_addr, $reg_type);
+        $crate::generate_reg_read!($servo_name, $reg_name, $reg_addr, $reg_type);
+        $crate::generate_reg_write!($servo_name, $reg_name, $reg_addr, $reg_type);
     };
 }
 #[macro_export]
@@ -84,10 +89,10 @@ macro_rules! generate_reg_read {
         paste::paste! {
             #[doc = concat!("Read register *", stringify!($name), "* (addr: ", stringify!($addr), ", type: ", stringify!($reg_type), ")")]
             pub fn [<read_ $reg_name>](
-                io: &crate::DynamixelProtocolHandler,
+                io: &$crate::DynamixelProtocolHandler,
                 serial_port: &mut dyn serialport::SerialPort,
                 id: u8,
-            ) -> crate::Result<$reg_type> {
+            ) -> $crate::Result<$reg_type> {
                 let val = io.read(serial_port, id, $reg_addr, size_of::<$reg_type>().try_into().unwrap())?;
                 let val = $reg_type::from_le_bytes(val.try_into().unwrap());
 
@@ -96,10 +101,10 @@ macro_rules! generate_reg_read {
 
             #[doc = concat!("Sync read register *", stringify!($name), "* (addr: ", stringify!($addr), ", type: ", stringify!($reg_type), ")")]
         pub fn [<sync_read_ $reg_name>](
-            io: &crate::DynamixelProtocolHandler,
+            io: &$crate::DynamixelProtocolHandler,
             serial_port: &mut dyn serialport::SerialPort,
             ids: &[u8],
-        ) -> crate::Result<Vec<$reg_type>> {
+        ) -> $crate::Result<Vec<$reg_type>> {
             let val: Vec<Vec<u8>> = io.sync_read(serial_port, ids, $reg_addr, size_of::<$reg_type>().try_into().unwrap())?;
             let val = val
                 .iter()
@@ -114,7 +119,7 @@ macro_rules! generate_reg_read {
             pub fn [<read_ $reg_name>](
                 &mut self,
                 ids: &[u8],
-            ) -> crate::Result<Vec<$reg_type>> {
+            ) -> $crate::Result<Vec<$reg_type>> {
                 [<sync_read_ $reg_name>](
                     self.dph.as_ref().unwrap(),
                     self.serial_port.as_mut().unwrap().as_mut(),
@@ -132,21 +137,21 @@ macro_rules! generate_reg_write {
         paste::paste! {
             #[doc = concat!("Write register *", stringify!($name), "* (addr: ", stringify!($addr), ", type: ", stringify!($reg_type), ")")]
             pub fn [<write_ $reg_name>](
-                io: &crate::DynamixelProtocolHandler,
+                io: &$crate::DynamixelProtocolHandler,
                 serial_port: &mut dyn serialport::SerialPort,
                 id: u8,
                 val: $reg_type,
-            ) -> crate::Result<()> {
+            ) -> $crate::Result<()> {
                 io.write(serial_port, id, $reg_addr, &val.to_le_bytes())
             }
 
             #[doc = concat!("Sync write register *", stringify!($name), "* (addr: ", stringify!($addr), ", type: ", stringify!($reg_type), ")")]
             pub fn [<sync_write_ $reg_name>](
-                io: &crate::DynamixelProtocolHandler,
+                io: &$crate::DynamixelProtocolHandler,
                 serial_port: &mut dyn serialport::SerialPort,
                 ids: &[u8],
                 values: &[$reg_type],
-            ) -> crate::Result<()> {
+            ) -> $crate::Result<()> {
                 io.sync_write(
                     serial_port,
                     ids,
@@ -164,7 +169,7 @@ macro_rules! generate_reg_write {
                 &mut self,
                 ids: &[u8],
                 values: &[$reg_type],
-            ) -> crate::Result<()> {
+            ) -> $crate::Result<()> {
                 [<sync_write_ $reg_name>](
                     self.dph.as_ref().unwrap(),
                     self.serial_port.as_mut().unwrap().as_mut(),
@@ -186,11 +191,11 @@ macro_rules! generate_reg_write_fb {
         paste::paste! {
             #[doc = concat!("Write register with fb *", stringify!($name), "* (addr: ", stringify!($addr), ", type: ", stringify!($reg_type), ")")]
             pub fn [<write_ $name _fb>](
-                dph: &crate::DynamixelProtocolHandler,
+                dph: &$crate::DynamixelProtocolHandler,
                 serial_port: &mut dyn serialport::SerialPort,
                 id: u8,
                 val: $reg_type,
-            ) -> crate::Result<$fb_type> {
+            ) -> $crate::Result<$fb_type> {
                 let fb = dph.write_fb(serial_port, id, $addr, &val.to_le_bytes())?;
                 let fb = $fb_type::from_le_bytes(fb.try_into().unwrap());
                 Ok(fb)
@@ -198,11 +203,11 @@ macro_rules! generate_reg_write_fb {
 
             #[doc = concat!("Sync write register *", stringify!($name), "* (addr: ", stringify!($addr), ", type: ", stringify!($reg_type), ")")]
             pub fn [<sync_write_ $name _fb>](
-                dph: &crate::DynamixelProtocolHandler,
+                dph: &$crate::DynamixelProtocolHandler,
                 serial_port: &mut dyn serialport::SerialPort,
                 ids: &[u8],
                 values: &[$reg_type],
-            ) -> crate::Result<()> {
+            ) -> $crate::Result<()> {
                 dph.sync_write(
                     serial_port,
                     ids,
