@@ -1,18 +1,26 @@
-//! Yet another communication library for robotis Dynamixel motors.
+//! A low-level communication library for servo (Dynamixel and Feetech motors).
 //!
 //! ## Feature Overview
 //!
 //! * Relies on [serialport] for serial communication
-//! * Support for dynamixel protocol v1 and v2 (can also use both on the same io)
+//! * Support for dynamixel protocol v1 and v2 (both can be used on the same io)
 //! * Support for sync read and sync write operations
 //! * Easy support for new type of motors (register definition through macros)
 //! * Pure Rust
 //!
-//! *Note: this version use std and Vec extensively.*
+//! ## APIs
+//!
+//! It exposes two APIs:
+//! * `DynamixelProtocolHandler`: low-level API. It handles the serial communication and the Dynamixel protocol parsing. It can be used for fine-grained control of the shared bus with other communication.
+//! * `Controller`: high-level API for the Dynamixel protocol. Simpler and cleaner API but it takes full ownership of the io (it can still be shared if wrapped with a mutex for instance).
+//!
+//! See the examples below for usage.
 //!
 //! ## Examples
+//!
+//! ### With the low-level API
 //! ```no_run
-//! use rustypot::{DynamixelProtocolHandler, device::mx};
+//! use rustypot::{DynamixelProtocolHandler, servo::dynamixel::mx};
 //! use std::time::Duration;
 //!
 //! let mut serial_port = serialport::new("/dev/ttyACM0", 1_000_000)
@@ -25,6 +33,24 @@
 //! let pos =
 //!     mx::read_present_position(&dph, serial_port.as_mut(), 11).expect("Communication error");
 //! println!("Motor 11 present position: {:?}", pos);
+//! ```
+//!
+//! ### With the high-level API
+//! ```no_run
+//! use rustypot::servo::feetech::sts3215::STS3215Controller;
+//!
+//! let serial_port = serialport::new(serialportname, baudrate)
+//!     .timeout(Duration::from_millis(1000))
+//!     .open()?;
+//!
+//! let mut c = STS3215Controller::new()
+//!         .with_protocol_v1()
+//!         .with_serial_port(serial_port);
+//!
+//! let pos = c.read_present_position(&vec![1, 2])?;
+//! println!("Motors present position: {:?}", pos);
+//!
+//! c.write_goal_position(&vec![1, 2], &vec![1000, 2000])?;
 //! ```
 
 pub mod servo;
