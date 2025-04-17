@@ -61,5 +61,3 @@ mod dynamixel_protocol;
 pub use dynamixel_protocol::{CommunicationErrorKind, DynamixelProtocolHandler};
 
 type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
-
-// TODO: clippy
