@@ -27,7 +27,7 @@
 //! println!("Motor 11 present position: {:?}", pos);
 //! ```
 
-pub mod device;
+pub mod servo;
 
 mod dynamixel_protocol;
 pub use dynamixel_protocol::{CommunicationErrorKind, DynamixelProtocolHandler};

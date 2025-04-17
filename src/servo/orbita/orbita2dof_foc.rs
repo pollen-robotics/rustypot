@@ -1,6 +1,6 @@
 //! Orbita 2DoF Serial SimpleFOC register (protocol v1)
 
-use crate::device::*;
+use crate::generate_servo;
 
 /// Wrapper for a value per motor (A and B)
 #[derive(Clone, Copy, Debug)]
@@ -32,72 +32,59 @@ pub struct Pid {
     pub d: f32,
 }
 
-reg_read_only!(model_number, 0, u16);
-reg_read_only!(firmware_version, 6, u8);
-reg_read_write!(id, 7, u8);
-
-reg_write_only!(system_check, 8, u8);
-reg_read_only!(motors_drivers_states, 9, u8);
-
-reg_read_write!(voltage_limit, 10, f32);
-reg_read_write!(intensity_limit, 14, f32);
-
-reg_read_write!(velocity_pid, 18, Pid);
-reg_read_write!(velocity_p_gain, 18, f32);
-reg_read_write!(velocity_i_gain, 22, f32);
-reg_read_write!(velocity_d_gain, 26, f32);
-reg_read_write!(velocity_out_ramp, 30, f32);
-reg_read_write!(velocity_low_pass_filter, 34, f32);
-
-reg_read_write!(angle_pid, 38, Pid);
-reg_read_write!(angle_p_gain, 38, f32);
-reg_read_write!(angle_i_gain, 42, f32);
-reg_read_write!(angle_d_gain, 46, f32);
-reg_read_write!(angle_velocity_limit, 50, f32);
-
-reg_read_write!(temperature_limit, 54, f32);
-
-reg_read_write!(torque_enable, 58, u8);
-
-reg_read_write!(ring_sensor_goal_position, 59, f32);
-reg_read_write!(center_sensor_goal_position, 63, f32);
-
-reg_read_only!(sensor_ring_present_position, 67, f32);
-reg_read_only!(sensor_center_present_position, 71, f32);
-
-reg_read_write!(motor_a_goal_position, 75, f32);
-reg_read_write!(motor_b_goal_position, 79, f32);
-
-reg_read_only!(motor_a_present_position, 83, f32);
-reg_read_only!(motor_b_present_position, 87, f32);
-
-reg_read_only!(motor_a_present_velocity, 91, f32);
-reg_read_only!(motor_b_present_velocity, 95, f32);
-
-reg_read_only!(motor_a_present_load, 99, f32);
-reg_read_only!(motor_b_present_load, 103, f32);
-
-reg_read_only!(motor_a_present_temperature, 107, f32);
-reg_read_only!(motor_b_present_temperature, 111, f32);
-
-reg_read_only!(imu_acc, 119, Vec3d::<f32>);
-reg_read_only!(imu_acc_x, 119, f32);
-reg_read_only!(imu_acc_y, 123, f32);
-reg_read_only!(imu_acc_z, 127, f32);
-reg_read_only!(imu_gyro, 131, Vec3d::<f32>);
-reg_read_only!(imu_gyro_x, 131, f32);
-reg_read_only!(imu_gyro_y, 135, f32);
-reg_read_only!(imu_gyro_z, 139, f32);
-reg_read_only!(imu_temperature, 143, f32);
-
-reg_read_only!(motor_a_current_phase_u, 143, f32);
-reg_read_only!(motor_a_current_phase_v, 147, f32);
-reg_read_only!(motor_a_current_phase_w, 151, f32);
-reg_read_only!(motor_a_dc_current, 155, f32);
-
-reg_read_write!(debug_float_1, 159, f32);
-reg_read_write!(debug_float_2, 163, f32);
-reg_read_write!(debug_float_3, 167, f32);
+generate_servo!(
+    Orbita2dFoc, v1,
+    reg: (model_number, r, 0, u16),
+    reg: (firmware_version, r, 6, u8),
+    reg: (id, rw, 7, u8),
+    reg: (system_check, w, 8, u8),
+    reg: (motors_drivers_states, r, 159, u8),
+    reg: (voltage_limit, rw, 10, f32),
+    reg: (intensity_limit, rw, 14, f32),
+    reg: (velocity_pid, rw, 18, Pid),
+    reg: (velocity_p_gain, rw, 18, f32),
+    reg: (velocity_i_gain, rw, 22, f32),
+    reg: (velocity_d_gain, rw, 26, f32),
+    reg: (velocity_out_ramp, rw, 30, f32),
+    reg: (velocity_low_pass_filter, rw, 34, f32),
+    reg: (angle_pid, rw, 38, Pid),
+    reg: (angle_p_gain, rw, 38, f32),
+    reg: (angle_i_gain, rw, 42, f32),
+    reg: (angle_d_gain, rw, 46, f32),
+    reg: (angle_velocity_limit, rw, 50, f32),
+    reg: (temperature_limit, rw, 54, f32),
+    reg: (torque_enable, rw, 58, u8),
+    reg: (ring_sensor_goal_position, rw, 59, f32),
+    reg: (center_sensor_goal_position, rw, 63, f32),
+    reg: (sensor_ring_present_position, r, 67, f32),
+    reg: (sensor_center_present_position, r, 71, f32),
+    reg: (motor_a_goal_position, rw, 75, f32),
+    reg: (motor_b_goal_position, rw, 79, f32),
+    reg: (motor_a_present_position, r, 83, f32),
+    reg: (motor_b_present_position, r, 87, f32),
+    reg: (motor_a_present_velocity, r, 91, f32),
+    reg: (motor_b_present_velocity, r, 95, f32),
+    reg: (motor_a_present_load, r, 99, f32),
+    reg: (motor_b_present_load, r, 103, f32),
+    reg: (motor_a_present_temperature, r, 107, f32),
+    reg: (motor_b_present_temperature, r, 111, f32),
+    reg: (imu_acc, r, 119, Vec3d::<f32>),
+    reg: (imu_acc_x, r, 119, f32),
+    reg: (imu_acc_y, r, 123, f32),
+    reg: (imu_acc_z, r, 127, f32),
+    reg: (imu_gyro, r, 131, Vec3d::<f32>),
+    reg: (imu_gyro_x, r, 131, f32),
+    reg: (imu_gyro_y, r, 135, f32),
+    reg: (imu_gyro_z, r, 139, f32),
+    reg: (imu_temperature, r, 143, f32),
+    reg: (motor_a_current_phase_u, r, 143, f32),
+    reg: (motor_a_current_phase_v, r, 147, f32),
+    reg: (motor_a_current_phase_w, r, 151, f32),
+    reg: (motor_a_dc_current, r, 155, f32),
+    reg: (debug_float_1, rw, 159, f32),
+    reg: (debug_float_2, rw, 163, f32),
+    reg: (debug_float_3, rw, 167, f32),
+);
 
 impl<T: PartialEq> PartialEq for MotorValue<T> {
     fn eq(&self, other: &Self) -> bool {

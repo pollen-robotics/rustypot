@@ -1,6 +1,6 @@
 use std::{error::Error, thread, time::Duration};
 
-use rustypot::device::xl320;
+use rustypot::servo::dynamixel::xl320;
 use rustypot::DynamixelProtocolHandler;
 
 fn main() -> Result<(), Box<dyn Error>> {

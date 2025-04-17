@@ -1,7 +1,7 @@
 use std::time::SystemTime;
 use std::{error::Error, thread, time::Duration, time::Instant};
 
-use rustypot::device::orbita2d_poulpe::{self, MotorValue};
+use rustypot::servo::orbita::orbita2d_poulpe::{self, MotorValue};
 // use rustypot::device::orbita3d_poulpe::{self, MotorValue};
 use rustypot::DynamixelProtocolHandler;
 
@@ -108,7 +108,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         //     },
         // );
 
-        let feedback = orbita2d_poulpe::write_target_position(
+        let feedback = orbita2d_poulpe::write_target_position_fb(
             &io,
             serial_port.as_mut(),
             id,

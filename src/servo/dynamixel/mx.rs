@@ -7,53 +7,59 @@
 //!
 //! See <https://emanual.robotis.com/docs/en/dxl/mx/mx-28/> for example.
 
-use crate::device::*;
+use crate::generate_servo;
 
-reg_read_only!(model_number, 0, u16);
-reg_read_only!(firmware_version, 2, u8);
-reg_read_write!(id, 3, u8);
-reg_read_write!(baudrate, 4, u8);
-reg_read_write!(return_delay_time, 5, u8);
-reg_read_write!(cw_angle_limit, 6, u16);
-reg_read_write!(ccw_angle_limit, 8, u16);
-reg_read_write!(temperature_limit, 11, u8);
-reg_read_write!(min_voltage_limit, 12, u8);
-reg_read_write!(max_voltage_limit, 13, u8);
-reg_read_write!(max_torque, 14, u16);
-reg_read_write!(status_return_level, 16, u8);
-reg_read_write!(alarm_led, 17, u8);
-reg_read_write!(shutdown, 18, u8);
-reg_read_write!(multi_turn_offset, 20, i16);
-reg_read_write!(resolution_divider, 22, u8);
+generate_servo!(
+    MX, v1,
+    reg: (model_number, r, 0, u16),
+    reg: (firmware_version, r, 2, u8),
+    reg: (id, rw, 3, u8),
+    reg: (baudrate, rw, 4, u8),
+    reg: (return_delay_time, rw, 5, u8),
+    reg: (cw_angle_limit, rw, 6, u16),
+    reg: (ccw_angle_limit, rw, 8, u16),
+    reg: (temperature_limit, rw, 11, u8),
+    reg: (min_voltage_limit, rw, 12, u8),
+    reg: (max_voltage_limit, rw, 13, u8),
+    reg: (max_torque, rw, 14, u16),
+    reg: (status_return_level, rw, 16, u8),
+    reg: (alarm_led, rw, 17, u8),
+    reg: (shutdown, rw, 18, u8),
+    reg: (multi_turn_offset, rw, 20, i16),
+    reg: (resolution_divider, rw, 22, u8),
+    reg: (torque_enable, rw, 24, u8),
+    reg: (led, rw, 25, u8),
+    reg: (d_gain, rw, 26, u8),
+    reg: (i_gain, rw, 27, u8),
+    reg: (p_gain, rw, 28, u8),
+    reg: (goal_position, rw, 30, i16),
+    reg: (moving_speed, rw, 32, u16),
+    reg: (torque_limit, rw, 34, u16),
+    reg: (present_position, r, 36, i16),
+    reg: (present_speed, r, 38, u16),
+    reg: (present_load, r, 40, u16),
+    reg: (present_voltage, r, 42, u8),
+    reg: (present_temperature, r, 43, u8),
+    reg: (registered, r, 44, u8),
+    reg: (moving, r, 46, u8),
+    reg: (lock, rw, 47, u8),
+    reg: (punch, rw, 48, u16),
+    reg: (realtime_tick, r, 50, u16),
+    reg: (goal_acceleration, rw, 73, u8),
+);
 
-reg_read_write!(torque_enable, 24, u8);
-reg_read_write!(led, 25, u8);
-reg_read_write!(d_gain, 26, u8);
-reg_read_write!(i_gain, 27, u8);
-reg_read_write!(p_gain, 28, u8);
-reg_read_write!(goal_position, 30, i16);
-reg_read_write!(moving_speed, 32, u16);
-reg_read_write!(torque_limit, 34, u16);
-reg_read_only!(present_position, 36, i16);
-reg_read_only!(present_speed, 38, u16);
-reg_read_only!(present_load, 40, u16);
-reg_read_only!(present_voltage, 42, u8);
-reg_read_only!(present_temperature, 43, u8);
-reg_read_only!(registered, 44, u8);
-reg_read_only!(moving, 46, u8);
-reg_read_write!(lock, 47, u8);
-reg_read_write!(punch, 48, u16);
-reg_read_only!(realtime_tick, 50, u16);
-reg_read_write!(goal_acceleration, 73, u8);
+// pub type MX28Controller = MXController;
+// pub type MX64Controller = MXController;
+// pub type MX106Controller = MXController;
 
 /// Sync read present_position, present_speed and present_load in one message
 ///
 /// reg_read_only!(present_position_speed_load, 36, (i16, u16, u16))
 pub fn sync_read_present_position_speed_load(
-    dph: &DynamixelProtocolHandler,
+    dph: &crate::DynamixelProtocolHandler,
     serial_port: &mut dyn serialport::SerialPort,
     ids: &[u8],
-) -> Result<Vec<(i16, u16, u16)>> {
+) -> crate::Result<Vec<(i16, u16, u16)>> {
     let val = dph.sync_read(serial_port, ids, 36, 2 + 2 + 2)?;
     let val = val
         .iter()

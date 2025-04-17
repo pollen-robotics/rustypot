@@ -1,6 +1,6 @@
 //! Orbita 3Dof Poulpe version
 
-use crate::device::*;
+use crate::{generate_reg_write_fb, generate_servo};
 
 /// Wrapper for a value per motor
 #[derive(Clone, Copy, Debug)]
@@ -32,37 +32,38 @@ pub struct Pid {
     pub i: i16,
 }
 
-reg_read_only!(model_number, 0, u16);
-reg_read_only!(firmware_version, 6, u8);
-reg_read_write!(id, 7, u8);
+generate_servo!(
+    Orbita3dPoulpe, v1,
+    reg: (model_number, r, 0, u16),
+    reg: (firmware_version, r, 6, u8),
+    reg: (id, rw, 7, u8),
+    reg: (velocity_limit, rw, 10, MotorValue::<f32>),
+    reg: (velocity_limit_max, rw, 12, MotorValue::<f32>),
+    reg: (torque_flux_limit, rw, 14, MotorValue::<f32>),
+    reg: (torque_flux_limit_max, rw, 16, MotorValue::<f32>),
+    reg: (uq_ud_limit, rw, 18, MotorValue::<i16>),
+    reg: (flux_pid, rw, 20, MotorValue::<Pid>),
+    reg: (torque_pid, rw, 24, MotorValue::<Pid>),
+    reg: (velocity_pid, rw, 28, MotorValue::<Pid>),
+    reg: (position_pid, rw, 32, MotorValue::<Pid>),
+    reg: (torque_enable, rw, 40, MotorValue::<bool>),
+    reg: (current_position, r, 50, MotorValue::<f32>),
+    reg: (current_velocity, r, 51, MotorValue::<f32>),
+    reg: (current_torque, r, 52, MotorValue::<f32>),
+    // reg: (target_position, rw, 60, MotorValue::<f32>),
+    // reg: (target_position, fb, 60, MotorValue::<f32>, MotorPositionSpeedLoad),
+    reg: (board_state, rw, 80, u8),
+    reg: (axis_sensor, r, 90, MotorValue::<f32>),
+    reg: (index_sensor, r, 99, MotorValue::<u8>),
+    reg: (full_state, r, 100, MotorPositionSpeedLoad),
+);
 
-reg_read_write!(velocity_limit, 10, MotorValue::<f32>);
-reg_read_write!(velocity_limit_max, 12, MotorValue::<f32>);
-reg_read_write!(torque_flux_limit, 14, MotorValue::<f32>);
-reg_read_write!(torque_flux_limit_max, 16, MotorValue::<f32>);
-reg_read_write!(uq_ud_limit, 18, MotorValue::<f32>);
-
-reg_read_write!(flux_pid, 20, MotorValue::<Pid>);
-reg_read_write!(torque_pid, 24, MotorValue::<Pid>);
-reg_read_write!(velocity_pid, 28, MotorValue::<Pid>);
-reg_read_write!(position_pid, 32, MotorValue::<Pid>);
-
-reg_read_write!(torque_enable, 40, MotorValue::<bool>);
-
-reg_read_only!(current_position, 50, MotorValue::<f32>);
-reg_read_only!(current_velocity, 51, MotorValue::<f32>);
-reg_read_only!(current_torque, 52, MotorValue::<f32>);
-
-reg_read_write_fb!(
+generate_reg_write_fb!(
     target_position,
     60,
     MotorValue::<f32>,
     MotorPositionSpeedLoad
 );
-reg_read_write!(board_state, 80, u8);
-reg_read_only!(axis_sensor, 90, MotorValue::<f32>);
-reg_read_only!(index_sensor, 99, MotorValue::<u8>);
-reg_read_only!(full_state, 100, MotorPositionSpeedLoad);
 
 impl MotorPositionSpeedLoad {
     pub fn from_le_bytes(bytes: [u8; 12]) -> Self {

@@ -2,11 +2,10 @@ use std::f32::consts::PI;
 use std::time::SystemTime;
 use std::{error::Error, thread, time::Duration};
 
-use rustypot::device::mx;
+use rustypot::servo::dynamixel::mx::{self, conv};
 use rustypot::DynamixelProtocolHandler;
 
 use clap::Parser;
-use rustypot::device::mx::conv::radians_to_dxl_pos;
 
 use signal_hook::flag;
 
@@ -75,7 +74,7 @@ fn main() -> Result<(), Box<dyn Error>> {
             &io,
             serial_port.as_mut(),
             id,
-            radians_to_dxl_pos(target.into()),
+            conv::radians_to_dxl_pos(target.into()),
         )?;
 
         thread::sleep(Duration::from_millis(10));

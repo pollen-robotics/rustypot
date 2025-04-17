@@ -2,7 +2,7 @@ use clap::{Parser, ValueEnum};
 use std::collections::HashMap;
 use std::{error::Error, time::Duration};
 
-use rustypot::device::DxlModel;
+use rustypot::servo::ServoKind;
 use rustypot::DynamixelProtocolHandler;
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
@@ -68,7 +68,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         println!(
             "id: {} model: {:?}",
             key,
-            DxlModel::try_from(value).unwrap()
+            ServoKind::try_from(value).unwrap()
         );
     }
 

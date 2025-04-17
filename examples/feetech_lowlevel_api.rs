@@ -1,10 +1,10 @@
 use std::{error::Error, thread, time::Duration};
 
-use rustypot::{device::feetech_sts3215, DynamixelProtocolHandler};
+use rustypot::{servo::feetech::sts3215, DynamixelProtocolHandler};
 fn main() -> Result<(), Box<dyn Error>> {
-    let serialportname: String = "/dev/ttyACM0".to_string();
+    let serialportname: String = "/dev/tty.usbmodem58FA0822621".to_string();
     let baudrate: u32 = 1_000_000;
-    let ids = vec![20, 21, 22, 23, 24, 10, 11, 12, 13, 14, 30, 31, 32, 33];
+    let ids = vec![1, 2];
 
     let mut serial_port = serialport::new(serialportname, baudrate)
         .timeout(Duration::from_millis(1000))
@@ -20,11 +20,11 @@ fn main() -> Result<(), Box<dyn Error>> {
     while start_overall.elapsed() < duration {
         let start_time = std::time::Instant::now();
 
-        // let x: i16 = feetech_STS3215::read_present_position(&io, serial_port.as_mut(), ids[0])?;
-        let x = feetech_sts3215::sync_read_present_position(&io, serial_port.as_mut(), &ids)?;
+        let _x: i16 = sts3215::read_present_position(&io, serial_port.as_mut(), ids[0])?;
+        let x = sts3215::sync_read_present_position(&io, serial_port.as_mut(), &ids)?;
         let x: Vec<f64> = x
             .iter()
-            .map(|p| feetech_sts3215::conv::dxl_pos_to_radians(*p))
+            .map(|p| sts3215::conv::dxl_pos_to_radians(*p))
             .map(f64::to_degrees)
             .collect();
         println!("present pos: {:?}", x);

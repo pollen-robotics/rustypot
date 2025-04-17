@@ -2,7 +2,7 @@ use std::f32::consts::PI;
 use std::time::SystemTime;
 use std::{error::Error, thread, time::Duration, time::Instant};
 
-use rustypot::device::orbita3d_poulpe::{self, MotorValue};
+use rustypot::servo::orbita::orbita3d_poulpe::{self, MotorValue};
 use rustypot::DynamixelProtocolHandler;
 
 use clap::Parser;
@@ -129,7 +129,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         t = now.elapsed().unwrap().as_secs_f32();
         let target = amplitude * 180.0_f32.to_radians() * (2.0 * PI * 0.5 * t).sin();
 
-        let feedback = orbita3d_poulpe::write_target_position(
+        let feedback = orbita3d_poulpe::write_target_position_fb(
             &io,
             serial_port.as_mut(),
             id,

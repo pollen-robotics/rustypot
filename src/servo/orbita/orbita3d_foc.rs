@@ -1,6 +1,6 @@
 //! Orbita 3DoF Serial SimpleFOC register (protocol v1)
 
-use crate::device::*;
+use crate::generate_servo;
 
 /// Wrapper for a value per disk (top, middle, bottom)
 #[derive(Clone, Copy, Debug)]
@@ -33,76 +33,43 @@ pub struct Pid {
     pub d: f32,
 }
 
-reg_read_only!(model_number, 0, u16);
-reg_read_only!(firmware_version, 6, u8);
-reg_read_write!(id, 7, u8);
-
-reg_write_only!(system_check, 8, u8);
-
-reg_read_only!(motors_drivers_states, 159, u8);
-
-reg_read_write!(voltage_limit, 10, f32);
-// reg_read_write!(intensity_limit, 14, f32);
-
-reg_read_write!(velocity_pid, 18, Pid);
-reg_read_write!(velocity_p_gain, 18, f32);
-reg_read_write!(velocity_i_gain, 22, f32);
-reg_read_write!(velocity_d_gain, 26, f32);
-reg_read_write!(velocity_out_ramp, 30, f32);
-reg_read_write!(velocity_low_pass_filter, 34, f32);
-
-reg_read_write!(angle_pid, 38, Pid);
-reg_read_write!(angle_p_gain, 38, f32);
-reg_read_write!(angle_i_gain, 42, f32);
-reg_read_write!(angle_d_gain, 46, f32);
-reg_read_write!(angle_velocity_limit, 50, f32);
-
-// reg_read_write!(temperature_limit, 54, f32);
-
-reg_read_write!(torque_enable, 58, u8);
-
-reg_read_write!(goal_position, 59, DiskValue::<f32>);
-reg_read_write!(top_goal_position, 59, f32);
-reg_read_write!(middle_goal_position, 63, f32);
-reg_read_write!(bottom_goal_position, 67, f32);
-
-// reg_read_only!(present_position_speed_load, 71, DiskPositionSpeedLoad);
-reg_read_only!(present_position, 71, DiskValue::<f32>);
-reg_read_only!(top_present_position, 71, f32);
-reg_read_only!(middle_present_position, 75, f32);
-reg_read_only!(bottom_present_position, 79, f32);
-
-reg_read_only!(top_present_hall, 160, f32);
-reg_read_only!(middle_present_hall, 164, f32);
-reg_read_only!(bottom_present_hall, 168, f32);
-
-// reg_read_only!(present_speed, 83, DiskValue::<f32>);
-// reg_read_only!(top_present_speed, 83, f32);
-// reg_read_only!(middle_present_speed, 87, f32);
-// reg_read_only!(bottom_present_speed, 91, f32);
-// reg_read_only!(present_load, 95, DiskValue::<f32>);
-// reg_read_only!(top_present_load, 95, f32);
-// reg_read_only!(middle_present_load, 99, f32);
-// reg_read_only!(bottom_present_load, 103, f32);
-
-// reg_read_only!(present_temperature, 107, DiskValue::<f32>);
-// reg_read_only!(top_present_temperature, 107, f32);
-// reg_read_only!(middle_present_temperature, 111, f32);
-// reg_read_only!(bottom_present_temperature, 115, f32);
-
-// reg_read_only!(imu_acc, 119, Vec3d::<f32>);
-// reg_read_only!(imu_acc_x, 119, f32);
-// reg_read_only!(imu_acc_y, 123, f32);
-// reg_read_only!(imu_acc_z, 127, f32);
-// reg_read_only!(imu_gyro, 131, Vec3d::<f32>);
-// reg_read_only!(imu_gyro_x, 131, f32);
-// reg_read_only!(imu_gyro_y, 135, f32);
-// reg_read_only!(imu_gyro_z, 139, f32);
-// reg_read_only!(imu_temperature, 143, f32);
-
-reg_read_only!(top_current_phase_a, 147, f32);
-reg_read_only!(top_current_phase_b, 151, f32);
-reg_read_only!(top_dc_current, 155, f32);
+generate_servo!(
+    Orbita3dFoc, v1,
+    reg: (model_number, r, 0, u16),
+    reg: (firmware_version, r, 6, u8),
+    reg: (id, rw, 7, u8),
+    reg: (system_check, w, 8, u8),
+    reg: (motors_drivers_states, r, 159, u8),
+    reg: (voltage_limit, rw, 10, f32),
+    // reg: (intensity_limit, rw, 14, f32),
+    reg: (velocity_pid, rw, 18, Pid),
+    reg: (velocity_p_gain, rw, 18, f32),
+    reg: (velocity_i_gain, rw, 22, f32),
+    reg: (velocity_d_gain, rw, 26, f32),
+    reg: (velocity_out_ramp, rw, 30, f32),
+    reg: (velocity_low_pass_filter, rw, 34, f32),
+    reg: (angle_pid, rw, 38, Pid),
+    reg: (angle_p_gain, rw, 38, f32),
+    reg: (angle_i_gain, rw, 42, f32),
+    reg: (angle_d_gain, rw, 46, f32),
+    reg: (angle_velocity_limit, rw, 50, f32),
+    // reg: (temperature_limit, rw, 54, f32),
+    reg: (torque_enable, rw, 58, u8),
+    reg: (goal_position, rw, 59, DiskValue::<f32>),
+    reg: (top_goal_position, rw, 59, f32),
+    reg: (middle_goal_position, rw, 63, f32),
+    reg: (bottom_goal_position, rw, 67, f32),
+    reg: (present_position, rw, 71, DiskValue::<f32>),
+    reg: (top_present_position, rw, 71, f32),
+    reg: (middle_present_position, rw, 75, f32),
+    reg: (bottom_present_position, rw, 79, f32),
+    reg: (top_present_hall, r, 160, f32),
+    reg: (middle_present_hall, r, 164, f32),
+    reg: (bottom_present_hall, r, 168, f32),
+    reg: (top_current_phase_a, r, 47, f32),
+    reg: (top_current_phase_b, r, 51, f32),
+    reg: (top_dc_current, r, 55, f32),
+);
 
 impl<T: PartialEq> PartialEq for DiskValue<T> {
     fn eq(&self, other: &Self) -> bool {
