@@ -11,6 +11,12 @@ readme = "README.md"
 keywords = ["robotics", "dynamixel", "feetech"]
 categories = ["science::robotics"]
 
+[lib]
+crate-type = ["lib", "cdylib"]
+
+[features]
+default = ["python"]
+python = ["dep:pyo3"]
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
@@ -22,6 +28,7 @@ clap = { version = "4.0.32", features = ["derive"] }
 proc-macro2 = { version = "=1.0.89", features=["default", "proc-macro"] }
 signal-hook = "0.3.4"
 num_enum = "0.7.3"
+pyo3 = { version = "0.24.1", optional = true, features = ["multiple-pymethods"] }
 
 [dev-dependencies]
 env_logger = "0.10.0"

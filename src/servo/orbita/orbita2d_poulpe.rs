@@ -2,12 +2,16 @@ use crate::generate_servo;
 
 /// Wrapper for a value per motor (A and B)
 #[derive(Clone, Copy, Debug)]
+#[cfg(feature = "python")]
+#[derive(pyo3::FromPyObject, pyo3::IntoPyObject)]
 pub struct MotorValue<T> {
     pub motor_a: T,
     pub motor_b: T,
 }
 /// Wrapper for a Position/Speed/Load value for each motor
 #[derive(Clone, Copy, Debug)]
+#[cfg(feature = "python")]
+#[derive(pyo3::FromPyObject, pyo3::IntoPyObject)]
 pub struct MotorPositionSpeedLoad {
     pub position: MotorValue<f32>,
     // pub speed: MotorValue<f32>,
@@ -15,6 +19,8 @@ pub struct MotorPositionSpeedLoad {
 }
 /// Wrapper for PID gains.
 #[derive(Clone, Copy, Debug, PartialEq)]
+#[cfg(feature = "python")]
+#[derive(pyo3::FromPyObject, pyo3::IntoPyObject)]
 pub struct Pid {
     pub p: i16,
     pub i: i16,
@@ -213,42 +219,3 @@ impl Pid {
         bytes.try_into().unwrap()
     }
 }
-
-// ///////////////////
-// reg_read_write!(torque_enable, 40, MotorValue::<u8>);
-// reg_read_write!(present_position, 50, MotorValue::<f32>);
-// reg_read_write!(goal_position, 60, MotorValue::<f32>);
-
-// impl MotorValue<u8> {
-//     pub fn from_le_bytes(bytes: [u8; 2]) -> Self {
-//         MotorValue {
-//             motor_a: bytes[0],
-//             motor_b: bytes[1],
-//         }
-//     }
-//     pub fn to_le_bytes(&self) -> [u8; 3] {
-//         let mut bytes = Vec::new();
-
-//         bytes.extend_from_slice(&self.motor_a.to_le_bytes());
-//         bytes.extend_from_slice(&self.motor_b.to_le_bytes());
-
-//         bytes.try_into().unwrap()
-//     }
-// }
-
-// impl MotorValue<f32> {
-//     pub fn from_le_bytes(bytes: [u8; 8]) -> Self {
-//         MotorValue {
-//             motor_a: f32::from_le_bytes(bytes[0..4].try_into().unwrap()),
-//             motor_b: f32::from_le_bytes(bytes[4..8].try_into().unwrap()),
-//         }
-//     }
-//     pub fn to_le_bytes(&self) -> [u8; 8] {
-//         let mut bytes = Vec::new();
-
-//         bytes.extend_from_slice(&self.motor_a.to_le_bytes());
-//         bytes.extend_from_slice(&self.motor_b.to_le_bytes());
-
-//         bytes.try_into().unwrap()
-//     }
-// }

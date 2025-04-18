@@ -61,3 +61,14 @@ mod dynamixel_protocol;
 pub use dynamixel_protocol::{CommunicationErrorKind, DynamixelProtocolHandler};
 
 type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
+
+#[cfg(feature = "python")]
+use pyo3::prelude::*;
+
+#[cfg(feature = "python")]
+#[pymodule]
+fn rustypot(m: &Bound<'_, PyModule>) -> PyResult<()> {
+    servo::register_module(m)?;
+
+    Ok(())
+}

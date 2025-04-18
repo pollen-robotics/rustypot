@@ -28,6 +28,10 @@ macro_rules! generate_servo {
                     }
                 }
             }
+
+            #[cfg(feature = "python")]
+            #[pyo3::pyclass]
+            pub struct [<$servo_name SyncController>](std::sync::Mutex<[<$servo_name Controller>]>);
         }
 
         $crate::generate_protocol_constructor!($servo_name, $protocol);
@@ -52,6 +56,23 @@ macro_rules! generate_protocol_constructor {
                     }
                 }
             }
+            #[cfg(feature = "python")]
+            #[pyo3::pymethods]
+            impl [<$servo_name SyncController>] {
+                #[new]
+                pub fn new(serial_port: &str, baudrate: u32, timeout: f32) -> pyo3::PyResult<Self> {
+                    let serial_port = serialport::new(serial_port, baudrate)
+                        .timeout(std::time::Duration::from_secs_f32(timeout))
+                        .open()
+                        .map_err(|e| pyo3::exceptions::PyIOError::new_err(e.to_string()))?;
+
+                    let c = [<$servo_name Controller>]::new()
+                        .with_serial_port(serial_port)
+                        .with_protocol_v1();
+
+                    Ok(Self(std::sync::Mutex::new(c)))
+                }
+            }
         }
     };
     ($servo_name:ident, v2) => {
@@ -64,6 +85,23 @@ macro_rules! generate_protocol_constructor {
                         dph: Some($crate::DynamixelProtocolHandler::v2()),
                         ..self
                     }
+                }
+            }
+            #[cfg(feature = "python")]
+            #[pyo3::pymethods]
+            impl [<$servo_name SyncController>] {
+                #[new]
+                pub fn new(serial_port: &str, baudrate: u32, timeout: f32) -> pyo3::PyResult<Self> {
+                    let serial_port = serialport::new(serial_port, baudrate)
+                        .timeout(std::time::Duration::from_secs_f32(timeout))
+                        .open()
+                        .map_err(|e| pyo3::exceptions::PyIOError::new_err(e.to_string()))?;
+
+                    let c = [<$servo_name Controller>]::new()
+                        .with_serial_port(serial_port)
+                        .with_protocol_v2();
+
+                    Ok(Self(std::sync::Mutex::new(c)))
                 }
             }
         }
@@ -128,6 +166,19 @@ macro_rules! generate_reg_read {
             }
         }
 
+        #[cfg(feature = "python")]
+        #[pyo3::pymethods]
+        impl [<$servo_name SyncController>] {
+            #[doc = concat!("Read register *", stringify!($name), "* (addr: ", stringify!($addr), ", type: ", stringify!($reg_type), ")")]
+            pub fn [<read_ $reg_name>](
+                &self,
+                ids: Vec<u8>,
+            ) -> pyo3::PyResult<Vec<$reg_type>> {
+                self.0.lock().unwrap().[<read_ $reg_name>](&ids)
+                    .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))
+            }
+        }
+
         }
     };
 }
@@ -179,6 +230,21 @@ macro_rules! generate_reg_write {
             }
         }
 
+        #[cfg(feature = "python")]
+        #[pyo3::pymethods]
+        impl [<$servo_name SyncController>] {
+            #[doc = concat!("Write register *", stringify!($name), "* (addr: ", stringify!($addr), ", type: ", stringify!($reg_type), ")")]
+            pub fn [<write_ $reg_name>](
+                &self,
+                ids: &[u8],
+                values: Vec<$reg_type>,
+            ) -> pyo3::PyResult<()> {
+                self.0.lock().unwrap().[<write_ $reg_name>](ids, &values).map_err(|e| {
+                    pyo3::exceptions::PyRuntimeError::new_err(e.to_string())
+                })
+            }
+        }
+
     }
 
     };
@@ -227,7 +293,7 @@ macro_rules! register_servo {
     ($(servo: ($group:ident, $servo:ident,
         $(($name:ident, $model_number:expr)),+)
     ),+) => {
-        paste::paste!{
+        paste::paste! {
             #[derive(Debug, Clone, Copy)]
             pub enum ServoKind {
                 $(
@@ -247,6 +313,20 @@ macro_rules! register_servo {
                         _ => Err(format!("Unknown model number: {}", model_number)),
                     }
                 }
+            }
+
+            #[cfg(feature = "python")]
+            use pyo3::prelude::*;
+
+            #[cfg(feature = "python")]
+            pub(crate) fn register_module(parent_module: &Bound<'_, PyModule>) -> PyResult<()> {
+                let child_module = PyModule::new(parent_module.py(), "servo")?;
+
+                $(
+                    child_module.add_class::<$group::[<$servo:lower>]::[<$servo SyncController>]>()?;
+                )+
+
+                parent_module.add_submodule(&child_module)
             }
         }
     };
