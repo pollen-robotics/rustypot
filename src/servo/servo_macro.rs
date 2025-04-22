@@ -319,14 +319,20 @@ macro_rules! register_servo {
             use pyo3::prelude::*;
 
             #[cfg(feature = "python")]
-            pub(crate) fn register_module(parent_module: &Bound<'_, PyModule>) -> PyResult<()> {
+            pub(crate) fn register_module(py: Python, parent_module: &Bound<'_, PyModule>) -> PyResult<()> {
                 let child_module = PyModule::new(parent_module.py(), "servo")?;
 
                 $(
                     child_module.add_class::<$group::[<$servo:lower>]::[<$servo SyncController>]>()?;
                 )+
 
-                parent_module.add_submodule(&child_module)
+                parent_module.add_submodule(&child_module)?;
+
+                py.import("sys")?
+                    .getattr("modules")?
+                    .set_item("rustypot.servo", child_module)?;
+
+                Ok(())
             }
         }
     };

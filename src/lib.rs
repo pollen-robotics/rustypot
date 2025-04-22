@@ -67,10 +67,10 @@ use pyo3::prelude::*;
 
 #[cfg(feature = "python")]
 #[pymodule]
-fn rustypot(m: &Bound<'_, PyModule>) -> PyResult<()> {
+fn rustypot(py: Python, m: &Bound<'_, PyModule>) -> PyResult<()> {
     pyo3_log::init();
 
-    servo::register_module(m)?;
+    servo::register_module(py, m)?;
 
     Ok(())
 }
