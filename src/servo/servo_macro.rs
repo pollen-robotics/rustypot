@@ -30,7 +30,7 @@ macro_rules! generate_servo {
             }
 
             #[cfg(feature = "python")]
-            #[pyo3::pyclass]
+            #[pyo3::pyclass(frozen)]
             pub struct [<$servo_name SyncController>](std::sync::Mutex<[<$servo_name Controller>]>);
         }
 
