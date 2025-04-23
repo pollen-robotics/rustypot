@@ -52,7 +52,7 @@
 //! let pos = c.read_present_position(&vec![1, 2]).unwrap();
 //! println!("Motors present position: {:?}", pos);
 //!
-//! c.write_goal_position(&vec![1, 2], &vec![1000, 2000]).unwrap();
+//! c.write_goal_position(&vec![1, 2], &vec![0.0, 90.0_f64.to_radians()]).unwrap();
 //! ```
 
 pub mod servo;
