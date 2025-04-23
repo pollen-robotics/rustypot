@@ -1,7 +1,7 @@
 #[macro_export]
 macro_rules! generate_servo {
     ($servo_name:ident, $protocol:ident,
-        $(reg: ($reg_name:ident, $reg_access:ident, $reg_addr:expr, $reg_type:ty),)+
+        $(reg: ($reg_name:ident, $reg_access:ident, $reg_addr:expr, $reg_type:ty, $conv:ident),)+
     ) => {
         paste::paste! {
             pub struct [<$servo_name Controller>] {
@@ -34,10 +34,12 @@ macro_rules! generate_servo {
             pub struct [<$servo_name SyncController>](std::sync::Mutex<[<$servo_name Controller>]>);
         }
 
+        use pyo3::types::PyAnyMethods;
+
         $crate::generate_protocol_constructor!($servo_name, $protocol);
 
         $(
-            $crate::generate_reg_access!($servo_name, $reg_name, $reg_access, $reg_addr, $reg_type);
+            $crate::generate_reg_access!($servo_name, $reg_name, $reg_access, $reg_addr, $reg_type, $conv);
         )*
     };
 }
@@ -110,20 +112,20 @@ macro_rules! generate_protocol_constructor {
 
 #[macro_export]
 macro_rules! generate_reg_access {
-    ($servo_name:ident, $reg_name:ident, r, $reg_addr:expr, $reg_type:ty) => {
-        $crate::generate_reg_read!($servo_name, $reg_name, $reg_addr, $reg_type);
+    ($servo_name:ident, $reg_name:ident, r, $reg_addr:expr, $reg_type:ty, $conv:ident) => {
+        $crate::generate_reg_read!($servo_name, $reg_name, $reg_addr, $reg_type, $conv);
     };
-    ($servo_name:ident, $reg_name:ident, w, $reg_addr:expr, $reg_type:ty) => {
-        $crate::generate_reg_write!($servo_name, $reg_name, $reg_addr, $reg_type);
+    ($servo_name:ident, $reg_name:ident, w, $reg_addr:expr, $reg_type:ty, $conv:ident) => {
+        $crate::generate_reg_write!($servo_name, $reg_name, $reg_addr, $reg_type, $conv);
     };
-    ($servo_name:ident, $reg_name:ident, rw, $reg_addr:expr, $reg_type:ty) => {
-        $crate::generate_reg_read!($servo_name, $reg_name, $reg_addr, $reg_type);
-        $crate::generate_reg_write!($servo_name, $reg_name, $reg_addr, $reg_type);
+    ($servo_name:ident, $reg_name:ident, rw, $reg_addr:expr, $reg_type:ty, $conv:ident) => {
+        $crate::generate_reg_read!($servo_name, $reg_name, $reg_addr, $reg_type, $conv);
+        $crate::generate_reg_write!($servo_name, $reg_name, $reg_addr, $reg_type, $conv);
     };
 }
 #[macro_export]
 macro_rules! generate_reg_read {
-    ($servo_name:ident, $reg_name:ident, $reg_addr:expr, $reg_type:ty) => {
+    ($servo_name:ident, $reg_name:ident, $reg_addr:expr, $reg_type:ty, None) => {
         paste::paste! {
             #[doc = concat!("Read register *", stringify!($name), "* (addr: ", stringify!($addr), ", type: ", stringify!($reg_type), ")")]
             pub fn [<read_ $reg_name>](
@@ -169,7 +171,6 @@ macro_rules! generate_reg_read {
         #[cfg(feature = "python")]
         #[pyo3::pymethods]
         impl [<$servo_name SyncController>] {
-            #[doc = concat!("Read register *", stringify!($name), "* (addr: ", stringify!($addr), ", type: ", stringify!($reg_type), ")")]
             pub fn [<read_ $reg_name>](
                 &self,
                 ids: Vec<u8>,
@@ -181,10 +182,95 @@ macro_rules! generate_reg_read {
 
         }
     };
+    ($servo_name:ident, $reg_name:ident, $reg_addr:expr, $reg_type:ty, $conv:ident) => {
+        paste::paste! {
+            #[doc = concat!("Read register *", stringify!($name), "* (addr: ", stringify!($addr), ", type: ", stringify!($reg_type), ")")]
+            pub fn [<read_raw_ $reg_name>](
+                io: &$crate::DynamixelProtocolHandler,
+                serial_port: &mut dyn serialport::SerialPort,
+                id: u8,
+            ) -> $crate::Result<$reg_type> {
+                let val = io.read(serial_port, id, $reg_addr, size_of::<$reg_type>().try_into().unwrap())?;
+                let val = $reg_type::from_le_bytes(val.try_into().unwrap());
+
+                Ok(val)
+            }
+
+            pub fn [<read_ $reg_name>](
+                io: &$crate::DynamixelProtocolHandler,
+                serial_port: &mut dyn serialport::SerialPort,
+                id: u8,
+            ) -> $crate::Result<<$conv as Conversion>::UsiType> {
+                let val = [<read_raw_ $reg_name>](io, serial_port, id)?;
+                let val = $conv::from_raw(val);
+                Ok(val)
+            }
+
+            #[doc = concat!("Sync read register *", stringify!($name), "* (addr: ", stringify!($addr), ", type: ", stringify!($reg_type), ")")]
+        pub fn [<sync_read_raw_ $reg_name>](
+            io: &$crate::DynamixelProtocolHandler,
+            serial_port: &mut dyn serialport::SerialPort,
+            ids: &[u8],
+        ) -> $crate::Result<Vec<$reg_type>> {
+            let val: Vec<Vec<u8>> = io.sync_read(serial_port, ids, $reg_addr, size_of::<$reg_type>().try_into().unwrap())?;
+            let val = val
+                .iter()
+                .map(|v| $reg_type::from_le_bytes(v.as_slice().try_into().unwrap()))
+                .collect();
+
+            Ok(val)
+        }
+
+        pub fn [<sync_read_ $reg_name>](
+            io: &$crate::DynamixelProtocolHandler,
+            serial_port: &mut dyn serialport::SerialPort,
+            ids: &[u8],
+        ) -> $crate::Result<Vec<<$conv as Conversion>::UsiType>> {
+            let val = [<sync_read_raw_ $reg_name>](io, serial_port, ids)?;
+            let val = val
+                .iter()
+                .map(|&v| $conv::from_raw(v))
+                .collect();
+
+            Ok(val)
+        }
+
+        impl [<$servo_name Controller>] {
+            #[doc = concat!("Read register *", stringify!($name), "* (addr: ", stringify!($addr), ", type: ", stringify!($reg_type), ")")]
+            pub fn [<read_ $reg_name>](
+                &mut self,
+                ids: &[u8],
+            ) -> $crate::Result<Vec<<$conv as Conversion>::UsiType>> {
+                [<sync_read_ $reg_name>](
+                    self.dph.as_ref().unwrap(),
+                    self.serial_port.as_mut().unwrap().as_mut(),
+                    ids,
+                )
+            }
+        }
+
+        #[cfg(feature = "python")]
+        #[pyo3::pymethods]
+        impl [<$servo_name SyncController>] {
+            #[doc = concat!("Read register *", stringify!($name), "* (addr: ", stringify!($addr), ", type: ", stringify!($reg_type), ")")]
+            pub fn [<read_ $reg_name>](
+                &self,
+                py: pyo3::Python,
+                ids: Vec<u8>,
+            ) -> pyo3::PyResult<pyo3::PyObject> {
+                let x = self.0.lock().unwrap().[<read_ $reg_name>](&ids)
+                    .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
+                let l = pyo3::types::PyList::new(py, x.clone())?;
+                Ok(l.into())
+            }
+        }
+
+        }
+    };
 }
 #[macro_export]
 macro_rules! generate_reg_write {
-    ($servo_name:ident, $reg_name:ident, $reg_addr:expr, $reg_type:ty) => {
+    ($servo_name:ident, $reg_name:ident, $reg_addr:expr, $reg_type:ty, None) => {
         paste::paste! {
             #[doc = concat!("Write register *", stringify!($name), "* (addr: ", stringify!($addr), ", type: ", stringify!($reg_type), ")")]
             pub fn [<write_ $reg_name>](
@@ -239,6 +325,95 @@ macro_rules! generate_reg_write {
                 ids: &[u8],
                 values: Vec<$reg_type>,
             ) -> pyo3::PyResult<()> {
+                self.0.lock().unwrap().[<write_ $reg_name>](ids, &values).map_err(|e| {
+                    pyo3::exceptions::PyRuntimeError::new_err(e.to_string())
+                })
+            }
+        }
+
+    }
+
+    };
+    ($servo_name:ident, $reg_name:ident, $reg_addr:expr, $reg_type:ty, $conv:ident) => {
+        paste::paste! {
+            #[doc = concat!("Write register *", stringify!($name), "* (addr: ", stringify!($addr), ", type: ", stringify!($reg_type), ")")]
+            pub fn [<write_raw_ $reg_name>](
+                io: &$crate::DynamixelProtocolHandler,
+                serial_port: &mut dyn serialport::SerialPort,
+                id: u8,
+                val: $reg_type,
+            ) -> $crate::Result<()> {
+                io.write(serial_port, id, $reg_addr, &val.to_le_bytes())
+            }
+
+            pub fn [<write_ $reg_name>](
+                io: &$crate::DynamixelProtocolHandler,
+                serial_port: &mut dyn serialport::SerialPort,
+                id: u8,
+                val: <$conv as Conversion>::UsiType,
+            ) -> $crate::Result<()> {
+                let val = $conv::to_raw(val);
+                [<write_raw_ $reg_name>](io, serial_port, id, val)
+            }
+
+            #[doc = concat!("Sync write register *", stringify!($name), "* (addr: ", stringify!($addr), ", type: ", stringify!($reg_type), ")")]
+            pub fn [<sync_write_raw_ $reg_name>](
+                io: &$crate::DynamixelProtocolHandler,
+                serial_port: &mut dyn serialport::SerialPort,
+                ids: &[u8],
+                values: &[$reg_type],
+            ) -> $crate::Result<()> {
+                io.sync_write(
+                    serial_port,
+                    ids,
+                    $reg_addr,
+                    &values
+                        .iter()
+                        .map(|v| v.to_le_bytes().to_vec())
+                        .collect::<Vec<Vec<u8>>>(),
+                )
+            }
+
+        pub fn [<sync_write_ $reg_name>](
+            io: &$crate::DynamixelProtocolHandler,
+            serial_port: &mut dyn serialport::SerialPort,
+            ids: &[u8],
+            values: &[<$conv as Conversion>::UsiType],
+        ) -> $crate::Result<()> {
+            let values = values
+                .iter()
+                .map(|&v| $conv::to_raw(v))
+                .collect::<Vec<_>>();
+            [<sync_write_raw_ $reg_name>](io, serial_port, ids, &values)
+        }
+
+        impl [<$servo_name Controller>] {
+            #[doc = concat!("Write register *", stringify!($name), "* (addr: ", stringify!($addr), ", type: ", stringify!(<$conv as Conversion>::UsiType), ")")]
+            pub fn [<write_ $reg_name>](
+                &mut self,
+                ids: &[u8],
+                values: &[<$conv as Conversion>::UsiType],
+            ) -> $crate::Result<()> {
+                [<sync_write_ $reg_name>](
+                    self.dph.as_ref().unwrap(),
+                    self.serial_port.as_mut().unwrap().as_mut(),
+                    ids,
+                    values,
+                )
+            }
+        }
+
+        #[cfg(feature = "python")]
+        #[pyo3::pymethods]
+        impl [<$servo_name SyncController>] {
+            #[doc = concat!("Write register *", stringify!($name), "* (addr: ", stringify!($addr), ", type: ", stringify!($reg_type), ")")]
+            pub fn [<write_ $reg_name>](
+                &self,
+                ids: &[u8],
+                values: &pyo3::Bound<'_, pyo3::types::PyList>,
+            ) -> pyo3::PyResult<()> {
+                let values = values.extract::<Vec<<$conv as Conversion>::UsiType>>()?;
+
                 self.0.lock().unwrap().[<write_ $reg_name>](ids, &values).map_err(|e| {
                     pyo3::exceptions::PyRuntimeError::new_err(e.to_string())
                 })
