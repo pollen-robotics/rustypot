@@ -25,7 +25,16 @@ crate::register_servo!(
     servo: (feetech, STS3215,
         (STS3215, 2307)
     ),
-    servo: (orbita, ORB,
-        (ORB, 0)
+    servo: (orbita, orbita2d_poulpe,
+        (orbita2d_poulpe, 10020)
+    ),
+    servo: (orbita, orbita2d_foc,
+        (orbita2d_foc, 10021)
+    ),
+    servo: (orbita, orbita3d_poulpe,
+        (orbita3d_poulpe, 10030)
+    ),
+    servo: (orbita, orbita3d_foc,
+        (orbita3d_foc, 10031)
     )
 );
