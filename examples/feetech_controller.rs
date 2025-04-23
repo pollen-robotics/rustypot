@@ -1,6 +1,6 @@
 use std::{error::Error, thread, time::Duration};
 
-use rustypot::servo::feetech::sts3215::STS3215Controller;
+use rustypot::servo::feetech::sts3215::Sts3215Controller;
 fn main() -> Result<(), Box<dyn Error>> {
     let serialportname: String = "/dev/tty.usbmodem58FA0822621".to_string();
     let baudrate: u32 = 1_000_000;
@@ -11,7 +11,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         .open()?;
     println!("serial port opened");
 
-    let mut c = STS3215Controller::new()
+    let mut c = Sts3215Controller::new()
         .with_protocol_v1()
         .with_serial_port(serial_port);
 

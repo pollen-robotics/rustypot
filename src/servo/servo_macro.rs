@@ -4,18 +4,18 @@ macro_rules! generate_servo {
         $(reg: ($reg_name:ident, $reg_access:ident, $reg_addr:expr, $reg_type:ty, $conv:ident),)+
     ) => {
         paste::paste! {
-            pub struct [<$servo_name Controller>] {
+            pub struct [<$servo_name:camel Controller>] {
                 dph: Option<$crate::DynamixelProtocolHandler>,
                 serial_port: Option<Box<dyn serialport::SerialPort>>,
             }
 
-            impl Default for [<$servo_name Controller>] {
+            impl Default for [<$servo_name:camel Controller>] {
                 fn default() -> Self {
                     Self::new()
                 }
             }
 
-            impl [<$servo_name Controller>] {
+            impl [<$servo_name:camel Controller>] {
                 pub fn new() -> Self {
                     Self {dph: None, serial_port: None}
                 }
@@ -31,11 +31,11 @@ macro_rules! generate_servo {
 
             #[cfg(feature = "python")]
             #[pyo3::pyclass(frozen)]
-            pub struct [<$servo_name SyncController>](std::sync::Mutex<[<$servo_name Controller>]>);
+            pub struct [<$servo_name:camel SyncController>](std::sync::Mutex<[<$servo_name:camel Controller>]>);
         }
 
         #[cfg(feature = "python")]
-        use pyo3::types::PyAnyMethods;
+        use pyo3::prelude::*;
 
         $crate::generate_protocol_constructor!($servo_name, $protocol);
 
@@ -49,7 +49,7 @@ macro_rules! generate_servo {
 macro_rules! generate_protocol_constructor {
     ($servo_name:ident, v1) => {
         paste::paste! {
-            impl [<$servo_name Controller>] {
+            impl [<$servo_name:camel Controller>] {
                 pub fn with_protocol_v1(
                     self,
                 ) -> Self {
@@ -60,16 +60,16 @@ macro_rules! generate_protocol_constructor {
                 }
             }
             #[cfg(feature = "python")]
-            #[pyo3::pymethods]
-            impl [<$servo_name SyncController>] {
+            #[pymethods]
+            impl [<$servo_name:camel SyncController>] {
                 #[new]
-                pub fn new(serial_port: &str, baudrate: u32, timeout: f32) -> pyo3::PyResult<Self> {
+                pub fn new(serial_port: &str, baudrate: u32, timeout: f32) -> PyResult<Self> {
                     let serial_port = serialport::new(serial_port, baudrate)
                         .timeout(std::time::Duration::from_secs_f32(timeout))
                         .open()
                         .map_err(|e| pyo3::exceptions::PyIOError::new_err(e.to_string()))?;
 
-                    let c = [<$servo_name Controller>]::new()
+                    let c = [<$servo_name:camel Controller>]::new()
                         .with_serial_port(serial_port)
                         .with_protocol_v1();
 
@@ -80,7 +80,7 @@ macro_rules! generate_protocol_constructor {
     };
     ($servo_name:ident, v2) => {
         paste::paste! {
-            impl [<$servo_name Controller>] {
+            impl [<$servo_name:camel Controller>] {
                 pub fn with_protocol_v2(
                     self,
                 ) -> Self {
@@ -91,16 +91,16 @@ macro_rules! generate_protocol_constructor {
                 }
             }
             #[cfg(feature = "python")]
-            #[pyo3::pymethods]
-            impl [<$servo_name SyncController>] {
+            #[pymethods]
+            impl [<$servo_name:camel SyncController>] {
                 #[new]
-                pub fn new(serial_port: &str, baudrate: u32, timeout: f32) -> pyo3::PyResult<Self> {
+                pub fn new(serial_port: &str, baudrate: u32, timeout: f32) -> PyResult<Self> {
                     let serial_port = serialport::new(serial_port, baudrate)
                         .timeout(std::time::Duration::from_secs_f32(timeout))
                         .open()
                         .map_err(|e| pyo3::exceptions::PyIOError::new_err(e.to_string()))?;
 
-                    let c = [<$servo_name Controller>]::new()
+                    let c = [<$servo_name:camel Controller>]::new()
                         .with_serial_port(serial_port)
                         .with_protocol_v2();
 
@@ -155,7 +155,7 @@ macro_rules! generate_reg_read {
             Ok(val)
         }
 
-        impl [<$servo_name Controller>] {
+        impl [<$servo_name:camel Controller>] {
             #[doc = concat!("Read register *", stringify!($name), "* (addr: ", stringify!($addr), ", type: ", stringify!($reg_type), ")")]
             pub fn [<read_ $reg_name>](
                 &mut self,
@@ -170,12 +170,12 @@ macro_rules! generate_reg_read {
         }
 
         #[cfg(feature = "python")]
-        #[pyo3::pymethods]
-        impl [<$servo_name SyncController>] {
+        #[pymethods]
+        impl [<$servo_name:camel SyncController>] {
             pub fn [<read_ $reg_name>](
                 &self,
                 ids: Vec<u8>,
-            ) -> pyo3::PyResult<Vec<$reg_type>> {
+            ) -> PyResult<Vec<$reg_type>> {
                 self.0.lock().unwrap().[<read_ $reg_name>](&ids)
                     .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))
             }
@@ -236,7 +236,7 @@ macro_rules! generate_reg_read {
             Ok(val)
         }
 
-        impl [<$servo_name Controller>] {
+        impl [<$servo_name:camel Controller>] {
             #[doc = concat!("Read register *", stringify!($name), "* (addr: ", stringify!($addr), ", type: ", stringify!($reg_type), ")")]
             pub fn [<read_ $reg_name>](
                 &mut self,
@@ -251,14 +251,14 @@ macro_rules! generate_reg_read {
         }
 
         #[cfg(feature = "python")]
-        #[pyo3::pymethods]
-        impl [<$servo_name SyncController>] {
+        #[pymethods]
+        impl [<$servo_name:camel SyncController>] {
             #[doc = concat!("Read register *", stringify!($name), "* (addr: ", stringify!($addr), ", type: ", stringify!($reg_type), ")")]
             pub fn [<read_ $reg_name>](
                 &self,
-                py: pyo3::Python,
+                py: Python,
                 ids: Vec<u8>,
-            ) -> pyo3::PyResult<pyo3::PyObject> {
+            ) -> PyResult<PyObject> {
                 let x = self.0.lock().unwrap().[<read_ $reg_name>](&ids)
                     .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
                 let l = pyo3::types::PyList::new(py, x.clone())?;
@@ -301,7 +301,7 @@ macro_rules! generate_reg_write {
                 )
             }
 
-        impl [<$servo_name Controller>] {
+        impl [<$servo_name:camel Controller>] {
             #[doc = concat!("Write register *", stringify!($name), "* (addr: ", stringify!($addr), ", type: ", stringify!($reg_type), ")")]
             pub fn [<write_ $reg_name>](
                 &mut self,
@@ -318,14 +318,14 @@ macro_rules! generate_reg_write {
         }
 
         #[cfg(feature = "python")]
-        #[pyo3::pymethods]
-        impl [<$servo_name SyncController>] {
+        #[pymethods]
+        impl [<$servo_name:camel SyncController>] {
             #[doc = concat!("Write register *", stringify!($name), "* (addr: ", stringify!($addr), ", type: ", stringify!($reg_type), ")")]
             pub fn [<write_ $reg_name>](
                 &self,
                 ids: &[u8],
                 values: Vec<$reg_type>,
-            ) -> pyo3::PyResult<()> {
+            ) -> PyResult<()> {
                 self.0.lock().unwrap().[<write_ $reg_name>](ids, &values).map_err(|e| {
                     pyo3::exceptions::PyRuntimeError::new_err(e.to_string())
                 })
@@ -388,7 +388,7 @@ macro_rules! generate_reg_write {
             [<sync_write_raw_ $reg_name>](io, serial_port, ids, &values)
         }
 
-        impl [<$servo_name Controller>] {
+        impl [<$servo_name:camel Controller>] {
             #[doc = concat!("Write register *", stringify!($name), "* (addr: ", stringify!($addr), ", type: ", stringify!(<$conv as Conversion>::UsiType), ")")]
             pub fn [<write_ $reg_name>](
                 &mut self,
@@ -405,14 +405,14 @@ macro_rules! generate_reg_write {
         }
 
         #[cfg(feature = "python")]
-        #[pyo3::pymethods]
-        impl [<$servo_name SyncController>] {
+        #[pymethods]
+        impl [<$servo_name:camel SyncController>] {
             #[doc = concat!("Write register *", stringify!($name), "* (addr: ", stringify!($addr), ", type: ", stringify!($reg_type), ")")]
             pub fn [<write_ $reg_name>](
                 &self,
                 ids: &[u8],
-                values: &pyo3::Bound<'_, pyo3::types::PyList>,
-            ) -> pyo3::PyResult<()> {
+                values: &Bound<'_, pyo3::types::PyList>,
+            ) -> PyResult<()> {
                 let values = values.extract::<Vec<<$conv as Conversion>::UsiType>>()?;
 
                 self.0.lock().unwrap().[<write_ $reg_name>](ids, &values).map_err(|e| {
@@ -499,7 +499,7 @@ macro_rules! register_servo {
                 let child_module = PyModule::new(parent_module.py(), "servo")?;
 
                 $(
-                    child_module.add_class::<$group::[<$servo:lower>]::[<$servo SyncController>]>()?;
+                    child_module.add_class::<$group::[<$servo:lower>]::[<$servo:camel SyncController>]>()?;
                 )+
 
                 parent_module.add_submodule(&child_module)?;
