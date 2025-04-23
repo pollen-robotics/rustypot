@@ -4,8 +4,7 @@ use crate::{generate_reg_write_fb, generate_servo};
 
 /// Wrapper for a value per motor
 #[derive(Clone, Copy, Debug)]
-#[cfg(feature = "python")]
-#[derive(pyo3::FromPyObject, pyo3::IntoPyObject)]
+#[cfg_attr(feature = "python", derive(pyo3::FromPyObject, pyo3::IntoPyObject))]
 pub struct MotorValue<T> {
     pub top: T,
     pub middle: T,
@@ -14,8 +13,7 @@ pub struct MotorValue<T> {
 
 /// Wrapper for a 3D vector (x, y, z)
 #[derive(Clone, Copy, Debug)]
-#[cfg(feature = "python")]
-#[derive(pyo3::FromPyObject, pyo3::IntoPyObject)]
+#[cfg_attr(feature = "python", derive(pyo3::FromPyObject, pyo3::IntoPyObject))]
 pub struct Vec3d<T> {
     pub x: T,
     pub y: T,
@@ -24,8 +22,7 @@ pub struct Vec3d<T> {
 
 /// Wrapper for a Position/Speed/Load value for each motor
 #[derive(Clone, Copy, Debug)]
-#[cfg(feature = "python")]
-#[derive(pyo3::FromPyObject, pyo3::IntoPyObject)]
+#[cfg_attr(feature = "python", derive(pyo3::FromPyObject, pyo3::IntoPyObject))]
 
 pub struct MotorPositionSpeedLoad {
     pub position: MotorValue<f32>,
@@ -34,8 +31,7 @@ pub struct MotorPositionSpeedLoad {
 }
 /// Wrapper for PID gains.
 #[derive(Clone, Copy, Debug, PartialEq)]
-#[cfg(feature = "python")]
-#[derive(pyo3::FromPyObject, pyo3::IntoPyObject)]
+#[cfg_attr(feature = "python", derive(pyo3::FromPyObject, pyo3::IntoPyObject))]
 pub struct Pid {
     pub p: i16,
     pub i: i16,

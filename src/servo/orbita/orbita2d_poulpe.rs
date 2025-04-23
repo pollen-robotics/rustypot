@@ -2,16 +2,14 @@ use crate::generate_servo;
 
 /// Wrapper for a value per motor (A and B)
 #[derive(Clone, Copy, Debug)]
-#[cfg(feature = "python")]
-#[derive(pyo3::FromPyObject, pyo3::IntoPyObject)]
+#[cfg_attr(feature = "python", derive(pyo3::FromPyObject, pyo3::IntoPyObject))]
 pub struct MotorValue<T> {
     pub motor_a: T,
     pub motor_b: T,
 }
 /// Wrapper for a Position/Speed/Load value for each motor
 #[derive(Clone, Copy, Debug)]
-#[cfg(feature = "python")]
-#[derive(pyo3::FromPyObject, pyo3::IntoPyObject)]
+#[cfg_attr(feature = "python", derive(pyo3::FromPyObject, pyo3::IntoPyObject))]
 pub struct MotorPositionSpeedLoad {
     pub position: MotorValue<f32>,
     // pub speed: MotorValue<f32>,
@@ -19,8 +17,7 @@ pub struct MotorPositionSpeedLoad {
 }
 /// Wrapper for PID gains.
 #[derive(Clone, Copy, Debug, PartialEq)]
-#[cfg(feature = "python")]
-#[derive(pyo3::FromPyObject, pyo3::IntoPyObject)]
+#[cfg_attr(feature = "python", derive(pyo3::FromPyObject, pyo3::IntoPyObject))]
 pub struct Pid {
     pub p: i16,
     pub i: i16,

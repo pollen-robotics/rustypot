@@ -4,8 +4,7 @@ use crate::generate_servo;
 
 /// Wrapper for a value per disk (top, middle, bottom)
 #[derive(Clone, Copy, Debug)]
-#[cfg(feature = "python")]
-#[derive(pyo3::FromPyObject, pyo3::IntoPyObject)]
+#[cfg_attr(feature = "python", derive(pyo3::FromPyObject, pyo3::IntoPyObject))]
 pub struct DiskValue<T> {
     pub top: T,
     pub middle: T,
@@ -14,8 +13,7 @@ pub struct DiskValue<T> {
 
 /// Wrapper for a 3D vector (x, y, z)
 #[derive(Clone, Copy, Debug)]
-#[cfg(feature = "python")]
-#[derive(pyo3::FromPyObject, pyo3::IntoPyObject)]
+#[cfg_attr(feature = "python", derive(pyo3::FromPyObject, pyo3::IntoPyObject))]
 pub struct Vec3d<T> {
     pub x: T,
     pub y: T,
@@ -24,8 +22,7 @@ pub struct Vec3d<T> {
 
 /// Wrapper for a Position/Speed/Load value for each disk
 #[derive(Clone, Copy, Debug)]
-#[cfg(feature = "python")]
-#[derive(pyo3::FromPyObject, pyo3::IntoPyObject)]
+#[cfg_attr(feature = "python", derive(pyo3::FromPyObject, pyo3::IntoPyObject))]
 pub struct DiskPositionSpeedLoad {
     pub position: DiskValue<f32>,
     pub speed: DiskValue<f32>,
@@ -33,8 +30,7 @@ pub struct DiskPositionSpeedLoad {
 }
 /// Wrapper for PID gains.
 #[derive(Clone, Copy, Debug, PartialEq)]
-#[cfg(feature = "python")]
-#[derive(pyo3::FromPyObject, pyo3::IntoPyObject)]
+#[cfg_attr(feature = "python", derive(pyo3::FromPyObject, pyo3::IntoPyObject))]
 pub struct Pid {
     pub p: f32,
     pub i: f32,
