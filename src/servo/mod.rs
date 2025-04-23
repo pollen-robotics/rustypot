@@ -1,3 +1,5 @@
+pub mod conversion;
+
 pub mod dynamixel;
 pub mod feetech;
 pub mod orbita;
@@ -22,5 +24,8 @@ crate::register_servo!(
     ),
     servo: (feetech, STS3215,
         (STS3215, 2307)
+    ),
+    servo: (orbita, ORB,
+        (ORB, 0)
     )
 );

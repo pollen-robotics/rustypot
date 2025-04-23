@@ -34,6 +34,7 @@ macro_rules! generate_servo {
             pub struct [<$servo_name SyncController>](std::sync::Mutex<[<$servo_name Controller>]>);
         }
 
+        #[cfg(feature = "python")]
         use pyo3::types::PyAnyMethods;
 
         $crate::generate_protocol_constructor!($servo_name, $protocol);

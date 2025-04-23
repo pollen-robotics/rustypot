@@ -20,13 +20,8 @@ fn main() -> Result<(), Box<dyn Error>> {
     while start_overall.elapsed() < duration {
         let start_time = std::time::Instant::now();
 
-        let _x: i16 = sts3215::read_present_position(&io, serial_port.as_mut(), ids[0])?;
+        let _x: i16 = sts3215::read_raw_present_position(&io, serial_port.as_mut(), ids[0])?;
         let x = sts3215::sync_read_present_position(&io, serial_port.as_mut(), &ids)?;
-        let x: Vec<f64> = x
-            .iter()
-            .map(|p| sts3215::conv::dxl_pos_to_radians(*p))
-            .map(f64::to_degrees)
-            .collect();
         println!("present pos: {:?}", x);
 
         let elapsed_time = start_time.elapsed();
