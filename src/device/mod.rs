@@ -11,6 +11,7 @@ use crate::{reg_read_only, reg_read_write, DynamixelSerialIO, Result};
 #[derive(Debug, IntoPrimitive, TryFromPrimitive)]
 #[repr(u16)]
 pub enum DxlModel {
+    NODATA = 0,
     AX12A = 12,
     AX12W = 300,
     AX18A = 18,

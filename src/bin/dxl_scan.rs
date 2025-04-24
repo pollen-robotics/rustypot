@@ -54,9 +54,15 @@ fn main() -> Result<(), Box<dyn Error>> {
         match io.ping(serial_port.as_mut(), id) {
             Ok(present) => {
                 if present {
-                    let model = io.read(serial_port.as_mut(), id, 0, 2).unwrap();
-
-                    found.insert(id, u16::from_le_bytes([model[0], model[1]]));
+                    match io.read(serial_port.as_mut(), id, 0, 2) {
+                        Ok(model) => {
+                            found.insert(id, u16::from_le_bytes([model[0], model[1]]));
+                        }
+                        Err(e) => {
+                            found.insert(id, u16::from_le_bytes([0, 0]));
+                            eprintln!("Error: Cannot read model \"{e}\" but id {id} detected");
+                        }
+                    }
                 }
             }
             Err(e) => eprintln!("Error: {e}"),
@@ -65,11 +71,14 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     println!("found {} motors", found.len());
     for (key, value) in found {
-        println!(
-            "id: {} model: {:?}",
-            key,
-            DxlModel::try_from(value).unwrap()
-        );
+        match DxlModel::try_from(value) {
+            Ok(model) => {
+                println!("id: {} model: {:?}", key, model);
+            }
+            Err(_e) => {
+                println!("id: {} model: UNKNOWN", key);
+            }
+        }
     }
 
     Ok(())
