@@ -5,7 +5,7 @@
 #
 name: python-bindings-build-ci
 
-on: [push, pull_request]
+on: [pull_request]
 
 permissions:
   contents: read
