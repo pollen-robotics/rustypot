@@ -174,10 +174,16 @@ macro_rules! generate_reg_read {
         impl [<$servo_name:camel SyncController>] {
             pub fn [<read_ $reg_name>](
                 &self,
-                ids: Vec<u8>,
-            ) -> PyResult<Vec<$reg_type>> {
-                self.0.lock().unwrap().[<read_ $reg_name>](&ids)
-                    .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))
+                py: Python,
+                ids: &Bound<'_, pyo3::types::PyList>,
+            ) -> PyResult<PyObject> {
+                let ids = ids.extract::<Vec<u8>>()?;
+
+                let x = self.0.lock().unwrap().[<read_ $reg_name>](&ids)
+                    .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
+                let l = pyo3::types::PyList::new(py, x.clone())?;
+
+                Ok(l.into())
             }
         }
 
@@ -257,8 +263,10 @@ macro_rules! generate_reg_read {
             pub fn [<read_ $reg_name>](
                 &self,
                 py: Python,
-                ids: Vec<u8>,
+                ids: Bound<'_, pyo3::types::PyList>,
             ) -> PyResult<PyObject> {
+                let ids = ids.extract::<Vec<u8>>()?;
+
                 let x = self.0.lock().unwrap().[<read_ $reg_name>](&ids)
                     .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
                 let l = pyo3::types::PyList::new(py, x.clone())?;
@@ -323,10 +331,13 @@ macro_rules! generate_reg_write {
             #[doc = concat!("Write register *", stringify!($name), "* (addr: ", stringify!($addr), ", type: ", stringify!($reg_type), ")")]
             pub fn [<write_ $reg_name>](
                 &self,
-                ids: &[u8],
-                values: Vec<$reg_type>,
+                ids: Bound<'_, pyo3::types::PyList>,
+                values: Bound<'_, pyo3::types::PyList>,
             ) -> PyResult<()> {
-                self.0.lock().unwrap().[<write_ $reg_name>](ids, &values).map_err(|e| {
+                let ids = ids.extract::<Vec<u8>>()?;
+                let values = values.extract::<Vec<$reg_type>>()?;
+
+                self.0.lock().unwrap().[<write_ $reg_name>](&ids, &values).map_err(|e| {
                     pyo3::exceptions::PyRuntimeError::new_err(e.to_string())
                 })
             }
@@ -410,12 +421,13 @@ macro_rules! generate_reg_write {
             #[doc = concat!("Write register *", stringify!($name), "* (addr: ", stringify!($addr), ", type: ", stringify!($reg_type), ")")]
             pub fn [<write_ $reg_name>](
                 &self,
-                ids: &[u8],
+                ids: &Bound<'_, pyo3::types::PyList>,
                 values: &Bound<'_, pyo3::types::PyList>,
             ) -> PyResult<()> {
+                let ids = ids.extract::<Vec<u8>>()?;
                 let values = values.extract::<Vec<<$conv as Conversion>::UsiType>>()?;
 
-                self.0.lock().unwrap().[<write_ $reg_name>](ids, &values).map_err(|e| {
+                self.0.lock().unwrap().[<write_ $reg_name>](&ids, &values).map_err(|e| {
                     pyo3::exceptions::PyRuntimeError::new_err(e.to_string())
                 })
             }
