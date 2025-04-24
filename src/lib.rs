@@ -30,9 +30,10 @@
 //!
 //! let dph = DynamixelProtocolHandler::v1();
 //!
-//! let pos =
+//! let raw_pos: i16 = mx::read_raw_present_position(&dph, serial_port.as_mut(), 11).expect("Communication error");
+//! let pos: f64 =
 //!     mx::read_present_position(&dph, serial_port.as_mut(), 11).expect("Communication error");
-//! println!("Motor 11 present position: {:?}", pos);
+//! println!("Motor 11 present position: {:?}rads (raw: {:?})", pos, raw_pos);
 //! ```
 //!
 //! ### With the high-level API
