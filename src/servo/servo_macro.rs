@@ -38,6 +38,7 @@ macro_rules! generate_servo {
         use pyo3::prelude::*;
 
         $crate::generate_protocol_constructor!($servo_name, $protocol);
+        $crate::generate_addr_read_write!($servo_name);
 
         $(
             $crate::generate_reg_access!($servo_name, $reg_name, $reg_access, $reg_addr, $reg_type, $conv);
@@ -105,6 +106,71 @@ macro_rules! generate_protocol_constructor {
                         .with_protocol_v2();
 
                     Ok(Self(std::sync::Mutex::new(c)))
+                }
+            }
+        }
+    };
+}
+
+#[macro_export]
+macro_rules! generate_addr_read_write {
+    ($servo_name:ident) => {
+        paste::paste! {
+            impl [<$servo_name:camel Controller>] {
+                pub fn read_raw_data(
+                    &mut self,
+                    ids: &[u8],
+                    addr: u8,
+                    length: u8,
+                ) -> $crate::Result<Vec<Vec<u8>>> {
+                    let dph = self.dph.as_ref().unwrap();
+                    let serial_port = self.serial_port.as_mut().unwrap().as_mut();
+                    dph.sync_read(serial_port, ids, addr, length)
+                }
+
+                pub fn write_raw_data(
+                    &mut self,
+                    ids: &[u8],
+                    addr: u8,
+                    data: &[Vec<u8>],
+                ) -> $crate::Result<()> {
+                    let dph = self.dph.as_ref().unwrap();
+                    let serial_port = self.serial_port.as_mut().unwrap().as_mut();
+                    dph.sync_write(serial_port, ids, addr, data)
+                }
+            }
+
+            #[cfg(feature = "python")]
+            #[pymethods]
+            impl [<$servo_name:camel SyncController>] {
+                pub fn read_raw_data(
+                    &self,
+                    py: Python,
+                    ids: &Bound<'_, pyo3::types::PyList>,
+                    addr: u8,
+                    length: u8,
+                ) -> PyResult<PyObject> {
+                    let ids = ids.extract::<Vec<u8>>()?;
+
+                    let x = self.0.lock().unwrap().read_raw_data(&ids, addr, length)
+                        .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
+                    let l = pyo3::types::PyList::new(py, x.clone())?;
+
+                    Ok(l.into())
+                }
+
+                pub fn write_raw_data(
+                    &self,
+                    ids: &Bound<'_, pyo3::types::PyList>,
+                    addr: u8,
+                    data: &Bound<'_, pyo3::types::PyList>,
+                ) -> PyResult<()> {
+                    let ids = ids.extract::<Vec<u8>>()?;
+                    let data = data.extract::<Vec<Vec<u8>>>()?;
+
+                    self.0.lock().unwrap().write_raw_data(&ids, addr, &data)
+                        .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
+                    Ok(())
                 }
             }
         }
