@@ -1,21 +1,21 @@
 #[macro_export]
 macro_rules! generate_servo {
     ($servo_name:ident, $protocol:ident,
-        $(reg: ($reg_name:ident, $reg_access:ident, $reg_addr:expr, $reg_type:ty),)+
+        $(reg: ($reg_name:ident, $reg_access:ident, $reg_addr:expr, $reg_type:ty, $conv:ident),)+
     ) => {
         paste::paste! {
-            pub struct [<$servo_name Controller>] {
+            pub struct [<$servo_name:camel Controller>] {
                 dph: Option<$crate::DynamixelProtocolHandler>,
                 serial_port: Option<Box<dyn serialport::SerialPort>>,
             }
 
-            impl Default for [<$servo_name Controller>] {
+            impl Default for [<$servo_name:camel Controller>] {
                 fn default() -> Self {
                     Self::new()
                 }
             }
 
-            impl [<$servo_name Controller>] {
+            impl [<$servo_name:camel Controller>] {
                 pub fn new() -> Self {
                     Self {dph: None, serial_port: None}
                 }
@@ -28,12 +28,19 @@ macro_rules! generate_servo {
                     }
                 }
             }
+
+            #[cfg(feature = "python")]
+            #[pyo3::pyclass(frozen)]
+            pub struct [<$servo_name:camel SyncController>](std::sync::Mutex<[<$servo_name:camel Controller>]>);
         }
+
+        #[cfg(feature = "python")]
+        use pyo3::prelude::*;
 
         $crate::generate_protocol_constructor!($servo_name, $protocol);
 
         $(
-            $crate::generate_reg_access!($servo_name, $reg_name, $reg_access, $reg_addr, $reg_type);
+            $crate::generate_reg_access!($servo_name, $reg_name, $reg_access, $reg_addr, $reg_type, $conv);
         )*
     };
 }
@@ -42,7 +49,7 @@ macro_rules! generate_servo {
 macro_rules! generate_protocol_constructor {
     ($servo_name:ident, v1) => {
         paste::paste! {
-            impl [<$servo_name Controller>] {
+            impl [<$servo_name:camel Controller>] {
                 pub fn with_protocol_v1(
                     self,
                 ) -> Self {
@@ -52,11 +59,28 @@ macro_rules! generate_protocol_constructor {
                     }
                 }
             }
+            #[cfg(feature = "python")]
+            #[pymethods]
+            impl [<$servo_name:camel SyncController>] {
+                #[new]
+                pub fn new(serial_port: &str, baudrate: u32, timeout: f32) -> PyResult<Self> {
+                    let serial_port = serialport::new(serial_port, baudrate)
+                        .timeout(std::time::Duration::from_secs_f32(timeout))
+                        .open()
+                        .map_err(|e| pyo3::exceptions::PyIOError::new_err(e.to_string()))?;
+
+                    let c = [<$servo_name:camel Controller>]::new()
+                        .with_serial_port(serial_port)
+                        .with_protocol_v1();
+
+                    Ok(Self(std::sync::Mutex::new(c)))
+                }
+            }
         }
     };
     ($servo_name:ident, v2) => {
         paste::paste! {
-            impl [<$servo_name Controller>] {
+            impl [<$servo_name:camel Controller>] {
                 pub fn with_protocol_v2(
                     self,
                 ) -> Self {
@@ -66,26 +90,43 @@ macro_rules! generate_protocol_constructor {
                     }
                 }
             }
+            #[cfg(feature = "python")]
+            #[pymethods]
+            impl [<$servo_name:camel SyncController>] {
+                #[new]
+                pub fn new(serial_port: &str, baudrate: u32, timeout: f32) -> PyResult<Self> {
+                    let serial_port = serialport::new(serial_port, baudrate)
+                        .timeout(std::time::Duration::from_secs_f32(timeout))
+                        .open()
+                        .map_err(|e| pyo3::exceptions::PyIOError::new_err(e.to_string()))?;
+
+                    let c = [<$servo_name:camel Controller>]::new()
+                        .with_serial_port(serial_port)
+                        .with_protocol_v2();
+
+                    Ok(Self(std::sync::Mutex::new(c)))
+                }
+            }
         }
     };
 }
 
 #[macro_export]
 macro_rules! generate_reg_access {
-    ($servo_name:ident, $reg_name:ident, r, $reg_addr:expr, $reg_type:ty) => {
-        $crate::generate_reg_read!($servo_name, $reg_name, $reg_addr, $reg_type);
+    ($servo_name:ident, $reg_name:ident, r, $reg_addr:expr, $reg_type:ty, $conv:ident) => {
+        $crate::generate_reg_read!($servo_name, $reg_name, $reg_addr, $reg_type, $conv);
     };
-    ($servo_name:ident, $reg_name:ident, w, $reg_addr:expr, $reg_type:ty) => {
-        $crate::generate_reg_write!($servo_name, $reg_name, $reg_addr, $reg_type);
+    ($servo_name:ident, $reg_name:ident, w, $reg_addr:expr, $reg_type:ty, $conv:ident) => {
+        $crate::generate_reg_write!($servo_name, $reg_name, $reg_addr, $reg_type, $conv);
     };
-    ($servo_name:ident, $reg_name:ident, rw, $reg_addr:expr, $reg_type:ty) => {
-        $crate::generate_reg_read!($servo_name, $reg_name, $reg_addr, $reg_type);
-        $crate::generate_reg_write!($servo_name, $reg_name, $reg_addr, $reg_type);
+    ($servo_name:ident, $reg_name:ident, rw, $reg_addr:expr, $reg_type:ty, $conv:ident) => {
+        $crate::generate_reg_read!($servo_name, $reg_name, $reg_addr, $reg_type, $conv);
+        $crate::generate_reg_write!($servo_name, $reg_name, $reg_addr, $reg_type, $conv);
     };
 }
 #[macro_export]
 macro_rules! generate_reg_read {
-    ($servo_name:ident, $reg_name:ident, $reg_addr:expr, $reg_type:ty) => {
+    ($servo_name:ident, $reg_name:ident, $reg_addr:expr, $reg_type:ty, None) => {
         paste::paste! {
             #[doc = concat!("Read register *", stringify!($name), "* (addr: ", stringify!($addr), ", type: ", stringify!($reg_type), ")")]
             pub fn [<read_ $reg_name>](
@@ -114,7 +155,7 @@ macro_rules! generate_reg_read {
             Ok(val)
         }
 
-        impl [<$servo_name Controller>] {
+        impl [<$servo_name:camel Controller>] {
             #[doc = concat!("Read register *", stringify!($name), "* (addr: ", stringify!($addr), ", type: ", stringify!($reg_type), ")")]
             pub fn [<read_ $reg_name>](
                 &mut self,
@@ -128,12 +169,117 @@ macro_rules! generate_reg_read {
             }
         }
 
+        #[cfg(feature = "python")]
+        #[pymethods]
+        impl [<$servo_name:camel SyncController>] {
+            pub fn [<read_ $reg_name>](
+                &self,
+                py: Python,
+                ids: &Bound<'_, pyo3::types::PyList>,
+            ) -> PyResult<PyObject> {
+                let ids = ids.extract::<Vec<u8>>()?;
+
+                let x = self.0.lock().unwrap().[<read_ $reg_name>](&ids)
+                    .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
+                let l = pyo3::types::PyList::new(py, x.clone())?;
+
+                Ok(l.into())
+            }
+        }
+
+        }
+    };
+    ($servo_name:ident, $reg_name:ident, $reg_addr:expr, $reg_type:ty, $conv:ident) => {
+        paste::paste! {
+            #[doc = concat!("Read register *", stringify!($name), "* (addr: ", stringify!($addr), ", type: ", stringify!($reg_type), ")")]
+            pub fn [<read_raw_ $reg_name>](
+                io: &$crate::DynamixelProtocolHandler,
+                serial_port: &mut dyn serialport::SerialPort,
+                id: u8,
+            ) -> $crate::Result<$reg_type> {
+                let val = io.read(serial_port, id, $reg_addr, size_of::<$reg_type>().try_into().unwrap())?;
+                let val = $reg_type::from_le_bytes(val.try_into().unwrap());
+
+                Ok(val)
+            }
+
+            pub fn [<read_ $reg_name>](
+                io: &$crate::DynamixelProtocolHandler,
+                serial_port: &mut dyn serialport::SerialPort,
+                id: u8,
+            ) -> $crate::Result<<$conv as Conversion>::UsiType> {
+                let val = [<read_raw_ $reg_name>](io, serial_port, id)?;
+                let val = $conv::from_raw(val);
+                Ok(val)
+            }
+
+            #[doc = concat!("Sync read register *", stringify!($name), "* (addr: ", stringify!($addr), ", type: ", stringify!($reg_type), ")")]
+        pub fn [<sync_read_raw_ $reg_name>](
+            io: &$crate::DynamixelProtocolHandler,
+            serial_port: &mut dyn serialport::SerialPort,
+            ids: &[u8],
+        ) -> $crate::Result<Vec<$reg_type>> {
+            let val: Vec<Vec<u8>> = io.sync_read(serial_port, ids, $reg_addr, size_of::<$reg_type>().try_into().unwrap())?;
+            let val = val
+                .iter()
+                .map(|v| $reg_type::from_le_bytes(v.as_slice().try_into().unwrap()))
+                .collect();
+
+            Ok(val)
+        }
+
+        pub fn [<sync_read_ $reg_name>](
+            io: &$crate::DynamixelProtocolHandler,
+            serial_port: &mut dyn serialport::SerialPort,
+            ids: &[u8],
+        ) -> $crate::Result<Vec<<$conv as Conversion>::UsiType>> {
+            let val = [<sync_read_raw_ $reg_name>](io, serial_port, ids)?;
+            let val = val
+                .iter()
+                .map(|&v| $conv::from_raw(v))
+                .collect();
+
+            Ok(val)
+        }
+
+        impl [<$servo_name:camel Controller>] {
+            #[doc = concat!("Read register *", stringify!($name), "* (addr: ", stringify!($addr), ", type: ", stringify!($reg_type), ")")]
+            pub fn [<read_ $reg_name>](
+                &mut self,
+                ids: &[u8],
+            ) -> $crate::Result<Vec<<$conv as Conversion>::UsiType>> {
+                [<sync_read_ $reg_name>](
+                    self.dph.as_ref().unwrap(),
+                    self.serial_port.as_mut().unwrap().as_mut(),
+                    ids,
+                )
+            }
+        }
+
+        #[cfg(feature = "python")]
+        #[pymethods]
+        impl [<$servo_name:camel SyncController>] {
+            #[doc = concat!("Read register *", stringify!($name), "* (addr: ", stringify!($addr), ", type: ", stringify!($reg_type), ")")]
+            pub fn [<read_ $reg_name>](
+                &self,
+                py: Python,
+                ids: Bound<'_, pyo3::types::PyList>,
+            ) -> PyResult<PyObject> {
+                let ids = ids.extract::<Vec<u8>>()?;
+
+                let x = self.0.lock().unwrap().[<read_ $reg_name>](&ids)
+                    .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
+                let l = pyo3::types::PyList::new(py, x.clone())?;
+                Ok(l.into())
+            }
+        }
+
         }
     };
 }
 #[macro_export]
 macro_rules! generate_reg_write {
-    ($servo_name:ident, $reg_name:ident, $reg_addr:expr, $reg_type:ty) => {
+    ($servo_name:ident, $reg_name:ident, $reg_addr:expr, $reg_type:ty, None) => {
         paste::paste! {
             #[doc = concat!("Write register *", stringify!($name), "* (addr: ", stringify!($addr), ", type: ", stringify!($reg_type), ")")]
             pub fn [<write_ $reg_name>](
@@ -163,7 +309,7 @@ macro_rules! generate_reg_write {
                 )
             }
 
-        impl [<$servo_name Controller>] {
+        impl [<$servo_name:camel Controller>] {
             #[doc = concat!("Write register *", stringify!($name), "* (addr: ", stringify!($addr), ", type: ", stringify!($reg_type), ")")]
             pub fn [<write_ $reg_name>](
                 &mut self,
@@ -176,6 +322,114 @@ macro_rules! generate_reg_write {
                     ids,
                     values,
                 )
+            }
+        }
+
+        #[cfg(feature = "python")]
+        #[pymethods]
+        impl [<$servo_name:camel SyncController>] {
+            #[doc = concat!("Write register *", stringify!($name), "* (addr: ", stringify!($addr), ", type: ", stringify!($reg_type), ")")]
+            pub fn [<write_ $reg_name>](
+                &self,
+                ids: Bound<'_, pyo3::types::PyList>,
+                values: Bound<'_, pyo3::types::PyList>,
+            ) -> PyResult<()> {
+                let ids = ids.extract::<Vec<u8>>()?;
+                let values = values.extract::<Vec<$reg_type>>()?;
+
+                self.0.lock().unwrap().[<write_ $reg_name>](&ids, &values).map_err(|e| {
+                    pyo3::exceptions::PyRuntimeError::new_err(e.to_string())
+                })
+            }
+        }
+
+    }
+
+    };
+    ($servo_name:ident, $reg_name:ident, $reg_addr:expr, $reg_type:ty, $conv:ident) => {
+        paste::paste! {
+            #[doc = concat!("Write register *", stringify!($name), "* (addr: ", stringify!($addr), ", type: ", stringify!($reg_type), ")")]
+            pub fn [<write_raw_ $reg_name>](
+                io: &$crate::DynamixelProtocolHandler,
+                serial_port: &mut dyn serialport::SerialPort,
+                id: u8,
+                val: $reg_type,
+            ) -> $crate::Result<()> {
+                io.write(serial_port, id, $reg_addr, &val.to_le_bytes())
+            }
+
+            pub fn [<write_ $reg_name>](
+                io: &$crate::DynamixelProtocolHandler,
+                serial_port: &mut dyn serialport::SerialPort,
+                id: u8,
+                val: <$conv as Conversion>::UsiType,
+            ) -> $crate::Result<()> {
+                let val = $conv::to_raw(val);
+                [<write_raw_ $reg_name>](io, serial_port, id, val)
+            }
+
+            #[doc = concat!("Sync write register *", stringify!($name), "* (addr: ", stringify!($addr), ", type: ", stringify!($reg_type), ")")]
+            pub fn [<sync_write_raw_ $reg_name>](
+                io: &$crate::DynamixelProtocolHandler,
+                serial_port: &mut dyn serialport::SerialPort,
+                ids: &[u8],
+                values: &[$reg_type],
+            ) -> $crate::Result<()> {
+                io.sync_write(
+                    serial_port,
+                    ids,
+                    $reg_addr,
+                    &values
+                        .iter()
+                        .map(|v| v.to_le_bytes().to_vec())
+                        .collect::<Vec<Vec<u8>>>(),
+                )
+            }
+
+        pub fn [<sync_write_ $reg_name>](
+            io: &$crate::DynamixelProtocolHandler,
+            serial_port: &mut dyn serialport::SerialPort,
+            ids: &[u8],
+            values: &[<$conv as Conversion>::UsiType],
+        ) -> $crate::Result<()> {
+            let values = values
+                .iter()
+                .map(|&v| $conv::to_raw(v))
+                .collect::<Vec<_>>();
+            [<sync_write_raw_ $reg_name>](io, serial_port, ids, &values)
+        }
+
+        impl [<$servo_name:camel Controller>] {
+            #[doc = concat!("Write register *", stringify!($name), "* (addr: ", stringify!($addr), ", type: ", stringify!(<$conv as Conversion>::UsiType), ")")]
+            pub fn [<write_ $reg_name>](
+                &mut self,
+                ids: &[u8],
+                values: &[<$conv as Conversion>::UsiType],
+            ) -> $crate::Result<()> {
+                [<sync_write_ $reg_name>](
+                    self.dph.as_ref().unwrap(),
+                    self.serial_port.as_mut().unwrap().as_mut(),
+                    ids,
+                    values,
+                )
+            }
+        }
+
+        #[cfg(feature = "python")]
+        #[pymethods]
+        impl [<$servo_name:camel SyncController>] {
+            #[doc = concat!("Write register *", stringify!($name), "* (addr: ", stringify!($addr), ", type: ", stringify!($reg_type), ")")]
+            pub fn [<write_ $reg_name>](
+                &self,
+                ids: &Bound<'_, pyo3::types::PyList>,
+                values: &Bound<'_, pyo3::types::PyList>,
+            ) -> PyResult<()> {
+                let ids = ids.extract::<Vec<u8>>()?;
+                let values = values.extract::<Vec<<$conv as Conversion>::UsiType>>()?;
+
+                self.0.lock().unwrap().[<write_ $reg_name>](&ids, &values).map_err(|e| {
+                    pyo3::exceptions::PyRuntimeError::new_err(e.to_string())
+                })
             }
         }
 
@@ -227,7 +481,7 @@ macro_rules! register_servo {
     ($(servo: ($group:ident, $servo:ident,
         $(($name:ident, $model_number:expr)),+)
     ),+) => {
-        paste::paste!{
+        paste::paste! {
             #[derive(Debug, Clone, Copy)]
             pub enum ServoKind {
                 $(
@@ -247,6 +501,26 @@ macro_rules! register_servo {
                         _ => Err(format!("Unknown model number: {}", model_number)),
                     }
                 }
+            }
+
+            #[cfg(feature = "python")]
+            use pyo3::prelude::*;
+
+            #[cfg(feature = "python")]
+            pub(crate) fn register_module(py: Python, parent_module: &Bound<'_, PyModule>) -> PyResult<()> {
+                let child_module = PyModule::new(parent_module.py(), "servo")?;
+
+                $(
+                    child_module.add_class::<$group::[<$servo:lower>]::[<$servo:camel SyncController>]>()?;
+                )+
+
+                parent_module.add_submodule(&child_module)?;
+
+                py.import("sys")?
+                    .getattr("modules")?
+                    .set_item("rustypot.servo", child_module)?;
+
+                Ok(())
             }
         }
     };

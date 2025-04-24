@@ -4,6 +4,7 @@ use crate::{generate_reg_write_fb, generate_servo};
 
 /// Wrapper for a value per motor
 #[derive(Clone, Copy, Debug)]
+#[cfg_attr(feature = "python", derive(pyo3::FromPyObject, pyo3::IntoPyObject))]
 pub struct MotorValue<T> {
     pub top: T,
     pub middle: T,
@@ -12,6 +13,7 @@ pub struct MotorValue<T> {
 
 /// Wrapper for a 3D vector (x, y, z)
 #[derive(Clone, Copy, Debug)]
+#[cfg_attr(feature = "python", derive(pyo3::FromPyObject, pyo3::IntoPyObject))]
 pub struct Vec3d<T> {
     pub x: T,
     pub y: T,
@@ -20,6 +22,8 @@ pub struct Vec3d<T> {
 
 /// Wrapper for a Position/Speed/Load value for each motor
 #[derive(Clone, Copy, Debug)]
+#[cfg_attr(feature = "python", derive(pyo3::FromPyObject, pyo3::IntoPyObject))]
+
 pub struct MotorPositionSpeedLoad {
     pub position: MotorValue<f32>,
     // pub speed: MotorValue<f32>,
@@ -27,6 +31,7 @@ pub struct MotorPositionSpeedLoad {
 }
 /// Wrapper for PID gains.
 #[derive(Clone, Copy, Debug, PartialEq)]
+#[cfg_attr(feature = "python", derive(pyo3::FromPyObject, pyo3::IntoPyObject))]
 pub struct Pid {
     pub p: i16,
     pub i: i16,
@@ -34,28 +39,28 @@ pub struct Pid {
 
 generate_servo!(
     Orbita3dPoulpe, v1,
-    reg: (model_number, r, 0, u16),
-    reg: (firmware_version, r, 6, u8),
-    reg: (id, rw, 7, u8),
-    reg: (velocity_limit, rw, 10, MotorValue::<f32>),
-    reg: (velocity_limit_max, rw, 12, MotorValue::<f32>),
-    reg: (torque_flux_limit, rw, 14, MotorValue::<f32>),
-    reg: (torque_flux_limit_max, rw, 16, MotorValue::<f32>),
-    reg: (uq_ud_limit, rw, 18, MotorValue::<i16>),
-    reg: (flux_pid, rw, 20, MotorValue::<Pid>),
-    reg: (torque_pid, rw, 24, MotorValue::<Pid>),
-    reg: (velocity_pid, rw, 28, MotorValue::<Pid>),
-    reg: (position_pid, rw, 32, MotorValue::<Pid>),
-    reg: (torque_enable, rw, 40, MotorValue::<bool>),
-    reg: (current_position, r, 50, MotorValue::<f32>),
-    reg: (current_velocity, r, 51, MotorValue::<f32>),
-    reg: (current_torque, r, 52, MotorValue::<f32>),
-    // reg: (target_position, rw, 60, MotorValue::<f32>),
-    // reg: (target_position, fb, 60, MotorValue::<f32>, MotorPositionSpeedLoad),
-    reg: (board_state, rw, 80, u8),
-    reg: (axis_sensor, r, 90, MotorValue::<f32>),
-    reg: (index_sensor, r, 99, MotorValue::<u8>),
-    reg: (full_state, r, 100, MotorPositionSpeedLoad),
+    reg: (model_number, r, 0, u16, None),
+    reg: (firmware_version, r, 6, u8, None),
+    reg: (id, rw, 7, u8, None),
+    reg: (velocity_limit, rw, 10, MotorValue::<f32>, None),
+    reg: (velocity_limit_max, rw, 12, MotorValue::<f32>, None),
+    reg: (torque_flux_limit, rw, 14, MotorValue::<f32>, None),
+    reg: (torque_flux_limit_max, rw, 16, MotorValue::<f32>, None),
+    reg: (uq_ud_limit, rw, 18, MotorValue::<i16>, None),
+    reg: (flux_pid, rw, 20, MotorValue::<Pid>, None),
+    reg: (torque_pid, rw, 24, MotorValue::<Pid>, None),
+    reg: (velocity_pid, rw, 28, MotorValue::<Pid>, None),
+    reg: (position_pid, rw, 32, MotorValue::<Pid>, None),
+    reg: (torque_enable, rw, 40, MotorValue::<bool>, None),
+    reg: (current_position, r, 50, MotorValue::<f32>, None),
+    reg: (current_velocity, r, 51, MotorValue::<f32>, None),
+    reg: (current_torque, r, 52, MotorValue::<f32>, None),
+    // reg: (target_position, rw, 60, MotorValue::<f32>, None),
+    // reg: (target_position, fb, 60, MotorValue::<f32>, MotorPositionSpeedLoad, None),
+    reg: (board_state, rw, 80, u8, None),
+    reg: (axis_sensor, r, 90, MotorValue::<f32>, None),
+    reg: (index_sensor, r, 99, MotorValue::<u8>, None),
+    reg: (full_state, r, 100, MotorPositionSpeedLoad, None),
 );
 
 generate_reg_write_fb!(

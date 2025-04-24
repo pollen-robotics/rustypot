@@ -2,12 +2,14 @@ use crate::generate_servo;
 
 /// Wrapper for a value per motor (A and B)
 #[derive(Clone, Copy, Debug)]
+#[cfg_attr(feature = "python", derive(pyo3::FromPyObject, pyo3::IntoPyObject))]
 pub struct MotorValue<T> {
     pub motor_a: T,
     pub motor_b: T,
 }
 /// Wrapper for a Position/Speed/Load value for each motor
 #[derive(Clone, Copy, Debug)]
+#[cfg_attr(feature = "python", derive(pyo3::FromPyObject, pyo3::IntoPyObject))]
 pub struct MotorPositionSpeedLoad {
     pub position: MotorValue<f32>,
     // pub speed: MotorValue<f32>,
@@ -15,6 +17,7 @@ pub struct MotorPositionSpeedLoad {
 }
 /// Wrapper for PID gains.
 #[derive(Clone, Copy, Debug, PartialEq)]
+#[cfg_attr(feature = "python", derive(pyo3::FromPyObject, pyo3::IntoPyObject))]
 pub struct Pid {
     pub p: i16,
     pub i: i16,
@@ -22,27 +25,27 @@ pub struct Pid {
 
 generate_servo!(
     Orbita2dPoulpe, v1,
-    reg: (model_number, r, 0, u16),
-    reg: (firmware_version, r, 6, u8),
-    reg: (id, rw, 7, u8),
-    reg: (velocity_limit, rw, 10, MotorValue::<f32>),
-    reg: (velocity_limit_max, rw, 12, MotorValue::<f32>),
-    reg: (torque_flux_limit, rw, 14, MotorValue::<f32>),
-    reg: (torque_flux_limit_max, rw, 16, MotorValue::<f32>),
-    reg: (uq_ud_limit, rw, 18, MotorValue::<i16>),
-    reg: (flux_pid, rw, 20, MotorValue::<Pid>),
-    reg: (torque_pid, rw, 24, MotorValue::<Pid>),
-    reg: (velocity_pid, rw, 28, MotorValue::<Pid>),
-    reg: (position_pid, rw, 32, MotorValue::<Pid>),
-    reg: (torque_enable, rw, 40, MotorValue::<bool>),
-    reg: (current_position, r, 50, MotorValue::<f32>),
-    reg: (current_velocity, r, 51, MotorValue::<f32>),
-    reg: (current_torque, r, 52, MotorValue::<f32>),
-    // reg: (target_position, rw, 60, MotorValue::<f32>),
-    // reg: (target_position, fb, 60, MotorValue::<f32>, MotorPositionSpeedLoad),
-    reg: (board_state, rw, 80, u8),
-    reg: (axis_sensor, r, 90, MotorValue::<f32>),
-    reg: (full_state, r, 100, MotorPositionSpeedLoad),
+    reg: (model_number, r, 0, u16, None),
+    reg: (firmware_version, r, 6, u8, None),
+    reg: (id, rw, 7, u8, None),
+    reg: (velocity_limit, rw, 10, MotorValue::<f32>, None),
+    reg: (velocity_limit_max, rw, 12, MotorValue::<f32>, None),
+    reg: (torque_flux_limit, rw, 14, MotorValue::<f32>, None),
+    reg: (torque_flux_limit_max, rw, 16, MotorValue::<f32>, None),
+    reg: (uq_ud_limit, rw, 18, MotorValue::<i16>, None),
+    reg: (flux_pid, rw, 20, MotorValue::<Pid>, None),
+    reg: (torque_pid, rw, 24, MotorValue::<Pid>, None),
+    reg: (velocity_pid, rw, 28, MotorValue::<Pid>, None),
+    reg: (position_pid, rw, 32, MotorValue::<Pid>, None),
+    reg: (torque_enable, rw, 40, MotorValue::<bool>, None),
+    reg: (current_position, r, 50, MotorValue::<f32>, None),
+    reg: (current_velocity, r, 51, MotorValue::<f32>, None),
+    reg: (current_torque, r, 52, MotorValue::<f32>, None),
+    // reg: (target_position, rw, 60, MotorValue::<f32>, None),
+    // reg: (target_position, fb, 60, MotorValue::<f32>, MotorPositionSpeedLoad, None),
+    reg: (board_state, rw, 80, u8, None),
+    reg: (axis_sensor, r, 90, MotorValue::<f32>, None),
+    reg: (full_state, r, 100, MotorPositionSpeedLoad, None),
 );
 
 // TODO:
@@ -213,42 +216,3 @@ impl Pid {
         bytes.try_into().unwrap()
     }
 }
-
-// ///////////////////
-// reg_read_write!(torque_enable, 40, MotorValue::<u8>);
-// reg_read_write!(present_position, 50, MotorValue::<f32>);
-// reg_read_write!(goal_position, 60, MotorValue::<f32>);
-
-// impl MotorValue<u8> {
-//     pub fn from_le_bytes(bytes: [u8; 2]) -> Self {
-//         MotorValue {
-//             motor_a: bytes[0],
-//             motor_b: bytes[1],
-//         }
-//     }
-//     pub fn to_le_bytes(&self) -> [u8; 3] {
-//         let mut bytes = Vec::new();
-
-//         bytes.extend_from_slice(&self.motor_a.to_le_bytes());
-//         bytes.extend_from_slice(&self.motor_b.to_le_bytes());
-
-//         bytes.try_into().unwrap()
-//     }
-// }
-
-// impl MotorValue<f32> {
-//     pub fn from_le_bytes(bytes: [u8; 8]) -> Self {
-//         MotorValue {
-//             motor_a: f32::from_le_bytes(bytes[0..4].try_into().unwrap()),
-//             motor_b: f32::from_le_bytes(bytes[4..8].try_into().unwrap()),
-//         }
-//     }
-//     pub fn to_le_bytes(&self) -> [u8; 8] {
-//         let mut bytes = Vec::new();
-
-//         bytes.extend_from_slice(&self.motor_a.to_le_bytes());
-//         bytes.extend_from_slice(&self.motor_b.to_le_bytes());
-
-//         bytes.try_into().unwrap()
-//     }
-// }

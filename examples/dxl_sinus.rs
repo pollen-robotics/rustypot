@@ -1,8 +1,8 @@
-use std::f32::consts::PI;
+use std::f64::consts::PI;
 use std::time::SystemTime;
 use std::{error::Error, thread, time::Duration};
 
-use rustypot::servo::dynamixel::mx::{self, conv};
+use rustypot::servo::dynamixel::mx;
 use rustypot::DynamixelProtocolHandler;
 
 use clap::Parser;
@@ -28,11 +28,11 @@ struct Args {
 
     ///sinus amplitude (f64)
     #[arg(short, long, default_value_t = 10.0)]
-    amplitude: f32,
+    amplitude: f64,
 
     ///sinus frequency (f64)
     #[arg(short, long, default_value_t = 1.0)]
-    frequency: f32,
+    frequency: f64,
 }
 
 fn main() -> Result<(), Box<dyn Error>> {
@@ -40,8 +40,8 @@ fn main() -> Result<(), Box<dyn Error>> {
     let serialportname: String = args.serialport;
     let baudrate: u32 = args.baudrate;
     let id: u8 = args.id;
-    let amplitude: f32 = args.amplitude;
-    let frequency: f32 = args.frequency;
+    let amplitude: f64 = args.amplitude;
+    let frequency: f64 = args.frequency;
 
     //print all the argument values
     println!("serialport: {}", serialportname);
@@ -60,22 +60,17 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     let io = DynamixelProtocolHandler::v1();
 
-    let x: i16 = mx::read_present_position(&io, serial_port.as_mut(), id)?;
+    let x = mx::read_present_position(&io, serial_port.as_mut(), id)?;
     println!("present pos: {}", x);
 
     mx::write_torque_enable(&io, serial_port.as_mut(), id, 1)?;
 
     let now = SystemTime::now();
     while !term.load(Ordering::Relaxed) {
-        let t = now.elapsed().unwrap().as_secs_f32();
+        let t = now.elapsed().unwrap().as_secs_f64();
         let target = amplitude * (2.0 * PI * frequency * t).sin().to_radians();
         println!("target: {}", target);
-        mx::write_goal_position(
-            &io,
-            serial_port.as_mut(),
-            id,
-            conv::radians_to_dxl_pos(target.into()),
-        )?;
+        mx::write_goal_position(&io, serial_port.as_mut(), id, target)?;
 
         thread::sleep(Duration::from_millis(10));
     }
