@@ -20,7 +20,7 @@ log = "0.4.17"
 paste = "1.0.10"
 serialport = "4.2.0"
 clap = { version = "4.0.32", features = ["derive"] }
-proc-macro2 = { version = "=1.0.89", features=["default", "proc-macro"] }
+proc-macro2 = { version = "1.0", features=["default", "proc-macro"] }
 signal-hook = "0.3.4"
 num_enum = "0.7.3"
 
