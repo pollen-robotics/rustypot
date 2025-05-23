@@ -2,7 +2,9 @@
 //!
 //! See <https://emanual.robotis.com/docs/en/dxl/x/xl330-m077/> for details.
 
-use crate::generate_servo;
+use std::f64::consts::PI;
+
+use crate::{generate_servo, servo::conversion::Conversion};
 
 generate_servo!(
     XL330, v2,
@@ -27,12 +29,12 @@ generate_servo!(
     reg: (acceleration_limit, rw, 40, u32, None),
     reg: (velocity_limit, rw, 44, u32, None), //Duplicate with MX name for compatibility
     reg: (moving_speed, rw, 44, u32, None), //Duplicate with MX name for compatibility
-    reg: (max_position_limit, rw, 48, u32, None),
-    reg: (min_position_limit, rw, 52, u32, None),
+    reg: (max_position_limit, rw, 48, i32, AnglePosition),
+    reg: (min_position_limit, rw, 52, i32, AnglePosition),
     reg: (startup_configuration, rw, 60, u8, None),
     reg: (pwm_slope, rw, 62, u8, None),
     reg: (shutdown, rw, 63, u8, None),
-    reg: (torque_enable, rw, 64, u8, None),
+    reg: (torque_enable, rw, 64, u8, bool),
     reg: (led, rw, 65, u8, None),
     reg: (status_return_level, rw, 68, u8, None),
     reg: (registered_instruction, rw, 69, u8, None),
@@ -50,14 +52,14 @@ generate_servo!(
     reg: (goal_velocity, rw, 104, i32, None),
     reg: (profile_acceleration, rw, 108, u32, None),
     reg: (profile_velocity, rw, 112, u32, None),
-    reg: (goal_position, rw, 116, i32, None),
+    reg: (goal_position, rw, 116, i32, AnglePosition),
     reg: (realtime_tick, r, 120, u16, None),
     reg: (moving, r, 122, u8, None),
     reg: (moving_status, r, 123, u8, None),
     reg: (present_pwm, r, 124, u16, None),
     reg: (present_current, r, 126, i16, None),
     reg: (present_velocity, r, 128, i32, None),
-    reg: (present_position, r, 132, i32, None),
+    reg: (present_position, r, 132, i32, AnglePosition),
     reg: (velocity_trajectory, r, 136, u32, None),
     reg: (position_trajectory, r, 140, u32, None),
     reg: (present_input_voltage, r, 144, u16, None),
@@ -76,6 +78,21 @@ generate_servo!(
     reg: (indirect_data_5, rw, 228, u8, None),
     reg: (indirect_data_6, rw, 229, u8, None),
 );
+
+pub struct AnglePosition;
+
+impl Conversion for AnglePosition {
+    type RegisterType = i32;
+    type UsiType = f64;
+
+    fn from_raw(raw: i32) -> f64 {
+        (2.0 * PI * (raw as f64) / 4096.0) - PI
+    }
+
+    fn to_raw(value: f64) -> i32 {
+        (4096.0 * (PI + value) / (2.0 * PI)) as i32
+    }
+}
 
 /// Unit conversion for XL330 motors (same as XM?)
 pub mod conv {
