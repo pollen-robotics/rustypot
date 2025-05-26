@@ -1,6 +1,6 @@
 [package]
 name = "rustypot"
-version = "0.6.0"
+version = "1.0.0"
 edition = "2021"
 license = "Apache-2.0"
 authors = ["Pollen Robotics"]
@@ -8,21 +8,28 @@ description = "Package to communicate with Dynamixel motors."
 homepage = "https://www.pollen-robotics.com"
 repository = "https://github.com/pollen-robotics/rustypot"
 readme = "README.md"
-keywords = ["robotics", "dynamixel"]
+keywords = ["robotics", "dynamixel", "feetech"]
 categories = ["science::robotics"]
-autoexamples = false #disable auto discovery of examples
 
+[lib]
+crate-type = ["lib", "cdylib"]
+
+[features]
+default = []
+python = ["dep:pyo3", "dep:pyo3-log"]
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
 log = "0.4.17"
 paste = "1.0.10"
-serialport = "4.2.0"
+serialport = { version = "4.2.0", default-features = false}
 clap = { version = "4.0.32", features = ["derive"] }
-proc-macro2 = { version = "=1.0.89", features=["default", "proc-macro"] }
+proc-macro2 = { version = "1.0", features=["default", "proc-macro"] }
 signal-hook = "0.3.4"
 num_enum = "0.7.3"
+pyo3 = { version = "0.24.1", optional = true, features = ["multiple-pymethods", "extension-module"] }
+pyo3-log = { version = "0.12.3", optional = true }
 
 [dev-dependencies]
 env_logger = "0.10.0"

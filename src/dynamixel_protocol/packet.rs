@@ -1,9 +1,11 @@
+use std::fmt::Debug;
+
 use crate::Result;
 
 pub trait Packet {
     const HEADER_SIZE: usize;
-    type ErrorKind;
-    type InstructionKind;
+    type ErrorKind: Debug;
+    type InstructionKind: Debug;
 
     fn get_payload_size(header: &[u8]) -> Result<usize>;
 
@@ -28,6 +30,19 @@ pub trait InstructionPacket<P: Packet> {
 
     fn to_bytes(&self) -> Vec<u8>;
 }
+
+impl<P: Packet> Debug for dyn InstructionPacket<P> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "InstructionPacket {{ id: {}, instruction: {:?}, params: {:?} }}",
+            self.id(),
+            self.instruction(),
+            self.params()
+        )
+    }
+}
+
 pub trait StatusPacket<P: Packet> {
     fn from_bytes(data: &[u8], sender_id: u8) -> Result<Self>
     where
@@ -36,4 +51,16 @@ pub trait StatusPacket<P: Packet> {
     fn id(&self) -> u8;
     fn errors(&self) -> &Vec<P::ErrorKind>;
     fn params(&self) -> &Vec<u8>;
+}
+
+impl<P: Packet> Debug for dyn StatusPacket<P> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "StatusPacket {{ id: {}, errors: {:?}, params: {:?} }}",
+            self.id(),
+            self.errors(),
+            self.params()
+        )
+    }
 }
