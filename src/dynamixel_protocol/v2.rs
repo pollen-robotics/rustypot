@@ -1,43 +1,16 @@
-use crate::{
+use crate::Result;
+
+use super::{
     packet::{InstructionPacket, Packet, StatusPacket},
-    Result,
+    CommunicationErrorKind, Protocol,
 };
 
-use super::{CommunicationErrorKind, Protocol};
+#[derive(Debug)]
+pub(crate) struct V2;
+impl Protocol<PacketV2> for V2 {}
 
 #[derive(Debug)]
-pub struct V2;
-impl Protocol<PacketV2> for V2 {
-    fn new() -> Self
-    where
-        Self: Sized,
-    {
-        V2
-    }
-
-    fn sync_read(
-        &self,
-        port: &mut dyn serialport::SerialPort,
-        ids: &[u8],
-        addr: u8,
-        length: u8,
-    ) -> Result<Vec<Vec<u8>>> {
-        let instruction_packet = PacketV2::sync_read_packet(ids, addr, length);
-        self.send_instruction_packet(port, instruction_packet.as_ref())?;
-
-        let mut result = Vec::new();
-
-        for &id in ids {
-            let status_packet = self.read_status_packet(port, id)?;
-            result.push(status_packet.params().clone());
-        }
-
-        Ok(result)
-    }
-}
-
-#[derive(Debug)]
-pub struct PacketV2;
+pub(crate) struct PacketV2;
 impl Packet for PacketV2 {
     const HEADER_SIZE: usize = 7;
 
@@ -237,7 +210,7 @@ impl StatusPacket<PacketV2> for StatusPacketV2 {
 }
 
 #[derive(Debug, Clone, Copy)]
-pub enum InstructionKindV2 {
+pub(crate) enum InstructionKindV2 {
     Ping,
     Read,
     Write,
@@ -258,7 +231,7 @@ impl InstructionKindV2 {
 }
 
 #[derive(Debug, Clone, Copy)]
-pub enum DynamixelErrorV2 {
+pub(crate) enum DynamixelErrorV2 {
     ResultFail,
     Instruction,
     Checksum,

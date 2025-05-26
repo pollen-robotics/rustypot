@@ -7,54 +7,58 @@
 //!
 //! See <https://emanual.robotis.com/docs/en/dxl/mx/mx-28/> for example.
 
-use crate::device::*;
+use std::f64::consts::PI;
 
-reg_read_only!(model_number, 0, u16);
-reg_read_only!(firmware_version, 2, u8);
-reg_read_write!(id, 3, u8);
-reg_read_write!(baudrate, 4, u8);
-reg_read_write!(return_delay_time, 5, u8);
-reg_read_write!(cw_angle_limit, 6, u16);
-reg_read_write!(ccw_angle_limit, 8, u16);
-reg_read_write!(temperature_limit, 11, u8);
-reg_read_write!(min_voltage_limit, 12, u8);
-reg_read_write!(max_voltage_limit, 13, u8);
-reg_read_write!(max_torque, 14, u16);
-reg_read_write!(status_return_level, 16, u8);
-reg_read_write!(alarm_led, 17, u8);
-reg_read_write!(shutdown, 18, u8);
-reg_read_write!(multi_turn_offset, 20, i16);
-reg_read_write!(resolution_divider, 22, u8);
+use crate::{generate_servo, servo::conversion::Conversion};
 
-reg_read_write!(torque_enable, 24, u8);
-reg_read_write!(led, 25, u8);
-reg_read_write!(d_gain, 26, u8);
-reg_read_write!(i_gain, 27, u8);
-reg_read_write!(p_gain, 28, u8);
-reg_read_write!(goal_position, 30, i16);
-reg_read_write!(moving_speed, 32, u16);
-reg_read_write!(torque_limit, 34, u16);
-reg_read_only!(present_position, 36, i16);
-reg_read_only!(present_speed, 38, u16);
-reg_read_only!(present_load, 40, u16);
-reg_read_only!(present_voltage, 42, u8);
-reg_read_only!(present_temperature, 43, u8);
-reg_read_only!(registered, 44, u8);
-reg_read_only!(moving, 46, u8);
-reg_read_write!(lock, 47, u8);
-reg_read_write!(punch, 48, u16);
-reg_read_only!(realtime_tick, 50, u16);
-reg_read_write!(goal_acceleration, 73, u8);
+generate_servo!(
+    MX, v1,
+    reg: (model_number, r, 0, u16, None),
+    reg: (firmware_version, r, 2, u8, None),
+    reg: (id, rw, 3, u8, None),
+    reg: (baudrate, rw, 4, u8, None),
+    reg: (return_delay_time, rw, 5, u8, None),
+    reg: (cw_angle_limit, rw, 6, i16, AnglePosition),
+    reg: (ccw_angle_limit, rw, 8, i16, AnglePosition),
+    reg: (temperature_limit, rw, 11, u8, None),
+    reg: (min_voltage_limit, rw, 12, u8, None),
+    reg: (max_voltage_limit, rw, 13, u8, None),
+    reg: (max_torque, rw, 14, u16, None),
+    reg: (status_return_level, rw, 16, u8, None),
+    reg: (alarm_led, rw, 17, u8, None),
+    reg: (shutdown, rw, 18, u8, None),
+    reg: (multi_turn_offset, rw, 20, i16, None),
+    reg: (resolution_divider, rw, 22, u8, None),
+    reg: (torque_enable, rw, 24, u8, None),
+    reg: (led, rw, 25, u8, None),
+    reg: (d_gain, rw, 26, u8, None),
+    reg: (i_gain, rw, 27, u8, None),
+    reg: (p_gain, rw, 28, u8, None),
+    reg: (goal_position, rw, 30, i16, AnglePosition),
+    reg: (moving_speed, rw, 32, u16, None),
+    reg: (torque_limit, rw, 34, u16, None),
+    reg: (present_position, r, 36, i16, AnglePosition),
+    reg: (present_speed, r, 38, u16, None),
+    reg: (present_load, r, 40, u16, None),
+    reg: (present_voltage, r, 42, u8, None),
+    reg: (present_temperature, r, 43, u8, None),
+    reg: (registered, r, 44, u8, None),
+    reg: (moving, r, 46, u8, None),
+    reg: (lock, rw, 47, u8, None),
+    reg: (punch, rw, 48, u16, None),
+    reg: (realtime_tick, r, 50, u16, None),
+    reg: (goal_acceleration, rw, 73, u8, None),
+);
 
 /// Sync read present_position, present_speed and present_load in one message
 ///
 /// reg_read_only!(present_position_speed_load, 36, (i16, u16, u16))
 pub fn sync_read_present_position_speed_load(
-    io: &DynamixelSerialIO,
+    dph: &crate::DynamixelProtocolHandler,
     serial_port: &mut dyn serialport::SerialPort,
     ids: &[u8],
-) -> Result<Vec<(i16, u16, u16)>> {
-    let val = io.sync_read(serial_port, ids, 36, 2 + 2 + 2)?;
+) -> crate::Result<Vec<(i16, u16, u16)>> {
+    let val = dph.sync_read(serial_port, ids, 36, 2 + 2 + 2)?;
     let val = val
         .iter()
         .map(|v| {
@@ -69,23 +73,23 @@ pub fn sync_read_present_position_speed_load(
     Ok(val)
 }
 
+pub struct AnglePosition;
+
+impl Conversion for AnglePosition {
+    type RegisterType = i16;
+    type UsiType = f64;
+
+    fn from_raw(raw: i16) -> f64 {
+        (2.0 * PI * (raw as f64) / 4096.0) - PI
+    }
+
+    fn to_raw(value: f64) -> i16 {
+        (4096.0 * (PI + value) / (2.0 * PI)) as i16
+    }
+}
+
 /// Unit conversion for MX motors
 pub mod conv {
-    use std::f64::consts::PI;
-
-    /// Dynamixel angular position to radians
-    ///
-    /// Works in joint and multi-turn mode
-    pub fn dxl_pos_to_radians(pos: i16) -> f64 {
-        (2.0 * PI * (pos as f64) / 4096.0) - PI
-    }
-    /// Radians to dynamixel angular position
-    ///
-    /// Works in joint and multi-turn mode
-    pub fn radians_to_dxl_pos(rads: f64) -> i16 {
-        (4096.0 * (PI + rads) / (2.0 * PI)) as i16
-    }
-
     /// Dynamixel absolute speed to radians per second
     ///
     /// Works for moving_speed in joint mode for instance
@@ -167,14 +171,16 @@ pub mod conv {
 mod tests {
     use std::f64::consts::PI;
 
+    use crate::servo::{conversion::Conversion, dynamixel::mx::AnglePosition};
+
     use super::conv::*;
 
     #[test]
     fn position_conversions() {
-        assert_eq!(radians_to_dxl_pos(0.0), 2048);
-        assert_eq!(radians_to_dxl_pos(-PI / 2.0), 1024);
-        assert_eq!(radians_to_dxl_pos(PI / 2.0), 3072);
-        assert_eq!(dxl_pos_to_radians(2048), 0.0);
+        assert_eq!(AnglePosition::to_raw(0.0), 2048);
+        assert_eq!(AnglePosition::to_raw(-PI / 2.0), 1024);
+        assert_eq!(AnglePosition::to_raw(PI / 2.0), 3072);
+        assert_eq!(AnglePosition::from_raw(2048), 0.0);
     }
 
     #[test]

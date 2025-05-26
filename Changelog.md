@@ -1,3 +1,12 @@
+## version 1.0.0
+
+- Cleanup APIs to offer two interfaces:
+  - high-level interface (Controller) with a simple API for the most common use cases.
+  - low-level interface (DynamixelProtocolHandler) for direct access to the protocol and fine-grained control of the bus ownership.
+- Add Python bindings for the library (controller API).
+- Add support for the feetech servo.
+- Define register conversion at the macro level to simplify the code.
+
 ## Version 0.6.0
 
 - Add dxl XL330 support

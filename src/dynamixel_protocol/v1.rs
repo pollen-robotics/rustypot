@@ -1,15 +1,14 @@
-use crate::{
-    packet::{InstructionPacket, StatusPacket},
-    Protocol, Result,
+use crate::Result;
+
+use super::{
+    packet::{InstructionPacket, Packet, StatusPacket},
+    CommunicationErrorKind, Protocol,
 };
 
-use super::{CommunicationErrorKind, Packet};
-
 const BROADCAST_ID: u8 = 254;
-const BROADCAST_RESPONSE_ID: u8 = 253;
 
 #[derive(Debug)]
-pub struct PacketV1;
+pub(crate) struct PacketV1;
 impl Packet for PacketV1 {
     const HEADER_SIZE: usize = 4;
 
@@ -119,7 +118,7 @@ impl InstructionPacket<PacketV1> for InstructionPacketV1 {
 
         let payload_length: u8 = (self.params.len() + 2).try_into().unwrap();
 
-        bytes.extend(vec![255, 255, self.id, payload_length].iter());
+        bytes.extend([255, 255, self.id, payload_length].iter());
         bytes.push(self.instruction.value());
         bytes.extend(self.params.iter());
         bytes.push(crc(&bytes[2..]));
@@ -191,7 +190,7 @@ impl StatusPacket<PacketV1> for StatusPacketV1 {
 }
 
 #[derive(Debug, PartialEq, Eq, Hash, Clone, Copy)]
-pub enum DynamixelErrorV1 {
+pub(crate) enum DynamixelErrorV1 {
     Instruction,
     Overload,
     Checksum,
@@ -222,7 +221,7 @@ impl DynamixelErrorV1 {
 }
 
 #[derive(Debug, Clone, Copy)]
-pub enum InstructionKindV1 {
+pub(crate) enum InstructionKindV1 {
     Ping,
     Read,
     Write,
@@ -236,51 +235,15 @@ impl InstructionKindV1 {
             InstructionKindV1::Ping => 0x01,
             InstructionKindV1::Read => 0x02,
             InstructionKindV1::Write => 0x03,
+            InstructionKindV1::SyncRead => 0x82,
             InstructionKindV1::SyncWrite => 0x83,
-            InstructionKindV1::SyncRead => 0x84,
         }
     }
 }
 
 #[derive(Debug)]
-pub struct V1;
-impl Protocol<PacketV1> for V1 {
-    fn new() -> Self {
-        V1
-    }
-    fn sync_read(
-        &self,
-        port: &mut dyn serialport::SerialPort,
-        ids: &[u8],
-        addr: u8,
-        length: u8,
-    ) -> Result<Vec<Vec<u8>>> {
-        let instruction_packet = PacketV1::sync_read_packet(ids, addr, length);
-        self.send_instruction_packet(port, instruction_packet.as_ref())?;
-        let status_packet = self.read_status_packet(port, BROADCAST_RESPONSE_ID)?;
-
-        if status_packet.params().len() != (length as usize * ids.len()) {
-            Err(Box::new(CommunicationErrorKind::ParsingError))
-        } else {
-            let result: Vec<Vec<u8>> = status_packet
-                .params()
-                .chunks(length as usize)
-                .map(|slice| slice.to_vec())
-                .collect();
-
-            // In protocol v1, timeout are detected because all expected values are replaced by 255
-            let timeout: Vec<_> = result
-                .iter()
-                .filter(|r| r.iter().all(|&el| el == u8::MAX))
-                .collect();
-            if !timeout.is_empty() {
-                return Err(Box::new(CommunicationErrorKind::TimeoutError));
-            }
-
-            Ok(result)
-        }
-    }
-}
+pub(crate) struct V1;
+impl Protocol<PacketV1> for V1 {}
 
 fn crc(data: &[u8]) -> u8 {
     let mut crc: u8 = 0;
@@ -325,7 +288,7 @@ mod tests {
         let bytes = p.to_bytes();
         assert_eq!(
             bytes,
-            [0xFF, 0xFF, 0xFE, 0x6, 0x84, 0x1e, 0x2, 0xb, 0xc, 0x40]
+            [0xFF, 0xFF, 0xFE, 0x6, 0x82, 0x1e, 0x2, 0xb, 0xc, 0x42]
         );
     }
 
