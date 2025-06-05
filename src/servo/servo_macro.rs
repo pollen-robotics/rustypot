@@ -845,7 +845,8 @@ macro_rules! register_servo {
             pub enum ServoKind {
                 $(
                     $(
-                        [<$group:camel $name:camel>],
+                        #[allow(non_camel_case_types)]
+                        [<$group _ $name>],
                     )+
                 )+
             }
@@ -854,7 +855,7 @@ macro_rules! register_servo {
                     match model_number {
                         $(
                             $(
-                                $model_number => Ok(Self::[<$group:camel $name:camel>]),
+                                $model_number => Ok(Self::[<$group _ $name>]),
                             )+
                         )+
                             _ => Err(format!("Unknown model number: {}", model_number)),
