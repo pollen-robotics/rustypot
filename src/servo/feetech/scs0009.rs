@@ -87,6 +87,7 @@ impl Conversion for AnglePosition {
     }
 }
 
+#[allow(non_camel_case_types)]
 pub struct BigEndian_u16;
 impl Conversion for BigEndian_u16 {
     type RegisterType = u16;
@@ -101,6 +102,7 @@ impl Conversion for BigEndian_u16 {
     }
 }
 
+#[allow(non_camel_case_types)]
 pub struct BigEndian_i16;
 impl Conversion for BigEndian_i16 {
     type RegisterType = u16;
