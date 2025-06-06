@@ -65,6 +65,8 @@ type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
 
 #[cfg(feature = "python")]
 use pyo3::prelude::*;
+#[cfg(feature = "python")]
+use pyo3_stub_gen::define_stub_info_gatherer;
 
 #[cfg(feature = "python")]
 #[pymodule]
@@ -75,3 +77,6 @@ fn rustypot(py: Python, m: &Bound<'_, PyModule>) -> PyResult<()> {
 
     Ok(())
 }
+
+#[cfg(feature = "python")]
+define_stub_info_gatherer!(stub_info);

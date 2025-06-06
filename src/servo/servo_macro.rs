@@ -30,12 +30,15 @@ macro_rules! generate_servo {
             }
 
             #[cfg(feature = "python")]
+            #[gen_stub_pyclass]
             #[pyo3::pyclass(frozen)]
             pub struct [<$servo_name:camel SyncController>](std::sync::Mutex<[<$servo_name:camel Controller>]>);
         }
 
         #[cfg(feature = "python")]
         use pyo3::prelude::*;
+        #[cfg(feature = "python")]
+        use pyo3_stub_gen::derive::*;
 
         $crate::generate_protocol_constructor!($servo_name, $protocol);
         $crate::generate_addr_read_write!($servo_name);
@@ -61,6 +64,7 @@ macro_rules! generate_protocol_constructor {
                 }
             }
             #[cfg(feature = "python")]
+            #[gen_stub_pymethods]
             #[pymethods]
             impl [<$servo_name:camel SyncController>] {
                 #[new]
@@ -92,6 +96,7 @@ macro_rules! generate_protocol_constructor {
                 }
             }
             #[cfg(feature = "python")]
+            #[gen_stub_pymethods]
             #[pymethods]
             impl [<$servo_name:camel SyncController>] {
                 #[new]
@@ -141,6 +146,7 @@ macro_rules! generate_addr_read_write {
             }
 
             #[cfg(feature = "python")]
+            #[gen_stub_pymethods]
             #[pymethods]
             impl [<$servo_name:camel SyncController>] {
                 pub fn read_raw_data(
@@ -236,6 +242,7 @@ macro_rules! generate_reg_read {
         }
 
         #[cfg(feature = "python")]
+        #[gen_stub_pymethods]
         #[pymethods]
         impl [<$servo_name:camel SyncController>] {
             pub fn [<read_ $reg_name>](
@@ -335,6 +342,7 @@ macro_rules! generate_reg_read {
         }
 
         #[cfg(feature = "python")]
+        #[gen_stub_pymethods]
         #[pymethods]
         impl [<$servo_name:camel SyncController>] {
             #[doc = concat!("Read raw register *", stringify!($name), "* (addr: ", stringify!($addr), ", type: ", stringify!($reg_type), ")")]
@@ -418,6 +426,7 @@ macro_rules! generate_reg_write {
         }
 
         #[cfg(feature = "python")]
+        #[gen_stub_pymethods]
         #[pymethods]
         impl [<$servo_name:camel SyncController>] {
             #[doc = concat!("Write register *", stringify!($name), "* (addr: ", stringify!($addr), ", type: ", stringify!($reg_type), ")")]
@@ -522,6 +531,7 @@ macro_rules! generate_reg_write {
         }
 
         #[cfg(feature = "python")]
+        #[gen_stub_pymethods]
         #[pymethods]
         impl [<$servo_name:camel SyncController>] {
             #[doc = concat!("Write raw register *", stringify!($name), "* (addr: ", stringify!($addr), ", type: ", stringify!($reg_type), ")")]
