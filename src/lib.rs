@@ -50,10 +50,10 @@
 //!         .with_protocol_v1()
 //!         .with_serial_port(serial_port);
 //!
-//! let pos = c.read_present_position(&vec![1, 2]).unwrap();
+//! let pos = c.sync_read_present_position(&vec![1, 2]).unwrap();
 //! println!("Motors present position: {:?}", pos);
 //!
-//! c.write_goal_position(&vec![1, 2], &vec![0.0, 90.0_f64.to_radians()]).unwrap();
+//! c.sync_write_goal_position(&vec![1, 2], &vec![0.0, 90.0_f64.to_radians()]).unwrap();
 //! ```
 
 pub mod servo;

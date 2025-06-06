@@ -47,8 +47,10 @@ fn main() -> Result<(), Box<dyn Error>> {
                     let model = dph.read(serial_port.as_mut(), id, 0, 2).unwrap();
                     let model = u16::from_le_bytes([model[0], model[1]]);
                     let model = ServoKind::try_from(model);
-
-                    println!("Found motor with id {id} and model {model:?}");
+                    match model {
+                        Ok(m) => println!("Found motor with id {id} and model: {m:?}"),
+                        Err(e) => println!("Found motor with id {id} with {e:?}"),
+                    }
                 }
             }
             Err(e) => eprintln!("Error: {e}"),

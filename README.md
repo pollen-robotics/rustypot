@@ -65,11 +65,19 @@ fn main() {
             .with_protocol_v1()
             .with_serial_port(serial_port);
 
-    let pos = c.read_present_position(&vec![1, 2]).unwrap();
+    let pos = c.sync_read_present_position(&vec![1, 2]).unwrap();
     println!("Motors present position: {:?}", pos);
 
-    c.write_goal_position(&vec![1, 2], &vec![1000, 2000]).unwrap();
+    c.sync_write_goal_position(&vec![1, 2], &vec![1000, 2000]).unwrap();
 }
+```
+
+## Tools
+
+Simple bus scanning tool:
+
+```bash
+cargo run --bin=scan -- --serialport=/dev/ttyUSB0 --baudrate=1000000 --protocol=v1
 ```
 
 ## Documentation
@@ -88,7 +96,7 @@ To build them locally, you can use [maturin](https://www.maturin.rs).
 maturin build --release --features python-extension-module
 ```
 
-or, if you want to install them in your local python environment: 
+or, if you want to install them in your local python environment:
 
 ```bash
 maturin develop --release --features python-extension-module
@@ -114,4 +122,4 @@ This library is licensed under the [Apache License 2.0](./LICENSE).
 ## Support
 
 Rustypot is developed and maintained by [Pollen-Robotics](https://pollen-robotics.com). They developed open-source hardware and tools for robotics.
-Visit https://pollen-robotics.com to learn more or join the [Discord community](https://discord.com/invite/Kg3mZHTKgs) if you have any questions or want to share your projects. 
+Visit https://pollen-robotics.com to learn more or join the [Discord community](https://discord.com/invite/Kg3mZHTKgs) if you have any questions or want to share your projects.
