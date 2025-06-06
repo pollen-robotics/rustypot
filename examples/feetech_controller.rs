@@ -21,7 +21,7 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     while start_overall.elapsed() < duration {
         let start_time = std::time::Instant::now();
-        let x = c.read_present_position(&ids);
+        let x = c.sync_read_present_position(&ids);
         let elapsed_time = start_time.elapsed();
 
         println!("present pos: {:?}", x);

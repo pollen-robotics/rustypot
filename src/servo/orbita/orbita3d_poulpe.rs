@@ -11,6 +11,13 @@ pub struct MotorValue<T> {
     pub bottom: T,
 }
 
+#[cfg(feature = "python")]
+impl<T: pyo3_stub_gen::PyStubType> pyo3_stub_gen::PyStubType for MotorValue<T> {
+    fn type_output() -> pyo3_stub_gen::TypeInfo {
+        pyo3_stub_gen::TypeInfo::list_of::<T>()
+    }
+}
+
 /// Wrapper for a 3D vector (x, y, z)
 #[derive(Clone, Copy, Debug)]
 #[cfg_attr(feature = "python", derive(pyo3::FromPyObject, pyo3::IntoPyObject))]
@@ -31,7 +38,7 @@ pub struct MotorPositionSpeedLoad {
 }
 /// Wrapper for PID gains.
 #[derive(Clone, Copy, Debug, PartialEq)]
-#[cfg_attr(feature = "python", derive(pyo3::FromPyObject, pyo3::IntoPyObject))]
+#[cfg_attr(feature = "python", gen_stub_pyclass, pyo3::pyclass)]
 pub struct Pid {
     pub p: i16,
     pub i: i16,

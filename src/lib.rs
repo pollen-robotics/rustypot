@@ -50,10 +50,10 @@
 //!         .with_protocol_v1()
 //!         .with_serial_port(serial_port);
 //!
-//! let pos = c.read_present_position(&vec![1, 2]).unwrap();
+//! let pos = c.sync_read_present_position(&vec![1, 2]).unwrap();
 //! println!("Motors present position: {:?}", pos);
 //!
-//! c.write_goal_position(&vec![1, 2], &vec![0.0, 90.0_f64.to_radians()]).unwrap();
+//! c.sync_write_goal_position(&vec![1, 2], &vec![0.0, 90.0_f64.to_radians()]).unwrap();
 //! ```
 
 pub mod servo;
@@ -65,13 +65,18 @@ type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
 
 #[cfg(feature = "python")]
 use pyo3::prelude::*;
+#[cfg(feature = "python")]
+use pyo3_stub_gen::define_stub_info_gatherer;
 
 #[cfg(feature = "python")]
 #[pymodule]
-fn rustypot(py: Python, m: &Bound<'_, PyModule>) -> PyResult<()> {
+fn rustypot(m: &Bound<'_, PyModule>) -> PyResult<()> {
     pyo3_log::init();
 
-    servo::register_module(py, m)?;
+    servo::register_class(m)?;
 
     Ok(())
 }
+
+#[cfg(feature = "python")]
+define_stub_info_gatherer!(stub_info);
