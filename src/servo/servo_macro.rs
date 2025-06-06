@@ -30,12 +30,15 @@ macro_rules! generate_servo {
             }
 
             #[cfg(feature = "python")]
+            #[gen_stub_pyclass]
             #[pyo3::pyclass(frozen)]
             pub struct [<$servo_name:camel PyController>](std::sync::Mutex<[<$servo_name:camel Controller>]>);
         }
 
         #[cfg(feature = "python")]
         use pyo3::prelude::*;
+        #[cfg(feature = "python")]
+        use pyo3_stub_gen::derive::*;
 
         $crate::generate_protocol_constructor!($servo_name, $protocol);
         $crate::generate_addr_read_write!($servo_name);
@@ -61,6 +64,7 @@ macro_rules! generate_protocol_constructor {
                 }
             }
             #[cfg(feature = "python")]
+            #[gen_stub_pymethods]
             #[pymethods]
             impl [<$servo_name:camel PyController>] {
                 #[new]
@@ -92,6 +96,7 @@ macro_rules! generate_protocol_constructor {
                 }
             }
             #[cfg(feature = "python")]
+            #[gen_stub_pymethods]
             #[pymethods]
             impl [<$servo_name:camel PyController>] {
                 #[new]
@@ -164,6 +169,7 @@ macro_rules! generate_addr_read_write {
             }
 
             #[cfg(feature = "python")]
+            #[gen_stub_pymethods]
             #[pymethods]
             impl [<$servo_name:camel PyController>] {
                 pub fn read_raw_data(
@@ -308,6 +314,7 @@ macro_rules! generate_reg_read {
 
 
             #[cfg(feature = "python")]
+            #[gen_stub_pymethods]
             #[pymethods]
             impl [<$servo_name:camel PyController>] {
                 pub fn [<sync_read_ $reg_name>](
@@ -327,6 +334,7 @@ macro_rules! generate_reg_read {
 
 
             #[cfg(feature = "python")]
+            #[gen_stub_pymethods]
             #[pymethods]
             impl [<$servo_name:camel PyController>] {
                 pub fn [<read_ $reg_name>](
@@ -461,6 +469,7 @@ macro_rules! generate_reg_read {
             }
 
             #[cfg(feature = "python")]
+            #[gen_stub_pymethods]
             #[pymethods]
             impl [<$servo_name:camel PyController>] {
                 #[doc = concat!("Sync read raw register *", stringify!($name), "* (addr: ", stringify!($addr), ", type: ", stringify!($reg_type), ")")]
@@ -589,6 +598,7 @@ macro_rules! generate_reg_write {
             }
 
             #[cfg(feature = "python")]
+            #[gen_stub_pymethods]
             #[pymethods]
             impl [<$servo_name:camel PyController>] {
                 #[doc = concat!("Sync write register *", stringify!($name), "* (addr: ", stringify!($addr), ", type: ", stringify!($reg_type), ")")]
@@ -735,6 +745,7 @@ macro_rules! generate_reg_write {
             }
 
             #[cfg(feature = "python")]
+            #[gen_stub_pymethods]
             #[pymethods]
             impl [<$servo_name:camel PyController>] {
                 #[doc = concat!("Sync write raw register *", stringify!($name), "* (addr: ", stringify!($addr), ", type: ", stringify!($reg_type), ")")]
@@ -867,18 +878,10 @@ macro_rules! register_servo {
             use pyo3::prelude::*;
 
             #[cfg(feature = "python")]
-            pub(crate) fn register_module(py: Python, parent_module: &Bound<'_, PyModule>) -> PyResult<()> {
-                let child_module = PyModule::new(parent_module.py(), "servo")?;
-
+            pub(crate) fn register_class(m: &Bound<'_, PyModule>) -> PyResult<()> {
                 $(
-                    child_module.add_class::<$group::[<$servo:lower>]::[<$servo:camel PyController>]>()?;
+                    m.add_class::<$group::[<$servo:lower>]::[<$servo:camel PyController>]>()?;
                 )+
-
-                    parent_module.add_submodule(&child_module)?;
-
-                py.import("sys")?
-                    .getattr("modules")?
-                    .set_item("rustypot.servo", child_module)?;
 
                 Ok(())
             }
