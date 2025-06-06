@@ -85,16 +85,22 @@ The python bindings are generated using [pyo3](https://pyo3.rs/). They are avail
 To build them locally, you can use [maturin](https://www.maturin.rs).
 
 ```bash
-maturin build --release --features python
+maturin build --release --features python-extension-module
 ```
 
 or, if you want to install them in your local python environment: 
 
 ```bash
-maturin develop --release --features python
+maturin develop --release --features python-extension-module
 ```
 
 See [maturin official documentation](https://maturin.rs) for more information on how to use it.
+
+To generate the type annotations for the python bindings, you can run:
+
+```bash
+cargo run --bin stub_gen --features python-stub-gen
+```
 
 ## Contributing
 
