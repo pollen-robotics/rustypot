@@ -31,7 +31,7 @@ macro_rules! generate_servo {
 
             #[cfg(feature = "python")]
             #[pyo3::pyclass(frozen)]
-            pub struct [<$servo_name:camel SyncController>](std::sync::Mutex<[<$servo_name:camel Controller>]>);
+            pub struct [<$servo_name:camel PyController>](std::sync::Mutex<[<$servo_name:camel Controller>]>);
         }
 
         #[cfg(feature = "python")]
@@ -62,7 +62,7 @@ macro_rules! generate_protocol_constructor {
             }
             #[cfg(feature = "python")]
             #[pymethods]
-            impl [<$servo_name:camel SyncController>] {
+            impl [<$servo_name:camel PyController>] {
                 #[new]
                 pub fn new(serial_port: &str, baudrate: u32, timeout: f32) -> PyResult<Self> {
                     let serial_port = serialport::new(serial_port, baudrate)
@@ -93,7 +93,7 @@ macro_rules! generate_protocol_constructor {
             }
             #[cfg(feature = "python")]
             #[pymethods]
-            impl [<$servo_name:camel SyncController>] {
+            impl [<$servo_name:camel PyController>] {
                 #[new]
                 pub fn new(serial_port: &str, baudrate: u32, timeout: f32) -> PyResult<Self> {
                     let serial_port = serialport::new(serial_port, baudrate)
@@ -165,7 +165,7 @@ macro_rules! generate_addr_read_write {
 
             #[cfg(feature = "python")]
             #[pymethods]
-            impl [<$servo_name:camel SyncController>] {
+            impl [<$servo_name:camel PyController>] {
                 pub fn read_raw_data(
                     &self,
                     py: Python,
@@ -309,7 +309,7 @@ macro_rules! generate_reg_read {
 
             #[cfg(feature = "python")]
             #[pymethods]
-            impl [<$servo_name:camel SyncController>] {
+            impl [<$servo_name:camel PyController>] {
                 pub fn [<sync_read_ $reg_name>](
                     &self,
                     py: Python,
@@ -328,7 +328,7 @@ macro_rules! generate_reg_read {
 
             #[cfg(feature = "python")]
             #[pymethods]
-            impl [<$servo_name:camel SyncController>] {
+            impl [<$servo_name:camel PyController>] {
                 pub fn [<read_ $reg_name>](
                     &self,
                     py: Python,
@@ -462,7 +462,7 @@ macro_rules! generate_reg_read {
 
             #[cfg(feature = "python")]
             #[pymethods]
-            impl [<$servo_name:camel SyncController>] {
+            impl [<$servo_name:camel PyController>] {
                 #[doc = concat!("Sync read raw register *", stringify!($name), "* (addr: ", stringify!($addr), ", type: ", stringify!($reg_type), ")")]
                 pub fn [<sync_read_raw_ $reg_name>](
                     &self,
@@ -590,7 +590,7 @@ macro_rules! generate_reg_write {
 
             #[cfg(feature = "python")]
             #[pymethods]
-            impl [<$servo_name:camel SyncController>] {
+            impl [<$servo_name:camel PyController>] {
                 #[doc = concat!("Sync write register *", stringify!($name), "* (addr: ", stringify!($addr), ", type: ", stringify!($reg_type), ")")]
                 pub fn [<sync_write_ $reg_name>](
                     &self,
@@ -736,7 +736,7 @@ macro_rules! generate_reg_write {
 
             #[cfg(feature = "python")]
             #[pymethods]
-            impl [<$servo_name:camel SyncController>] {
+            impl [<$servo_name:camel PyController>] {
                 #[doc = concat!("Sync write raw register *", stringify!($name), "* (addr: ", stringify!($addr), ", type: ", stringify!($reg_type), ")")]
                 pub fn [<sync_write_raw_ $reg_name>](
                     &self,
@@ -871,7 +871,7 @@ macro_rules! register_servo {
                 let child_module = PyModule::new(parent_module.py(), "servo")?;
 
                 $(
-                    child_module.add_class::<$group::[<$servo:lower>]::[<$servo:camel SyncController>]>()?;
+                    child_module.add_class::<$group::[<$servo:lower>]::[<$servo:camel PyController>]>()?;
                 )+
 
                     parent_module.add_submodule(&child_module)?;

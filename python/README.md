@@ -23,9 +23,9 @@ The Python bindings exposes the same API as the Controller API in the rust crate
 You first need to create a Controller object. For instance, to communicate with a serial port to Feetech STS3215 motors, you can do the following:
 
 ```python
-from rustypot.servo import Sts3215SyncController
+from rustypot.servo import Sts3215PyController
 
-c = Sts3215SyncController(serial_port='/dev/ttyUSB0', baudrate=100000, timeout=0.1)
+c = Sts3215PyController(serial_port='/dev/ttyUSB0', baudrate=100000, timeout=0.1)
 ```
 
 
