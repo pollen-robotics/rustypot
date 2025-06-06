@@ -70,10 +70,10 @@ use pyo3_stub_gen::define_stub_info_gatherer;
 
 #[cfg(feature = "python")]
 #[pymodule]
-fn rustypot(py: Python, m: &Bound<'_, PyModule>) -> PyResult<()> {
+fn rustypot(m: &Bound<'_, PyModule>) -> PyResult<()> {
     pyo3_log::init();
 
-    servo::register_module(py, m)?;
+    servo::register_class(m)?;
 
     Ok(())
 }

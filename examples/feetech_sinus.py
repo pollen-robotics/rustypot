@@ -1,10 +1,10 @@
 import time
 import numpy as np
 
-from rustypot.servo import Sts3215PyController
+from rustypot import Sts3215PyController
 
 def main():
-    c = Sts3215SyncController(
+    c = Sts3215PyController(
         serial_port='/dev/tty.usbmodem58FA0822621',
         baudrate=1000000,
         timeout=0.1,
