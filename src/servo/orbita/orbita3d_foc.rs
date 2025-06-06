@@ -37,7 +37,7 @@ pub struct DiskPositionSpeedLoad {
 }
 /// Wrapper for PID gains.
 #[derive(Clone, Copy, Debug, PartialEq)]
-#[cfg_attr(feature = "python", derive(gen_stub_pyclass, pyo3::pyclass))]
+#[cfg_attr(feature = "python", gen_stub_pyclass, pyo3::pyclass)]
 pub struct Pid {
     pub p: f32,
     pub i: f32,
