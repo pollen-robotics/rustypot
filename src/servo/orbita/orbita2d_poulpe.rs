@@ -25,9 +25,7 @@ pub struct MotorPositionSpeedLoad {
 }
 /// Wrapper for PID gains.
 #[derive(Clone, Copy, Debug, PartialEq)]
-#[cfg(feature = "python")]
-#[pyo3_stub_gen::derive::gen_stub_pyclass]
-#[pyo3::pyclass]
+#[cfg_attr(feature = "python", derive(gen_stub_pyclass, pyo3::pyclass))]
 pub struct Pid {
     pub p: i16,
     pub i: i16,
