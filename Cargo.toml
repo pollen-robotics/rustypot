@@ -35,7 +35,4 @@ env_logger = "0.10.0"
 
 [[bin]]
 name = "stub_gen"
-required-features = ["python-stub-gen"]
-
-[[examples]]
-required-features = ["python-stub-gen"]
+required-features = ["python"]
