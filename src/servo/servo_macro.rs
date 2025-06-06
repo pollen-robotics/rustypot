@@ -313,6 +313,7 @@ macro_rules! generate_reg_read {
             }
 
 
+            #[cfg_attr(feature = "python-stub-gen", gen_stub_pymethods)]
             #[cfg(feature = "python")]
             #[pymethods]
             impl [<$servo_name:camel PyController>] {
@@ -332,6 +333,7 @@ macro_rules! generate_reg_read {
             }
 
 
+            #[cfg_attr(feature = "python-stub-gen", gen_stub_pymethods)]
             #[cfg(feature = "python")]
             #[pymethods]
             impl [<$servo_name:camel PyController>] {
@@ -466,6 +468,7 @@ macro_rules! generate_reg_read {
 
             }
 
+            #[cfg_attr(feature = "python-stub-gen", gen_stub_pymethods)]
             #[cfg(feature = "python")]
             #[pymethods]
             impl [<$servo_name:camel PyController>] {
@@ -741,6 +744,7 @@ macro_rules! generate_reg_write {
 
             }
 
+            #[cfg_attr(feature = "python-stub-gen", gen_stub_pymethods)]
             #[cfg(feature = "python")]
             #[pymethods]
             impl [<$servo_name:camel PyController>] {
