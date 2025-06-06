@@ -18,27 +18,44 @@ maturin develop --release --features python
 
 ## Usage
 
-The Python bindings exposes the same API as the Controller API in the rust crate. 
+The Python bindings exposes the same API as the Controller API in the rust crate.
 
 You first need to create a Controller object. For instance, to communicate with a serial port to Feetech STS3215 motors, you can do the following:
 
 ```python
-from rustypot.servo import Sts3215SyncController
+from rustypot.servo import Sts3215PyController
 
-c = Sts3215SyncController(serial_port='/dev/ttyUSB0', baudrate=100000, timeout=0.1)
+c = Sts3215PyController(serial_port='/dev/ttyUSB0', baudrate=100000, timeout=0.1)
 ```
 
-Then, you can directly read/write any register of the motor. For instance, to read the present position of the motors with id 1 and 2, you can do:
+
+Then, you can directly read/write any register of the motor. For instance, to read the present position of the motor with id 1, you can do:
 
 ```python
 
-pos = c.read_present_position([1, 2])
+pos = c.read_present_position(1)
 print(pos)
 ```
 
-You can also write to the motors. For instance, to set the goal position of the motors with id 1 and 2 to 0.0 and 90° respectively, you can do:
+You can also write to the motors. For instance, to set the goal position of the motors with id 1 to 90° you can do:
 
 ```python
 import numpy as np
-c.write_goal_position([1, 2], [0.0, np.deg2rad(90.0)])
+c.write_goal_position(1, np.deg2rad(90.0))
+```
+
+
+Then, you can also sync_read any registers on multiple motors in a single operations. For instance, to read the present position of the motors with id 1 and 2, you can do:
+
+```python
+
+pos = c.sync_read_present_position([1, 2])
+print(pos)
+```
+
+Same with sync_write. For instance, to set the goal position of the motors with id 1 and 2 to 0.0 and 90° respectively, you can do:
+
+```python
+import numpy as np
+c.sync_write_goal_position([1, 2], [0.0, np.deg2rad(90.0)])
 ```
