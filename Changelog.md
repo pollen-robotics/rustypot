@@ -1,4 +1,9 @@
-## version 1.0.0
+## Version 1.1.0
+
+- Add support for feetech Scs0009
+- Add python type annotation 
+
+## Version 1.0.0
 
 - Cleanup APIs to offer two interfaces:
   - high-level interface (Controller) with a simple API for the most common use cases.
