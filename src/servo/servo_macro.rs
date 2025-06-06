@@ -29,15 +29,15 @@ macro_rules! generate_servo {
                 }
             }
 
-            #[cfg_attr(feature = "python-stub-gen", gen_stub_pyclass)]
             #[cfg(feature = "python")]
+            #[gen_stub_pyclass]
             #[pyo3::pyclass(frozen)]
             pub struct [<$servo_name:camel PyController>](std::sync::Mutex<[<$servo_name:camel Controller>]>);
         }
 
         #[cfg(feature = "python")]
         use pyo3::prelude::*;
-        #[cfg(feature = "python-stub-gen")]
+        #[cfg(feature = "python")]
         use pyo3_stub_gen::derive::*;
 
         $crate::generate_protocol_constructor!($servo_name, $protocol);
@@ -63,8 +63,8 @@ macro_rules! generate_protocol_constructor {
                     }
                 }
             }
-            #[cfg_attr(feature = "python-stub-gen",  gen_stub_pymethods)]
             #[cfg(feature = "python")]
+            #[gen_stub_pymethods]
             #[pymethods]
             impl [<$servo_name:camel PyController>] {
                 #[new]
@@ -95,8 +95,8 @@ macro_rules! generate_protocol_constructor {
                     }
                 }
             }
-            #[cfg_attr(feature = "python-stub-gen", gen_stub_pymethods)]
             #[cfg(feature = "python")]
+            #[gen_stub_pymethods]
             #[pymethods]
             impl [<$servo_name:camel PyController>] {
                 #[new]
@@ -168,8 +168,8 @@ macro_rules! generate_addr_read_write {
                 }
             }
 
-            #[cfg_attr(feature = "python-stub-gen", gen_stub_pymethods)]
             #[cfg(feature = "python")]
+            #[gen_stub_pymethods]
             #[pymethods]
             impl [<$servo_name:camel PyController>] {
                 pub fn read_raw_data(
@@ -313,8 +313,8 @@ macro_rules! generate_reg_read {
             }
 
 
-            #[cfg_attr(feature = "python-stub-gen", gen_stub_pymethods)]
             #[cfg(feature = "python")]
+            #[gen_stub_pymethods]
             #[pymethods]
             impl [<$servo_name:camel PyController>] {
                 pub fn [<sync_read_ $reg_name>](
@@ -333,8 +333,8 @@ macro_rules! generate_reg_read {
             }
 
 
-            #[cfg_attr(feature = "python-stub-gen", gen_stub_pymethods)]
             #[cfg(feature = "python")]
+            #[gen_stub_pymethods]
             #[pymethods]
             impl [<$servo_name:camel PyController>] {
                 pub fn [<read_ $reg_name>](
@@ -468,8 +468,8 @@ macro_rules! generate_reg_read {
 
             }
 
-            #[cfg_attr(feature = "python-stub-gen", gen_stub_pymethods)]
             #[cfg(feature = "python")]
+            #[gen_stub_pymethods]
             #[pymethods]
             impl [<$servo_name:camel PyController>] {
                 #[doc = concat!("Sync read raw register *", stringify!($name), "* (addr: ", stringify!($addr), ", type: ", stringify!($reg_type), ")")]
@@ -597,8 +597,8 @@ macro_rules! generate_reg_write {
 
             }
 
-            #[cfg_attr(feature = "python-stub-gen", gen_stub_pymethods)]
             #[cfg(feature = "python")]
+            #[gen_stub_pymethods]
             #[pymethods]
             impl [<$servo_name:camel PyController>] {
                 #[doc = concat!("Sync write register *", stringify!($name), "* (addr: ", stringify!($addr), ", type: ", stringify!($reg_type), ")")]
@@ -744,8 +744,8 @@ macro_rules! generate_reg_write {
 
             }
 
-            #[cfg_attr(feature = "python-stub-gen", gen_stub_pymethods)]
             #[cfg(feature = "python")]
+            #[gen_stub_pymethods]
             #[pymethods]
             impl [<$servo_name:camel PyController>] {
                 #[doc = concat!("Sync write raw register *", stringify!($name), "* (addr: ", stringify!($addr), ", type: ", stringify!($reg_type), ")")]

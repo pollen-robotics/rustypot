@@ -16,9 +16,7 @@ crate-type = ["lib", "cdylib"]
 
 [features]
 default = []
-python = ["dep:pyo3", "dep:pyo3-log"]
-python-extension-module = ["python", "pyo3/extension-module"]
-python-stub-gen = ["python", "dep:pyo3-stub-gen"]
+python = ["dep:pyo3", "dep:pyo3-log", "dep:pyo3-stub-gen"]
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 

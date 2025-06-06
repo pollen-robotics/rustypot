@@ -99,7 +99,7 @@ To build them locally, you can use [maturin](https://www.maturin.rs).
 First, generate the type annotations for the python bindings, by running:
 
 ```bash
-cargo run --release --bin stub_gen --features python-stub-gen
+cargo run --release --bin stub_gen --features python
 ```
 
 Then, you can build the python bindings using maturin. You can either build the wheel files to distribute them, or install them directly in your local python environment.
@@ -107,13 +107,13 @@ Then, you can build the python bindings using maturin. You can either build the 
 To build the wheel files, you can run:
 
 ```bash
-maturin build --release --features python-extension-module
+maturin build --release --features python --features pyo3/extension-module
 ```
 
 or, if you want to install them in your local python environment:
 
 ```bash
-maturin develop --release --features python-extension-module
+maturin develop --release --features python --features pyo3/extension-module
 ```
 
 See [maturin official documentation](https://maturin.rs) for more information on how to use it.
