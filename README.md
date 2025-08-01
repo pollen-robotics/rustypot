@@ -20,7 +20,7 @@ Rustypot is a communication library for Dynamixel/Feetech motors. It is notably 
 * Easy support for new type of motors (register definition through macros). Currently support for dynamixel XL320, XL330, XL430, XM430, MX*, Orbita 2D & 3D.
 * Pure Rust plus python bindings (using [pyo3](https://pyo3.rs/)).
 
-To add new servo, please refer to the [Servo documentation](./servo/README.md).
+To add new servo, please refer to the [Servo documentation](./src/servo/README.md).
 
 ## APIs
 
