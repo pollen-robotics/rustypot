@@ -147,10 +147,7 @@ impl StatusPacket<PacketV1> for StatusPacketV1 {
         let read_crc = *data.last().unwrap();
         let computed_crc = crc(&data[2..data.len() - 1]);
         if read_crc != computed_crc {
-            println!(
-                "read crc: {}, computed crc: {} data: {:?}",
-                read_crc, computed_crc, data
-            );
+            println!("read crc: {read_crc}, computed crc: {computed_crc} data: {data:?}");
 
             return Err(Box::new(CommunicationErrorKind::ChecksumError));
         }

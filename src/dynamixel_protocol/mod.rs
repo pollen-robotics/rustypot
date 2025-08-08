@@ -417,7 +417,7 @@ trait Protocol<P: Packet> {
         data.extend(header);
         data.extend(payload);
 
-        log::debug!("<<< {:?}", data);
+        log::debug!("<<< {data:?}");
 
         P::status_packet(&data, sender_id)
     }
@@ -430,7 +430,7 @@ trait Protocol<P: Packet> {
     fn flush(&self, port: &mut dyn SerialPort) -> Result<()> {
         let n = port.bytes_to_read()? as usize;
         if n > 0 {
-            log::info!("Needed to flush serial port ({} bytes)...", n);
+            log::info!("Needed to flush serial port ({n} bytes)...");
             let mut buff = vec![0u8; n];
             port.read_exact(&mut buff)?;
         }
@@ -463,7 +463,7 @@ impl fmt::Display for CommunicationErrorKind {
             CommunicationErrorKind::ParsingError => write!(f, "Parsing error"),
             CommunicationErrorKind::TimeoutError => write!(f, "Timeout error"),
             CommunicationErrorKind::IncorrectId(sender_id, resp_id) => {
-                write!(f, "Incorrect id ({} instead of {})", resp_id, sender_id)
+                write!(f, "Incorrect id ({resp_id} instead of {sender_id})")
             }
             CommunicationErrorKind::Unsupported => write!(f, "Operation not supported"),
         }
