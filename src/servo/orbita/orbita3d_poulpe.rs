@@ -30,12 +30,12 @@ pub struct Vec3d<T> {
 /// Wrapper for a Position/Speed/Load value for each motor
 #[derive(Clone, Copy, Debug)]
 #[cfg_attr(feature = "python", derive(pyo3::FromPyObject, pyo3::IntoPyObject))]
-
 pub struct MotorPositionSpeedLoad {
     pub position: MotorValue<f32>,
     // pub speed: MotorValue<f32>,
     // pub load: MotorValue<f32>,
 }
+
 /// Wrapper for PID gains.
 #[derive(Clone, Copy, Debug, PartialEq)]
 #[cfg_attr(feature = "python", gen_stub_pyclass, pyo3::pyclass)]

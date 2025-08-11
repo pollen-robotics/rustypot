@@ -6,6 +6,11 @@ pub mod orbita;
 pub(crate) mod servo_macro;
 
 crate::register_servo!(
+    servo: (dynamixel, AX,
+        (AX12, 12), // All AX12, except the W are equivalent.
+        (AX12W, 300),
+        (AX18A, 18)
+    ),
     servo: (dynamixel, MX,
         (MX28, 29),
         (MX64, 310),
