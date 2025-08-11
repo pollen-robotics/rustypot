@@ -1,3 +1,8 @@
+## Version 1.2.0
+
+- Add support for AX motors (see https://github.com/pollen-robotics/rustypot/pull/93, thanks to @kacper-uminski)
+
+
 ## Version 1.1.0
 
 - Add support for feetech Scs0009
