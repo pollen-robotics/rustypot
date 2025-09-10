@@ -118,6 +118,17 @@ impl DynamixelProtocolHandler {
         }
     }
 
+    /// Send a reboot instruction.
+    ///
+    /// Reboot the motor with specified `id`.
+    /// Returns an [CommunicationErrorKind] if the communication fails.
+    pub fn reboot(&self, serial_port: &mut dyn serialport::SerialPort, id: u8) -> Result<bool> {
+        match &self.protocol {
+            ProtocolKind::V1(p) => p.reboot(serial_port, id),
+            ProtocolKind::V2(p) => p.reboot(serial_port, id),
+        }
+    }
+
     /// Reads raw register bytes.
     ///
     /// Sends a read instruction to the motor and wait for the status packet in response.
@@ -330,6 +341,12 @@ trait Protocol<P: Packet> {
     fn ping(&self, port: &mut dyn SerialPort, id: u8) -> Result<bool> {
         self.send_instruction_packet(port, P::ping_packet(id).as_ref())?;
 
+        Ok(self.read_status_packet(port, id).is_ok())
+    }
+
+    fn reboot(&self, port: &mut dyn SerialPort, id: u8) -> Result<bool> {
+        self.send_instruction_packet(port, P::reboot_packet(id).as_ref())?;
+        
         Ok(self.read_status_packet(port, id).is_ok())
     }
 
