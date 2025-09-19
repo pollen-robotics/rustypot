@@ -346,7 +346,7 @@ trait Protocol<P: Packet> {
 
     fn reboot(&self, port: &mut dyn SerialPort, id: u8) -> Result<bool> {
         self.send_instruction_packet(port, P::reboot_packet(id).as_ref())?;
-        
+
         Ok(self.read_status_packet(port, id).is_ok())
     }
 
