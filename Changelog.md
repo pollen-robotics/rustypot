@@ -1,3 +1,8 @@
+## Version 1.3.0
+
+- Add reboot support in core library.
+- Add ping and reboot support in python bindings.
+
 ## Version 1.2.0
 
 - Add support for AX motors (see https://github.com/pollen-robotics/rustypot/pull/93, thanks to @kacper-uminski)
