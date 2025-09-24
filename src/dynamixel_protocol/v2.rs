@@ -39,6 +39,14 @@ impl Packet for PacketV2 {
         })
     }
 
+    fn reboot_packet(id: u8) -> Box<dyn InstructionPacket<Self>> {
+        Box::new(InstructionPacketV2 {
+            id,
+            instruction: InstructionKindV2::Reboot,
+            params: vec![],
+        })
+    }
+
     fn read_packet(id: u8, addr: u8, length: u8) -> Box<dyn InstructionPacket<Self>> {
         Box::new(InstructionPacketV2 {
             id,
@@ -214,6 +222,7 @@ pub(crate) enum InstructionKindV2 {
     Ping,
     Read,
     Write,
+    Reboot,
     SyncRead,
     SyncWrite,
 }
@@ -224,6 +233,7 @@ impl InstructionKindV2 {
             InstructionKindV2::Ping => 0x01,
             InstructionKindV2::Read => 0x02,
             InstructionKindV2::Write => 0x03,
+            InstructionKindV2::Reboot => 0x08,
             InstructionKindV2::SyncRead => 0x82,
             InstructionKindV2::SyncWrite => 0x83,
         }
@@ -310,6 +320,7 @@ mod tests {
 
         assert_eq!(crc.to_le_bytes(), [0x16, 0xd2]);
     }
+
     #[test]
     fn create_ping_packet() {
         let p = PacketV2::ping_packet(2);
@@ -317,6 +328,16 @@ mod tests {
         assert_eq!(
             bytes,
             [0xff, 0xff, 0xfd, 0x0, 0x2, 0x3, 0x0, 0x1, 0x19, 0x72]
+        );
+    }
+
+    #[test]
+    fn create_reboot_packet() {
+        let p = PacketV2::reboot_packet(2);
+        let bytes = p.to_bytes();
+        assert_eq!(
+            bytes,
+            [0xff, 0xff, 0xfd, 0x0, 0x2, 0x3, 0x0, 0x8, 0x2f, 0x72]
         );
     }
 

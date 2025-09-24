@@ -41,6 +41,7 @@ macro_rules! generate_servo {
         use pyo3_stub_gen::derive::*;
 
         $crate::generate_protocol_constructor!($servo_name, $protocol);
+        $crate::generate_ping_reboot!($servo_name);
         $crate::generate_addr_read_write!($servo_name);
 
         $(
@@ -111,6 +112,27 @@ macro_rules! generate_protocol_constructor {
                         .with_protocol_v2();
 
                     Ok(Self(std::sync::Mutex::new(c)))
+                }
+            }
+        }
+    };
+}
+
+#[macro_export]
+macro_rules! generate_ping_reboot {
+    ($servo_macro:ident) => {
+        paste::paste! {
+            impl [<$servo_macro:camel Controller>] {
+                pub fn ping(&mut self, id: u8) -> $crate::Result<bool> {
+                    let dph = self.dph.as_ref().unwrap();
+                    let serial_port = self.serial_port.as_mut().unwrap().as_mut();
+                    dph.ping(serial_port, id)
+                }
+
+                pub fn reboot(&mut self, id: u8) -> $crate::Result<bool> {
+                    let dph = self.dph.as_ref().unwrap();
+                    let serial_port = self.serial_port.as_mut().unwrap().as_mut();
+                    dph.reboot(serial_port, id)
                 }
             }
         }
@@ -229,6 +251,16 @@ macro_rules! generate_addr_read_write {
                     self.0.lock().unwrap().sync_write_raw_data(&ids, addr, &data)
                         .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
                     Ok(())
+                }
+
+                pub fn ping(&self, id: u8) -> PyResult<bool> {
+                    self.0.lock().unwrap().ping(id)
+                        .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))
+                }
+
+                pub fn reboot(&self, id: u8) -> PyResult<bool> {
+                    self.0.lock().unwrap().reboot(id)
+                        .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))
                 }
             }
         }
