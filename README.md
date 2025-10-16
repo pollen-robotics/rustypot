@@ -127,7 +127,7 @@ You first need to create a Controller object. For instance, to communicate with 
 ```python
 from rustypot import Sts3215PyController
 
-c = Sts3215PyController(serial_port='/dev/ttyUSB0', baudrate=100000, timeout=0.1)
+c = Sts3215PyController(serial_port='/dev/ttyUSB0', baudrate=1_000_000, timeout=0.1)
 ```
 
 
