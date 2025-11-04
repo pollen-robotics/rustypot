@@ -47,6 +47,26 @@ impl Packet for PacketV2 {
         })
     }
 
+    fn factory_reset_packet(
+        id: u8,
+        conserve_id: bool,
+        conserve_id_and_baudrate: bool,
+    ) -> Box<dyn InstructionPacket<Self>> {
+        // See https://emanual.robotis.com/docs/en/dxl/protocol2/
+        let param = match (conserve_id, conserve_id_and_baudrate) {
+            (false, false) => 0xFF,
+            (true, false) => 0x01,
+            (true, true) => 0x02,
+            (false, true) => 0x02, // Same as (true, true)
+        };
+
+        Box::new(InstructionPacketV2 {
+            id,
+            instruction: InstructionKindV2::FactoryReset,
+            params: vec![param],
+        })
+    }
+
     fn read_packet(id: u8, addr: u8, length: u8) -> Box<dyn InstructionPacket<Self>> {
         Box::new(InstructionPacketV2 {
             id,
@@ -222,6 +242,7 @@ pub(crate) enum InstructionKindV2 {
     Ping,
     Read,
     Write,
+    FactoryReset,
     Reboot,
     SyncRead,
     SyncWrite,
@@ -233,6 +254,7 @@ impl InstructionKindV2 {
             InstructionKindV2::Ping => 0x01,
             InstructionKindV2::Read => 0x02,
             InstructionKindV2::Write => 0x03,
+            InstructionKindV2::FactoryReset => 0x06,
             InstructionKindV2::Reboot => 0x08,
             InstructionKindV2::SyncRead => 0x82,
             InstructionKindV2::SyncWrite => 0x83,
