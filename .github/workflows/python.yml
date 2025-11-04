@@ -36,7 +36,11 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
-          python-version: 3.x
+          python-version: |
+            3.10
+            3.11
+            3.12
+            3.13
       - name: Generate pyo3 stub
         run: |
           cargo run --bin stub_gen --features python 
@@ -44,7 +48,7 @@ jobs:
         uses: PyO3/maturin-action@v1
         with:
           target: ${{ matrix.platform.target }}
-          args: --release --features python --features pyo3/extension-module --out dist --find-interpreter
+          args: --release --features python --features pyo3/extension-module --out dist --interpreter 3.10 3.11 3.12 3.13
           sccache: ${{ !startsWith(github.ref, 'refs/tags/') }}
           manylinux: auto
       - name: Upload wheels
@@ -70,7 +74,11 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
-          python-version: 3.x
+          python-version: |
+            3.10
+            3.11
+            3.12
+            3.13
       - name: Generate pyo3 stub
         run: |
           cargo run --bin stub_gen --features python 
@@ -78,7 +86,7 @@ jobs:
         uses: PyO3/maturin-action@v1
         with:
           target: ${{ matrix.platform.target }}
-          args: --release --features python --features pyo3/extension-module --out dist --find-interpreter
+          args: --release --features python --features pyo3/extension-module --out dist --interpreter 3.10 3.11 3.12 3.13
           sccache: ${{ !startsWith(github.ref, 'refs/tags/') }}
           manylinux: musllinux_1_2
       - name: Upload wheels
@@ -128,8 +136,6 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: |
-            3.8
-            3.9
             3.10
             3.11
             3.12
