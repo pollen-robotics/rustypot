@@ -48,7 +48,7 @@ jobs:
         uses: PyO3/maturin-action@v1
         with:
           target: ${{ matrix.platform.target }}
-          args: --release --features python --features pyo3/extension-module --out dist --find-interpreter
+          args: --release --features python --features pyo3/extension-module --out dist --interpreter 3.10 3.11 3.12 3.13
           sccache: ${{ !startsWith(github.ref, 'refs/tags/') }}
           manylinux: auto
       - name: Upload wheels
@@ -86,7 +86,7 @@ jobs:
         uses: PyO3/maturin-action@v1
         with:
           target: ${{ matrix.platform.target }}
-          args: --release --features python --features pyo3/extension-module --out dist --find-interpreter
+          args: --release --features python --features pyo3/extension-module --out dist --interpreter 3.10 3.11 3.12 3.13
           sccache: ${{ !startsWith(github.ref, 'refs/tags/') }}
           manylinux: musllinux_1_2
       - name: Upload wheels
