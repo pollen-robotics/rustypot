@@ -1,3 +1,7 @@
+## Version 1.4.0
+
+- Add support for factory reset in core library and python bindings.
+
 ## Version 1.3.0
 
 - Add reboot support in core library.
