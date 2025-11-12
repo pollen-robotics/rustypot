@@ -71,7 +71,7 @@ pub fn sync_read_present_position_speed_load(
 }
 
 pub struct AnglePosition;
-const MAX_DEFLECTION: f64 = 150f64.to_radians(); // -150 to 150 deg (exclusive)
+const MAX_DEFLECTION: f64 = 150.0 * (std::f64::consts::PI / 180.0); // -150 to 150 deg (exclusive)
 impl Conversion for AnglePosition {
     type RegisterType = u16;
     type UsiType = f64;
