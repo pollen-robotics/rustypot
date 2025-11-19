@@ -137,18 +137,18 @@ impl DynamixelProtocolHandler {
         &self,
         serial_port: &mut dyn serialport::SerialPort,
         id: u8,
-        conserve_id: bool,
+        conserve_id_only: bool,
         conserve_id_and_baudrate: bool,
     ) -> Result<()> {
         match &self.protocol {
             ProtocolKind::V1(p) => {
-                if conserve_id || conserve_id_and_baudrate {
+                if conserve_id_only || conserve_id_and_baudrate {
                     return Err(Box::new(CommunicationErrorKind::Unsupported));
                 }
-                p.factory_reset(serial_port, id, conserve_id, conserve_id_and_baudrate)
+                p.factory_reset(serial_port, id, conserve_id_only, conserve_id_and_baudrate)
             }
             ProtocolKind::V2(p) => {
-                p.factory_reset(serial_port, id, conserve_id, conserve_id_and_baudrate)
+                p.factory_reset(serial_port, id, conserve_id_only, conserve_id_and_baudrate)
             }
         }
     }
@@ -378,12 +378,12 @@ trait Protocol<P: Packet> {
         &self,
         port: &mut dyn SerialPort,
         id: u8,
-        conserve_id: bool,
+        conserve_id_only: bool,
         conserve_id_and_baudrate: bool,
     ) -> Result<()> {
         self.send_instruction_packet(
             port,
-            P::factory_reset_packet(id, conserve_id, conserve_id_and_baudrate).as_ref(),
+            P::factory_reset_packet(id, conserve_id_only, conserve_id_and_baudrate).as_ref(),
         )?;
         self.read_status_packet(port, id).map(|_| ())
     }

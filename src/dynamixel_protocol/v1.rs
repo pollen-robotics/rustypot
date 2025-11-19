@@ -33,7 +33,7 @@ impl Packet for PacketV1 {
 
     fn factory_reset_packet(
         id: u8,
-        _conserve_id: bool,
+        _conserve_id_only: bool,
         _conserve_id_and_baudrate: bool,
     ) -> Box<dyn InstructionPacket<Self>> {
         Box::new(InstructionPacketV1 {

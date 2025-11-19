@@ -49,11 +49,11 @@ impl Packet for PacketV2 {
 
     fn factory_reset_packet(
         id: u8,
-        conserve_id: bool,
+        conserve_id_only: bool,
         conserve_id_and_baudrate: bool,
     ) -> Box<dyn InstructionPacket<Self>> {
         // See https://emanual.robotis.com/docs/en/dxl/protocol2/
-        let param = match (conserve_id, conserve_id_and_baudrate) {
+        let param = match (conserve_id_only, conserve_id_and_baudrate) {
             (false, false) => 0xFF,
             (true, false) => 0x01,
             (true, true) => 0x02,

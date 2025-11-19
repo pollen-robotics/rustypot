@@ -13,7 +13,7 @@ pub trait Packet {
     fn reboot_packet(id: u8) -> Box<dyn InstructionPacket<Self>>;
     fn factory_reset_packet(
         id: u8,
-        conserve_id: bool,
+        conserve_id_only: bool,
         conserve_id_and_baudrate: bool,
     ) -> Box<dyn InstructionPacket<Self>>;
 

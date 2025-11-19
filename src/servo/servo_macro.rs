@@ -138,12 +138,12 @@ macro_rules! generate_special_instructions {
                 pub fn factory_reset(
                     &mut self,
                     id: u8,
-                    conserve_id: bool,
+                    conserve_id_only: bool,
                     conserve_id_and_baudrate: bool,
                 ) -> $crate::Result<()> {
                     let dph = self.dph.as_ref().unwrap();
                     let serial_port = self.serial_port.as_mut().unwrap().as_mut();
-                    dph.factory_reset(serial_port, id, conserve_id, conserve_id_and_baudrate)
+                    dph.factory_reset(serial_port, id, conserve_id_only, conserve_id_and_baudrate)
                 }
             }
         }
@@ -274,13 +274,18 @@ macro_rules! generate_addr_read_write {
                         .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))
                 }
 
+                #[pyo3(signature = (
+                    id,
+                    conserve_id_only = true,
+                    conserve_id_and_baudrate = true
+                ))]
                 pub fn factory_reset(
                     &self,
                     id: u8,
-                    conserve_id: bool,
+                    conserve_id_only: bool,
                     conserve_id_and_baudrate: bool,
                 ) -> PyResult<()> {
-                    self.0.lock().unwrap().factory_reset(id, conserve_id, conserve_id_and_baudrate)
+                    self.0.lock().unwrap().factory_reset(id, conserve_id_only, conserve_id_and_baudrate)
                         .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))
                 }
             }
