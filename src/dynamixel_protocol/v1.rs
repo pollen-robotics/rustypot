@@ -31,6 +31,18 @@ impl Packet for PacketV1 {
         })
     }
 
+    fn factory_reset_packet(
+        id: u8,
+        _conserve_id_only: bool,
+        _conserve_id_and_baudrate: bool,
+    ) -> Box<dyn InstructionPacket<Self>> {
+        Box::new(InstructionPacketV1 {
+            id,
+            instruction: InstructionKindV1::FactoryReset,
+            params: vec![],
+        })
+    }
+
     fn read_packet(id: u8, addr: u8, length: u8) -> Box<dyn InstructionPacket<Self>> {
         Box::new(InstructionPacketV1 {
             id,
@@ -230,6 +242,7 @@ pub(crate) enum InstructionKindV1 {
     Ping,
     Read,
     Write,
+    FactoryReset,
     Reboot,
     SyncWrite,
     SyncRead,
@@ -241,6 +254,7 @@ impl InstructionKindV1 {
             InstructionKindV1::Ping => 0x01,
             InstructionKindV1::Read => 0x02,
             InstructionKindV1::Write => 0x03,
+            InstructionKindV1::FactoryReset => 0x06,
             InstructionKindV1::Reboot => 0x08,
             InstructionKindV1::SyncRead => 0x82,
             InstructionKindV1::SyncWrite => 0x83,
