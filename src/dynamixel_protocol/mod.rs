@@ -129,6 +129,30 @@ impl DynamixelProtocolHandler {
         }
     }
 
+    /// Factory reset instruction.
+    ///
+    /// Reset the Control Table of DYNAMIXEL to the factory default values.
+    /// Please note that conserving ID and/or Baudrate is only supported on protocol v2.
+    pub fn factory_reset(
+        &self,
+        serial_port: &mut dyn serialport::SerialPort,
+        id: u8,
+        conserve_id_only: bool,
+        conserve_id_and_baudrate: bool,
+    ) -> Result<()> {
+        match &self.protocol {
+            ProtocolKind::V1(p) => {
+                if conserve_id_only || conserve_id_and_baudrate {
+                    return Err(Box::new(CommunicationErrorKind::Unsupported));
+                }
+                p.factory_reset(serial_port, id, conserve_id_only, conserve_id_and_baudrate)
+            }
+            ProtocolKind::V2(p) => {
+                p.factory_reset(serial_port, id, conserve_id_only, conserve_id_and_baudrate)
+            }
+        }
+    }
+
     /// Reads raw register bytes.
     ///
     /// Sends a read instruction to the motor and wait for the status packet in response.
@@ -348,6 +372,20 @@ trait Protocol<P: Packet> {
         self.send_instruction_packet(port, P::reboot_packet(id).as_ref())?;
 
         Ok(self.read_status_packet(port, id).is_ok())
+    }
+
+    fn factory_reset(
+        &self,
+        port: &mut dyn SerialPort,
+        id: u8,
+        conserve_id_only: bool,
+        conserve_id_and_baudrate: bool,
+    ) -> Result<()> {
+        self.send_instruction_packet(
+            port,
+            P::factory_reset_packet(id, conserve_id_only, conserve_id_and_baudrate).as_ref(),
+        )?;
+        self.read_status_packet(port, id).map(|_| ())
     }
 
     fn read(&self, port: &mut dyn SerialPort, id: u8, addr: u8, length: u8) -> Result<Vec<u8>> {

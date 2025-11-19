@@ -4,7 +4,7 @@ build-backend = "maturin"
 
 [project]
 name = "rustypot"
-requires-python = ">=3.8"
+requires-python = ">=3.10"
 classifiers = [
     "Programming Language :: Rust",
     "Programming Language :: Python :: Implementation :: CPython",
@@ -16,4 +16,4 @@ tests = [
     "pytest",
 ]
 [tool.maturin]
-features = ["pyo3/extension-module"]
+features = ["pyo3/extension-module", "python"]

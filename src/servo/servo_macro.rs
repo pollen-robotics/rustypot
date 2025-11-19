@@ -41,7 +41,7 @@ macro_rules! generate_servo {
         use pyo3_stub_gen::derive::*;
 
         $crate::generate_protocol_constructor!($servo_name, $protocol);
-        $crate::generate_ping_reboot!($servo_name);
+        $crate::generate_special_instructions!($servo_name);
         $crate::generate_addr_read_write!($servo_name);
 
         $(
@@ -119,7 +119,7 @@ macro_rules! generate_protocol_constructor {
 }
 
 #[macro_export]
-macro_rules! generate_ping_reboot {
+macro_rules! generate_special_instructions {
     ($servo_macro:ident) => {
         paste::paste! {
             impl [<$servo_macro:camel Controller>] {
@@ -133,6 +133,17 @@ macro_rules! generate_ping_reboot {
                     let dph = self.dph.as_ref().unwrap();
                     let serial_port = self.serial_port.as_mut().unwrap().as_mut();
                     dph.reboot(serial_port, id)
+                }
+
+                pub fn factory_reset(
+                    &mut self,
+                    id: u8,
+                    conserve_id_only: bool,
+                    conserve_id_and_baudrate: bool,
+                ) -> $crate::Result<()> {
+                    let dph = self.dph.as_ref().unwrap();
+                    let serial_port = self.serial_port.as_mut().unwrap().as_mut();
+                    dph.factory_reset(serial_port, id, conserve_id_only, conserve_id_and_baudrate)
                 }
             }
         }
@@ -260,6 +271,21 @@ macro_rules! generate_addr_read_write {
 
                 pub fn reboot(&self, id: u8) -> PyResult<bool> {
                     self.0.lock().unwrap().reboot(id)
+                        .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))
+                }
+
+                #[pyo3(signature = (
+                    id,
+                    conserve_id_only = true,
+                    conserve_id_and_baudrate = true
+                ))]
+                pub fn factory_reset(
+                    &self,
+                    id: u8,
+                    conserve_id_only: bool,
+                    conserve_id_and_baudrate: bool,
+                ) -> PyResult<()> {
+                    self.0.lock().unwrap().factory_reset(id, conserve_id_only, conserve_id_and_baudrate)
                         .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))
                 }
             }

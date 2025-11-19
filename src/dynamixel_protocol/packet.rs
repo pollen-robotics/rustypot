@@ -11,6 +11,11 @@ pub trait Packet {
 
     fn ping_packet(id: u8) -> Box<dyn InstructionPacket<Self>>;
     fn reboot_packet(id: u8) -> Box<dyn InstructionPacket<Self>>;
+    fn factory_reset_packet(
+        id: u8,
+        conserve_id_only: bool,
+        conserve_id_and_baudrate: bool,
+    ) -> Box<dyn InstructionPacket<Self>>;
 
     fn read_packet(id: u8, addr: u8, length: u8) -> Box<dyn InstructionPacket<Self>>;
     fn write_packet(id: u8, addr: u8, data: &[u8]) -> Box<dyn InstructionPacket<Self>>;
