@@ -28,7 +28,8 @@ crate::register_servo!(
         (XL430W2502, 1090)
     ),
     servo: (feetech, STS3215,
-        (STS3215, 2307)
+        (STS3215, 2307),
+        (STS3032, 2563)
     ),
     servo: (feetech, SCS0009,
         (SCS0009, 1280)
