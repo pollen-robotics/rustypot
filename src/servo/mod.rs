@@ -33,6 +33,9 @@ crate::register_servo!(
     servo: (feetech, SCS0009,
         (SCS0009, 1280)
     ),
+    servo: (feetech, SCS0043,
+        (SCS0043, 1290)
+    ),
     servo: (orbita, orbita2d_poulpe,
         (orbita2d_poulpe, 10020)
     ),
