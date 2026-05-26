@@ -1,3 +1,8 @@
+## Version 1.5.0
+
+- Add support for feetech Scs0043 motor.
+- Pin pyo3 to 0.27.1 and pyo3-stub-gen to 0.21.0.
+
 ### Version 1.4.1
 
 - Make flush method more robust and replace potential panic with error.
