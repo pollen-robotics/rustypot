@@ -22,6 +22,10 @@ Rustypot is a communication library for Dynamixel/Feetech motors. It is notably 
 
 To add new servo, please refer to the [Servo documentation](./src/servo/README.md).
 
+## Wizard
+
+If you want to quickly setup/check motors configuration, you can directly use a terminal UI built on top of rustypot: https://github.com/pollen-robotics/rustypot_wizard
+
 ## APIs
 
 It exposes two APIs:
