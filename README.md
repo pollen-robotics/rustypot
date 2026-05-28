@@ -24,7 +24,7 @@ To add new servo, please refer to the [Servo documentation](./src/servo/README.m
 
 ## Wizard
 
-If you want to quickly setup/check motors configuration, you can directly use a terminal UI build on top of rustypot: https://github.com/pollen-robotics/rustypot_wizard
+If you want to quickly setup/check motors configuration, you can directly use a terminal UI built on top of rustypot: https://github.com/pollen-robotics/rustypot_wizard
 
 ## APIs
 
