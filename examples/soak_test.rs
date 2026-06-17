@@ -248,7 +248,10 @@ fn main() -> Result<(), Box<dyn Error>> {
     let center_rad = args.center_deg.to_radians();
 
     println!("# rustypot soak test");
-    println!("# port={} baud={} ids={:?}", args.serialport, args.baudrate, args.ids);
+    println!(
+        "# port={} baud={} ids={:?}",
+        args.serialport, args.baudrate, args.ids
+    );
     println!(
         "# rate={} Hz  amp={}deg  center={}deg  freq={} Hz  read_only={}",
         args.rate_hz, args.amplitude_deg, args.center_deg, args.frequency, args.read_only
@@ -412,7 +415,11 @@ fn main() -> Result<(), Box<dyn Error>> {
                 Ok(_) => {}
                 Err(e) => eprintln!("# warning: temperature read failed: {e}"),
             }
-            let win_total_ops = if args.read_only { win_iters } else { win_iters * 2 };
+            let win_total_ops = if args.read_only {
+                win_iters
+            } else {
+                win_iters * 2
+            };
             let err_rate = if win_total_ops > 0 {
                 win_errs.total() as f64 / win_total_ops as f64
             } else {
@@ -487,13 +494,21 @@ fn main() -> Result<(), Box<dyn Error>> {
     let total_ops = read_ops + write_ops;
     let rss_end = rss_kb();
     println!("\n========== FINAL REPORT ==========");
-    println!("duration            : {:.1} s ({:.2} h)", elapsed, elapsed / 3600.0);
+    println!(
+        "duration            : {:.1} s ({:.2} h)",
+        elapsed,
+        elapsed / 3600.0
+    );
     println!("iterations          : {iters}");
     println!("ops (read+write)    : {total_ops}  (read={read_ops} write={write_ops})");
     println!(
         "errors total        : {} ({:.4}%)",
         errs.total(),
-        if total_ops > 0 { errs.total() as f64 / total_ops as f64 * 100.0 } else { 0.0 }
+        if total_ops > 0 {
+            errs.total() as f64 / total_ops as f64 * 100.0
+        } else {
+            0.0
+        }
     );
     println!(
         "  timeout={} checksum={} parsing={} incorrect_id={} other={}",
