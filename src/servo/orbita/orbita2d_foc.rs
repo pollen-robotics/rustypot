@@ -29,7 +29,7 @@ pub struct MotorPositionSpeedLoad {
 }
 /// Wrapper for PID gains.
 #[derive(Clone, Copy, Debug, PartialEq)]
-#[cfg_attr(feature = "python", gen_stub_pyclass, pyo3::pyclass)]
+#[cfg_attr(feature = "python", gen_stub_pyclass, pyo3::pyclass(from_py_object))]
 pub struct Pid {
     pub p: f32,
     pub i: f32,
