@@ -30,12 +30,10 @@ signal-hook = "0.3.4"
 num_enum = "0.7.3"
 # pyo3 bumped to 0.29.0 for RUSTSEC-2026-0176 (out-of-bounds read in nth/nth_back
 # for PyList/PyTuple iterators); the fix is only available in >=0.29.0.
-# NOTE: pyo3-stub-gen 0.22.3 does not yet compile against pyo3 0.29 (downcast->cast
-# rename + OSError alias dedup). The `python` feature build is blocked until a
-# 0.29-compatible pyo3-stub-gen is released. Tracking: Jij-Inc/pyo3-stub-gen#475.
+# pyo3-stub-gen 0.23.0 is the first release compatible with pyo3 0.29.
 pyo3 = { version = "=0.29.0", optional = true, features = ["multiple-pymethods"] }
 pyo3-log = { version = ">=0.13.4", optional = true }
-pyo3-stub-gen = { version = "=0.22.3", optional = true }
+pyo3-stub-gen = { version = "=0.23.0", optional = true }
 env_logger = "0.10.0"
 
 [[bin]]
