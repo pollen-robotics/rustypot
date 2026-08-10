@@ -135,6 +135,61 @@ impl Packet for PacketV2 {
     }
 }
 
+/// Insert protocol 2.0 byte stuffing: whenever the pattern 0xFF 0xFF 0xFD
+/// appears in the packet body, an extra 0xFD is added right after it so the
+/// data can never be mistaken for a packet header on the wire. The length
+/// field must count the inserted bytes. Mirrors the official DynamixelSDK
+/// `addStuffing` (the pattern scan runs over the original data only, so an
+/// inserted 0xFD never seeds a new match).
+/// See https://emanual.robotis.com/docs/en/dxl/protocol2/#packet-processing
+fn add_stuffing(data: &[u8]) -> Vec<u8> {
+    let mut out = Vec::with_capacity(data.len());
+    // Length of the FF FF FD prefix matched so far
+    let mut run = 0u8;
+    for &b in data {
+        out.push(b);
+        run = match (run, b) {
+            (0, 0xFF) | (1, 0xFF) => run + 1,
+            (2, 0xFF) => 2, // FF FF FF keeps an FF FF suffix alive
+            (2, 0xFD) => {
+                out.push(0xFD); // stuffing byte
+                0
+            }
+            (_, 0xFF) => 1,
+            _ => 0,
+        };
+    }
+    out
+}
+
+/// Remove protocol 2.0 byte stuffing: drop the 0xFD the device inserted after
+/// each 0xFF 0xFF 0xFD in the packet body. The received length field (and the
+/// CRC) covers the stuffed bytes, so this runs after CRC validation, on the
+/// body only. Mirrors the official DynamixelSDK `removeStuffing` (the pattern
+/// scan restarts after a removed byte, so FF FF FD FD FD → FF FF FD FD).
+fn remove_stuffing(data: &[u8]) -> Vec<u8> {
+    let mut out = Vec::with_capacity(data.len());
+    // Length of the FF FF FD prefix matched so far
+    let mut run = 0u8;
+    for &b in data {
+        if run == 3 {
+            run = 0;
+            if b == 0xFD {
+                continue; // stuffing byte inserted by the sender — drop it
+            }
+        }
+        run = match (run, b) {
+            (0, 0xFF) | (1, 0xFF) => run + 1,
+            (2, 0xFF) => 2, // FF FF FF keeps an FF FF suffix alive
+            (2, 0xFD) => 3,
+            (_, 0xFF) => 1,
+            _ => 0,
+        };
+        out.push(b);
+    }
+    out
+}
+
 #[derive(Debug)]
 struct InstructionPacketV2 {
     id: u8,
@@ -160,12 +215,17 @@ impl InstructionPacket<PacketV2> for InstructionPacketV2 {
 
         bytes.push(self.id());
 
-        let nb_params = self.params.len() as u16 + 3;
+        // Params containing FF FF FD must be byte-stuffed, and the length
+        // field counts the stuffed bytes. (No instruction value is 0xFF, so a
+        // pattern can never straddle the instruction/params boundary.)
+        let params = add_stuffing(&self.params);
+
+        let nb_params = params.len() as u16 + 3;
         bytes.extend(nb_params.to_le_bytes());
 
         bytes.push(self.instruction().value());
 
-        bytes.extend(self.params());
+        bytes.extend(&params);
 
         bytes.extend(crc(&bytes).to_le_bytes());
 
@@ -212,14 +272,18 @@ impl StatusPacket<PacketV2> for StatusPacketV2 {
         if data[7] != 0x55 {
             return Err(Box::new(CommunicationErrorKind::ParsingError));
         }
-        let errors = DynamixelErrorV2::from_byte(data[8]);
 
         if payload_length != data.len() - PacketV2::HEADER_SIZE || payload_length < 4 {
             return Err(Box::new(CommunicationErrorKind::ParsingError));
         }
 
-        let params = data[9..msg_length - 2].to_vec();
-        assert_eq!(params.len(), payload_length - 4);
+        // The body (error byte + params, i.e. everything between the
+        // instruction byte and the CRC) arrives byte-stuffed: the device
+        // inserts 0xFD after any FF FF FD, and the length field and CRC cover
+        // the stuffed form — so de-stuff only now, after those checks.
+        let body = remove_stuffing(&data[8..msg_length - 2]);
+        let errors = DynamixelErrorV2::from_byte(body[0]);
+        let params = body[1..].to_vec();
 
         Ok(StatusPacketV2 { id, errors, params })
     }
@@ -417,6 +481,81 @@ mod tests {
                 0x00, 0x00, 0x00, 0x02, 0xAA, 0x00, 0x00, 0x00, 0x82, 0x87
             ]
         );
+    }
+
+    #[test]
+    fn stuffing_roundtrip() {
+        // No pattern → untouched
+        assert_eq!(add_stuffing(&[1, 2, 0xFF, 0xFD, 3]), [1, 2, 0xFF, 0xFD, 3]);
+        assert_eq!(
+            remove_stuffing(&[1, 2, 0xFF, 0xFD, 3]),
+            [1, 2, 0xFF, 0xFD, 3]
+        );
+
+        // FF FF FD gets an extra FD, and back
+        assert_eq!(
+            add_stuffing(&[0xFF, 0xFF, 0xFD, 7]),
+            [0xFF, 0xFF, 0xFD, 0xFD, 7]
+        );
+        assert_eq!(
+            remove_stuffing(&[0xFF, 0xFF, 0xFD, 0xFD, 7]),
+            [0xFF, 0xFF, 0xFD, 7]
+        );
+
+        // The scan restarts after a stuffed byte: FF FF FD FD → FF FF FD FD* FD
+        assert_eq!(
+            add_stuffing(&[0xFF, 0xFF, 0xFD, 0xFD]),
+            [0xFF, 0xFF, 0xFD, 0xFD, 0xFD]
+        );
+        assert_eq!(
+            remove_stuffing(&[0xFF, 0xFF, 0xFD, 0xFD, 0xFD]),
+            [0xFF, 0xFF, 0xFD, 0xFD]
+        );
+
+        // FF FF FF FD: the FF FF suffix stays alive across extra FFs
+        assert_eq!(
+            add_stuffing(&[0xFF, 0xFF, 0xFF, 0xFD]),
+            [0xFF, 0xFF, 0xFF, 0xFD, 0xFD]
+        );
+        assert_eq!(
+            remove_stuffing(&[0xFF, 0xFF, 0xFF, 0xFD, 0xFD]),
+            [0xFF, 0xFF, 0xFF, 0xFD]
+        );
+
+        // Multiple patterns, and full round-trip
+        let data = [0x10, 0xFF, 0xFF, 0xFD, 0x00, 0xFF, 0xFF, 0xFD, 0x20];
+        assert_eq!(remove_stuffing(&add_stuffing(&data)), data);
+    }
+
+    #[test]
+    fn create_write_packet_with_stuffing() {
+        // Data containing FF FF FD must be stuffed on the wire and the length
+        // field must count the extra byte (7 params -> nb_params = 10).
+        let p = PacketV2::write_packet(1, 116, &[0xFF, 0xFF, 0xFD, 0x00]);
+        let bytes = p.to_bytes();
+        assert_eq!(bytes[5..7], [0x0A, 0x00]);
+        assert_eq!(
+            bytes[8..14],
+            [0x74, 0x00, 0xFF, 0xFF, 0xFD, 0xFD],
+            "stuffing byte missing after FF FF FD"
+        );
+    }
+
+    #[test]
+    fn parse_status_packet_with_stuffing() {
+        // A 4-byte read whose data contains FF FF FD arrives as 5 wire bytes
+        // (stuffed), with the length field and CRC covering the stuffed form.
+        // This happens in practice e.g. when present current = -1 (FF FF) is
+        // followed by a velocity byte of 0xFD in a bulk read.
+        let mut bytes = vec![
+            0xFF, 0xFF, 0xFD, 0x00, 0x01, 0x09, 0x00, 0x55, 0x00, 0xFF, 0xFF, 0xFD, 0xFD, 0xA6,
+        ];
+        bytes.extend(crc(&bytes).to_le_bytes());
+
+        let sp = StatusPacketV2::from_bytes(&bytes, 0x01).unwrap();
+        assert_eq!(sp.id, 1);
+        assert_eq!(sp.errors.len(), 0);
+        assert_eq!(sp.params, [0xFF, 0xFF, 0xFD, 0xA6]);
     }
 
     #[test]

@@ -1,3 +1,10 @@
+## Version 1.6.0
+
+- Handle Dynamixel protocol 2.0 byte stuffing: status packets whose data contains FF FF FD are now de-stuffed on reception (previously returned oversized params, breaking fixed-size reads e.g. when present current = -1), and instruction packet params are stuffed on transmission.
+- Bump pyo3 to 0.29.0 and pyo3-stub-gen to 0.23.0 (fixes RUSTSEC-2026-0176, an out-of-bounds read in the PyList/PyTuple iterators).
+- Track Cargo.lock in the repository.
+- Add a memory soak test example.
+
 ## Version 1.5.0
 
 - Add support for feetech Scs0043 motor.
