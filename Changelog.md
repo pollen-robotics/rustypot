@@ -1,3 +1,7 @@
+## Unreleased
+
+- Handle Dynamixel protocol 2.0 byte stuffing: status packets whose data contains FF FF FD are now de-stuffed on reception (previously returned oversized params, breaking fixed-size reads e.g. when present current = -1), and instruction packet params are stuffed on transmission.
+
 ## Version 1.5.0
 
 - Add support for feetech Scs0043 motor.
