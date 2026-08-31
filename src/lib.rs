@@ -4,7 +4,7 @@
 //!
 //! * Relies on [serialport] for serial communication
 //! * Support for dynamixel protocol v1 and v2 (both can be used on the same io)
-//! * Support for sync read and sync write operations
+//! * Support for sync read and sync write operations, plus fast sync read (protocol v2)
 //! * Easy support for new type of motors (register definition through macros)
 //! * Pure Rust
 //!

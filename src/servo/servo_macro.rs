@@ -95,7 +95,39 @@ macro_rules! generate_protocol_constructor {
                         ..self
                     }
                 }
+
+                /// Answer every `sync_read_*` with a fast sync read (instruction 0x8A).
+                ///
+                /// All motors then append their answer to a single status packet instead
+                /// of sending one each, which saves a packet header and a bus turnaround
+                /// per motor. Needs firmware new enough to implement it (XL330: v46+);
+                /// older firmware does not answer and the read times out.
+                pub fn with_fast_sync_read(self) -> Self {
+                    let dph = self
+                        .dph
+                        .unwrap_or_else($crate::DynamixelProtocolHandler::v2);
+                    Self {
+                        dph: Some(dph.with_fast_sync_read()),
+                        ..self
+                    }
+                }
+
+                /// Turn the fast sync read routing of the `sync_read_*` methods on or off.
+                pub fn set_fast_sync_read(&mut self, enabled: bool) {
+                    self.dph.as_mut().unwrap().set_fast_sync_read(enabled);
+                }
             }
+
+            #[cfg(feature = "python")]
+            #[gen_stub_pymethods]
+            #[pymethods]
+            impl [<$servo_name:camel PyController>] {
+                /// Turn the fast sync read routing of the `sync_read_*` methods on or off.
+                pub fn set_fast_sync_read(&self, enabled: bool) {
+                    self.0.lock().unwrap().set_fast_sync_read(enabled);
+                }
+            }
+
             #[cfg(feature = "python")]
             #[gen_stub_pymethods]
             #[pymethods]

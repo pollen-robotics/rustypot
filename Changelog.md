@@ -1,3 +1,14 @@
+## Unreleased
+
+- Add fast sync read (protocol v2 instruction 0x8A): every motor appends its answer to a
+  single status packet returned from the broadcast id, instead of each sending its own.
+  Available as `DynamixelProtocolHandler::fast_sync_read`, or by enabling it once with
+  `with_fast_sync_read()` so all `sync_read_*` methods use it. Requires firmware new
+  enough to implement it (XL330: v46+); older firmware does not answer and the read
+  times out.
+- Add the `fast_sync_read_bench` example, which checks both instructions return the same
+  data and times them side by side.
+
 ## Version 1.6.0
 
 - Handle Dynamixel protocol 2.0 byte stuffing: status packets whose data contains FF FF FD are now de-stuffed on reception (previously returned oversized params, breaking fixed-size reads e.g. when present current = -1), and instruction packet params are stuffed on transmission.

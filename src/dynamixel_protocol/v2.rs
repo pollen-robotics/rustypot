@@ -1,3 +1,5 @@
+use serialport::SerialPort;
+
 use crate::Result;
 
 use super::{
@@ -8,6 +10,112 @@ use super::{
 #[derive(Debug)]
 pub(crate) struct V2;
 impl Protocol<PacketV2> for V2 {}
+
+impl V2 {
+    /// Fast Sync Read (instruction 0x8A).
+    ///
+    /// The instruction packet is the same as Sync Read's, but instead of each motor
+    /// answering with its own status packet, every motor appends its answer to a single
+    /// status packet sent from the broadcast id. That saves one packet header plus one
+    /// bus turnaround (and its return delay time) per motor.
+    ///
+    /// Only supported by firmware new enough to implement it (XL330: v46+); older
+    /// firmware does not answer and the read times out.
+    pub(crate) fn fast_sync_read(
+        &self,
+        port: &mut dyn SerialPort,
+        ids: &[u8],
+        addr: u8,
+        length: u8,
+    ) -> Result<Vec<Vec<u8>>> {
+        self.send_instruction_packet(
+            port,
+            PacketV2::fast_sync_read_packet(ids, addr, length).as_ref(),
+        )?;
+        let data = self.read_status_packet_bytes(port)?;
+        parse_fast_sync_read_status(&data, ids, length)
+    }
+}
+
+impl PacketV2 {
+    /// Same parameters as [`PacketV2::sync_read_packet`], only the instruction differs.
+    fn fast_sync_read_packet(
+        ids: &[u8],
+        addr: u8,
+        length: u8,
+    ) -> Box<dyn InstructionPacket<PacketV2>> {
+        Box::new(InstructionPacketV2 {
+            id: BROADCAST_ID,
+            instruction: InstructionKindV2::FastSyncRead,
+            params: {
+                let mut params = Vec::new();
+                params.extend((addr as u16).to_le_bytes());
+                params.extend((length as u16).to_le_bytes());
+                params.extend(ids);
+                params
+            },
+        })
+    }
+}
+
+/// Split the single status packet answering a Fast Sync Read into one data slice per id.
+///
+/// After the usual `FF FF FD 00 FE LEN_L LEN_H 0x55` header, the body is one fixed size
+/// block per requested id, in the order they were requested:
+///
+/// ```text
+/// [ERROR ID DATA(length) CRC_L CRC_H] x nb_ids
+/// ```
+///
+/// The CRC a motor appends is the CRC accumulated over the whole packet up to and
+/// including its own block, so the last one is also the CRC of the complete packet.
+/// Checking every block's CRC therefore validates the packet *and* tells us the blocks
+/// sit where we think they do.
+///
+/// Note: unlike a regular status packet, the body is not de-stuffed. The official SDK
+/// reads these packets with stuffing removal explicitly skipped
+/// (`GroupFastSyncRead::rxPacket` calls `rxPacket(.., skip_stuffing = true)`) and walks
+/// the body with a fixed stride, i.e. it assumes motors do not insert stuffing bytes
+/// here. We do the same, but the per block CRC check above means a stuffed byte would
+/// be reported as a checksum error rather than silently shifting the data.
+fn parse_fast_sync_read_status(data: &[u8], ids: &[u8], length: u8) -> Result<Vec<Vec<u8>>> {
+    // Header + the 0x55 marking a status packet
+    const BODY_START: usize = PacketV2::HEADER_SIZE + 1;
+    // ERROR + ID + DATA + CRC16
+    let block_size = length as usize + 4;
+
+    if data.len() != BODY_START + ids.len() * block_size {
+        return Err(Box::new(CommunicationErrorKind::ParsingError));
+    }
+    if data[4] != BROADCAST_ID || data[7] != 0x55 {
+        return Err(Box::new(CommunicationErrorKind::ParsingError));
+    }
+    let payload_length = u16::from_le_bytes(data[5..7].try_into().unwrap()) as usize;
+    if payload_length != data.len() - PacketV2::HEADER_SIZE {
+        return Err(Box::new(CommunicationErrorKind::ParsingError));
+    }
+
+    let mut values = Vec::with_capacity(ids.len());
+    for (i, &id) in ids.iter().enumerate() {
+        let block = BODY_START + i * block_size;
+        let crc_at = block + 2 + length as usize;
+
+        let read_crc = u16::from_le_bytes(data[crc_at..crc_at + 2].try_into().unwrap());
+        if read_crc != crc(&data[..crc_at]) {
+            return Err(Box::new(CommunicationErrorKind::ChecksumError));
+        }
+        if data[block + 1] != id {
+            return Err(Box::new(CommunicationErrorKind::IncorrectId(
+                id,
+                data[block + 1],
+            )));
+        }
+
+        values.push(data[block + 2..crc_at].to_vec());
+    }
+
+    Ok(values)
+}
 
 #[derive(Debug)]
 pub(crate) struct PacketV2;
@@ -310,6 +418,7 @@ pub(crate) enum InstructionKindV2 {
     Reboot,
     SyncRead,
     SyncWrite,
+    FastSyncRead,
 }
 
 impl InstructionKindV2 {
@@ -322,6 +431,7 @@ impl InstructionKindV2 {
             InstructionKindV2::Reboot => 0x08,
             InstructionKindV2::SyncRead => 0x82,
             InstructionKindV2::SyncWrite => 0x83,
+            InstructionKindV2::FastSyncRead => 0x8A,
         }
     }
 }
@@ -556,6 +666,66 @@ mod tests {
         assert_eq!(sp.id, 1);
         assert_eq!(sp.errors.len(), 0);
         assert_eq!(sp.params, [0xFF, 0xFF, 0xFD, 0xA6]);
+    }
+
+    #[test]
+    fn create_fast_sync_read_packet() {
+        // Same bytes as a sync read, with instruction 0x82 -> 0x8A.
+        let p = PacketV2::fast_sync_read_packet(&[1, 2], 132, 4);
+        let bytes = p.to_bytes();
+        assert_eq!(bytes[7], 0x8A);
+        assert_eq!(bytes[..7], [0xFF, 0xFF, 0xFD, 0x00, 0xFE, 0x09, 0x00]);
+        assert_eq!(bytes[8..12], [0x84, 0x00, 0x04, 0x00]);
+        assert_eq!(bytes[12..14], [0x01, 0x02]);
+        assert_eq!(crc(&bytes[..bytes.len() - 2]).to_le_bytes(), bytes[14..]);
+    }
+
+    /// Example status packet from the protocol 2.0 e-manual: ids 3, 7 and 4 answering a
+    /// fast sync read of present position (addr 132, 4 bytes).
+    /// <https://docs.robotis.com/docs/dxl/protocol/protocol2/#fast-sync-read-0x8a>
+    const FAST_SYNC_READ_STATUS: [u8; 32] = [
+        0xFF, 0xFF, 0xFD, 0x00, 0xFE, 0x19, 0x00, 0x55, //
+        0x00, 0x03, 0xA6, 0x00, 0x00, 0x00, 0x84, 0x08, //
+        0x00, 0x07, 0x1F, 0x08, 0x00, 0x00, 0x16, 0xCA, //
+        0x00, 0x04, 0xFF, 0x03, 0x00, 0x00, 0xD1, 0x9E,
+    ];
+
+    #[test]
+    fn parse_fast_sync_read_status_packet() {
+        let values = parse_fast_sync_read_status(&FAST_SYNC_READ_STATUS, &[3, 7, 4], 4).unwrap();
+
+        assert_eq!(values.len(), 3);
+        assert_eq!(values[0], [0xA6, 0x00, 0x00, 0x00]); // id 3: 166
+        assert_eq!(values[1], [0x1F, 0x08, 0x00, 0x00]); // id 7: 2079
+        assert_eq!(values[2], [0xFF, 0x03, 0x00, 0x00]); // id 4: 1023
+    }
+
+    #[test]
+    fn fast_sync_read_blocks_carry_a_running_crc() {
+        // Every block ends with the CRC of the packet up to that point, so the last one
+        // is the CRC of the whole packet. This is what lets us check block alignment.
+        for (block_end, expected) in [(14, [0x84, 0x08]), (22, [0x16, 0xCA]), (30, [0xD1, 0x9E])] {
+            assert_eq!(
+                crc(&FAST_SYNC_READ_STATUS[..block_end]).to_le_bytes(),
+                expected
+            );
+        }
+    }
+
+    #[test]
+    fn reject_corrupted_fast_sync_read_status_packet() {
+        // A wrong number of ids for that packet size
+        assert!(parse_fast_sync_read_status(&FAST_SYNC_READ_STATUS, &[3, 7], 4).is_err());
+        // Ids answering in an order we did not ask for
+        assert!(parse_fast_sync_read_status(&FAST_SYNC_READ_STATUS, &[3, 4, 7], 4).is_err());
+
+        // A flipped data byte breaks that block's CRC (and every one after it)
+        let mut corrupted = FAST_SYNC_READ_STATUS;
+        corrupted[10] ^= 0x01;
+        assert!(parse_fast_sync_read_status(&corrupted, &[3, 7, 4], 4).is_err());
+
+        // A missing motor: the packet is one block short of what we asked for
+        assert!(parse_fast_sync_read_status(&FAST_SYNC_READ_STATUS[..24], &[3, 7, 4], 4).is_err());
     }
 
     #[test]
