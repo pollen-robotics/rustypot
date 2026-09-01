@@ -14,7 +14,8 @@ use crate::Result;
 #[derive(Debug)]
 enum ProtocolKind {
     V1(V1),
-    V2(V2),
+    /// The bool routes sync reads through fast sync read (protocol v2 only)
+    V2(V2, bool),
 }
 
 #[derive(Debug)]
@@ -73,7 +74,7 @@ impl DynamixelProtocolHandler {
     /// ```
     pub fn v2() -> Self {
         DynamixelProtocolHandler {
-            protocol: ProtocolKind::V2(V2),
+            protocol: ProtocolKind::V2(V2, false),
             post_delay: None,
         }
     }
@@ -84,6 +85,36 @@ impl DynamixelProtocolHandler {
             post_delay: Some(delay),
             ..self
         }
+    }
+
+    /// Make [DynamixelProtocolHandler::sync_read] use Fast Sync Read.
+    ///
+    /// Protocol v2 only, and needs firmware accepting instruction 0x8A (XL330: v46+).
+    /// Ignored on protocol v1.
+    ///
+    /// # Examples
+    /// ```no_run
+    /// use rustypot::DynamixelProtocolHandler;
+    ///
+    /// let dph = DynamixelProtocolHandler::v2().with_fast_sync_read();
+    /// ```
+    pub fn with_fast_sync_read(mut self) -> Self {
+        self.set_fast_sync_read(true);
+        self
+    }
+
+    /// Turn the Fast Sync Read routing of [DynamixelProtocolHandler::sync_read] on or off.
+    ///
+    /// Has no effect on protocol v1, which has no such instruction.
+    pub fn set_fast_sync_read(&mut self, enabled: bool) {
+        if let ProtocolKind::V2(_, fast) = &mut self.protocol {
+            *fast = enabled;
+        }
+    }
+
+    /// Whether [DynamixelProtocolHandler::sync_read] currently uses Fast Sync Read.
+    pub fn fast_sync_read_enabled(&self) -> bool {
+        matches!(self.protocol, ProtocolKind::V2(_, true))
     }
 
     /// Send a ping instruction.
@@ -114,7 +145,7 @@ impl DynamixelProtocolHandler {
     pub fn ping(&self, serial_port: &mut dyn serialport::SerialPort, id: u8) -> Result<bool> {
         match &self.protocol {
             ProtocolKind::V1(p) => p.ping(serial_port, id),
-            ProtocolKind::V2(p) => p.ping(serial_port, id),
+            ProtocolKind::V2(p, _) => p.ping(serial_port, id),
         }
     }
 
@@ -125,7 +156,7 @@ impl DynamixelProtocolHandler {
     pub fn reboot(&self, serial_port: &mut dyn serialport::SerialPort, id: u8) -> Result<bool> {
         match &self.protocol {
             ProtocolKind::V1(p) => p.reboot(serial_port, id),
-            ProtocolKind::V2(p) => p.reboot(serial_port, id),
+            ProtocolKind::V2(p, _) => p.reboot(serial_port, id),
         }
     }
 
@@ -147,7 +178,7 @@ impl DynamixelProtocolHandler {
                 }
                 p.factory_reset(serial_port, id, conserve_id_only, conserve_id_and_baudrate)
             }
-            ProtocolKind::V2(p) => {
+            ProtocolKind::V2(p, _) => {
                 p.factory_reset(serial_port, id, conserve_id_only, conserve_id_and_baudrate)
             }
         }
@@ -193,7 +224,7 @@ impl DynamixelProtocolHandler {
     ) -> Result<Vec<u8>> {
         let res = match &self.protocol {
             ProtocolKind::V1(p) => p.read(serial_port, id, addr, length),
-            ProtocolKind::V2(p) => p.read(serial_port, id, addr, length),
+            ProtocolKind::V2(p, _) => p.read(serial_port, id, addr, length),
         };
         if let Some(delay) = self.post_delay {
             std::thread::sleep(delay);
@@ -239,7 +270,7 @@ impl DynamixelProtocolHandler {
     ) -> Result<()> {
         match &self.protocol {
             ProtocolKind::V1(p) => p.write(serial_port, id, addr, data),
-            ProtocolKind::V2(p) => p.write(serial_port, id, addr, data),
+            ProtocolKind::V2(p, _) => p.write(serial_port, id, addr, data),
         }?;
         if let Some(delay) = self.post_delay {
             std::thread::sleep(delay);
@@ -262,7 +293,7 @@ impl DynamixelProtocolHandler {
                 }
                 res
             }
-            ProtocolKind::V2(_) => Err(Box::new(CommunicationErrorKind::Unsupported)),
+            ProtocolKind::V2(..) => Err(Box::new(CommunicationErrorKind::Unsupported)),
         }
     }
 
@@ -312,7 +343,58 @@ impl DynamixelProtocolHandler {
     ) -> Result<Vec<Vec<u8>>> {
         match &self.protocol {
             ProtocolKind::V1(p) => p.sync_read(serial_port, ids, addr, length),
-            ProtocolKind::V2(p) => p.sync_read(serial_port, ids, addr, length),
+            ProtocolKind::V2(p, false) => p.sync_read(serial_port, ids, addr, length),
+            ProtocolKind::V2(p, true) => p.fast_sync_read(serial_port, ids, addr, length),
+        }
+    }
+
+    /// Reads raw register bytes from multiple ids at once, using a single status packet.
+    ///
+    /// Same as [DynamixelProtocolHandler::sync_read], but sends a fast sync read
+    /// instruction (0x8A): every motor appends its answer to one status packet returned
+    /// from the broadcast id, instead of each sending its own. This saves a packet header
+    /// and a bus turnaround (plus its return delay time) per motor.
+    ///
+    /// Protocol v2 only, and only on firmware new enough to implement it (XL330: v46+;
+    /// the cutoff differs per model). Older firmware does not answer, which surfaces as a
+    /// timeout (update the firmware if this occurs).
+    ///
+    /// # Arguments
+    ///
+    /// * `serial_port` - the serial port to use for communication
+    /// * `ids` - specfied motors id
+    /// * `addr` - register address
+    /// * `length` - number of bytes to read
+    ///
+    /// # Examples
+    /// ```no_run
+    /// use rustypot::DynamixelProtocolHandler;
+    /// use std::time::Duration;
+    ///
+    /// let mut serial_port = serialport::new("/dev/ttyUSB0", 1_000_000)
+    ///     .timeout(Duration::from_millis(10))
+    ///     .open()
+    ///     .expect("Failed to open port");
+    ///
+    /// let dph = DynamixelProtocolHandler::v2();
+    ///
+    /// // Read the present position (addr 132, 4 bytes) of motors 10, 11 and 12
+    /// let resp = dph
+    ///     .fast_sync_read(serial_port.as_mut(), &[10, 11, 12], 132, 4)
+    ///     .expect("Communication error");
+    ///
+    /// assert_eq!(resp.len(), 3);
+    /// ```
+    pub fn fast_sync_read(
+        &self,
+        serial_port: &mut dyn serialport::SerialPort,
+        ids: &[u8],
+        addr: u8,
+        length: u8,
+    ) -> Result<Vec<Vec<u8>>> {
+        match &self.protocol {
+            ProtocolKind::V1(_) => Err(Box::new(CommunicationErrorKind::Unsupported)),
+            ProtocolKind::V2(p, _) => p.fast_sync_read(serial_port, ids, addr, length),
         }
     }
 
@@ -356,7 +438,7 @@ impl DynamixelProtocolHandler {
     ) -> Result<()> {
         match &self.protocol {
             ProtocolKind::V1(p) => p.sync_write(serial_port, ids, addr, data),
-            ProtocolKind::V2(p) => p.sync_write(serial_port, ids, addr, data),
+            ProtocolKind::V2(p, _) => p.sync_write(serial_port, ids, addr, data),
         }
     }
 }
@@ -486,11 +568,8 @@ trait Protocol<P: Packet> {
             Err(_) => Err(Box::new(CommunicationErrorKind::TimeoutError)),
         }
     }
-    fn read_status_packet(
-        &self,
-        port: &mut dyn SerialPort,
-        sender_id: u8,
-    ) -> Result<Box<dyn StatusPacket<P>>> {
+    /// Read one status packet off the wire, header included, without interpreting it.
+    fn read_status_packet_bytes(&self, port: &mut dyn SerialPort) -> Result<Vec<u8>> {
         let mut header = vec![0u8; P::HEADER_SIZE];
         port.read_exact(&mut header)?;
 
@@ -504,6 +583,15 @@ trait Protocol<P: Packet> {
 
         // log::debug!("<<< {data:?}");
 
+        Ok(data)
+    }
+
+    fn read_status_packet(
+        &self,
+        port: &mut dyn SerialPort,
+        sender_id: u8,
+    ) -> Result<Box<dyn StatusPacket<P>>> {
+        let data = self.read_status_packet_bytes(port)?;
         P::status_packet(&data, sender_id)
     }
 
