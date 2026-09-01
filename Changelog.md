@@ -1,4 +1,4 @@
-## Unreleased
+## Version 1.7.0
 
 - Add fast sync read (protocol v2 instruction 0x8A): every motor appends its answer to a
   single status packet returned from the broadcast id, instead of each sending its own.
@@ -8,6 +8,8 @@
   times out.
 - Add the `fast_sync_read_bench` example, which checks both instructions return the same
   data and times them side by side.
+- Python: add `set_fast_sync_read()` on the protocol v2 controllers, which reroutes the
+  existing `sync_read_*` methods.
 
 ## Version 1.6.0
 
