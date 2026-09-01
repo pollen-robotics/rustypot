@@ -1,5 +1,20 @@
 pub mod conversion;
 
+/// Where a register exists in a servo's control table.
+///
+/// Each servo module exposes its full table as `REGISTERS`, which lets callers work with
+/// registers chosen at runtime (building an indirect address map, or a config tool that
+/// takes register names) without hardcoding addresses.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct RegisterInfo {
+    /// Register name, matching the generated accessor (`present_position` -> `read_present_position`).
+    pub name: &'static str,
+    /// Address in the control table.
+    pub addr: u8,
+    /// Size in bytes.
+    pub size: u8,
+}
+
 pub mod dynamixel;
 pub mod feetech;
 pub mod orbita;

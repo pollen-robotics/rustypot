@@ -40,6 +40,23 @@ macro_rules! generate_servo {
         #[cfg(feature = "python")]
         use pyo3_stub_gen::derive::*;
 
+        /// Every register of this servo, in declaration order.
+        ///
+        /// Useful when the registers are chosen at runtime rather than in source, e.g.
+        /// building an indirect address map or a tool that takes register names.
+        pub const REGISTERS: &[$crate::servo::RegisterInfo] = &[
+            $($crate::servo::RegisterInfo {
+                name: stringify!($reg_name),
+                addr: $reg_addr,
+                size: std::mem::size_of::<$reg_type>() as u8,
+            },)*
+        ];
+
+        /// Look up a register by name, as spelled in [`REGISTERS`].
+        pub fn register(name: &str) -> Option<$crate::servo::RegisterInfo> {
+            REGISTERS.iter().copied().find(|r| r.name == name)
+        }
+
         $crate::generate_protocol_constructor!($servo_name, $protocol);
         $crate::generate_special_instructions!($servo_name);
         $crate::generate_addr_read_write!($servo_name);
@@ -342,7 +359,7 @@ macro_rules! generate_reg_access {
 macro_rules! generate_reg_read {
     ($servo_name:ident, $reg_name:ident, $reg_addr:expr, $reg_type:ty, None) => {
         paste::paste! {
-            #[doc = concat!("Read register *", stringify!($name), "* (addr: ", stringify!($addr), ", type: ", stringify!($reg_type), ")")]
+            #[doc = concat!("Read register *", stringify!($reg_name), "* (addr: ", stringify!($reg_addr), ", type: ", stringify!($reg_type), ")")]
             pub fn [<read_ $reg_name>](
                 io: &$crate::DynamixelProtocolHandler,
                 serial_port: &mut dyn serialport::SerialPort,
@@ -354,7 +371,7 @@ macro_rules! generate_reg_read {
                 Ok(val)
             }
 
-            #[doc = concat!("Sync read register *", stringify!($name), "* (addr: ", stringify!($addr), ", type: ", stringify!($reg_type), ")")]
+            #[doc = concat!("Sync read register *", stringify!($reg_name), "* (addr: ", stringify!($reg_addr), ", type: ", stringify!($reg_type), ")")]
             pub fn [<sync_read_ $reg_name>](
                 io: &$crate::DynamixelProtocolHandler,
                 serial_port: &mut dyn serialport::SerialPort,
@@ -370,7 +387,7 @@ macro_rules! generate_reg_read {
             }
 
             impl [<$servo_name:camel Controller>] {
-                #[doc = concat!("Sync read register *", stringify!($name), "* (addr: ", stringify!($addr), ", type: ", stringify!($reg_type), ")")]
+                #[doc = concat!("Sync read register *", stringify!($reg_name), "* (addr: ", stringify!($reg_addr), ", type: ", stringify!($reg_type), ")")]
                 pub fn [<sync_read_ $reg_name>](
                     &mut self,
                     ids: &[u8],
@@ -385,7 +402,7 @@ macro_rules! generate_reg_read {
 
 
             impl [<$servo_name:camel Controller>] {
-                #[doc = concat!("Read register *", stringify!($name), "* (addr: ", stringify!($addr), ", type: ", stringify!($reg_type), ")")]
+                #[doc = concat!("Read register *", stringify!($reg_name), "* (addr: ", stringify!($reg_addr), ", type: ", stringify!($reg_type), ")")]
                 pub fn [<read_ $reg_name>](
                     &mut self,
                     id: u8,
@@ -407,6 +424,7 @@ macro_rules! generate_reg_read {
             #[gen_stub_pymethods]
             #[pymethods]
             impl [<$servo_name:camel PyController>] {
+                #[doc = concat!("Sync read register *", stringify!($reg_name), "* (addr: ", stringify!($reg_addr), ", type: ", stringify!($reg_type), ")")]
                 pub fn [<sync_read_ $reg_name>](
                     &self,
                     py: Python,
@@ -427,6 +445,7 @@ macro_rules! generate_reg_read {
             #[gen_stub_pymethods]
             #[pymethods]
             impl [<$servo_name:camel PyController>] {
+                #[doc = concat!("Read register *", stringify!($reg_name), "* (addr: ", stringify!($reg_addr), ", type: ", stringify!($reg_type), ")")]
                 pub fn [<read_ $reg_name>](
                     &self,
                     py: Python,
@@ -446,7 +465,7 @@ macro_rules! generate_reg_read {
     };
     ($servo_name:ident, $reg_name:ident, $reg_addr:expr, $reg_type:ty, $conv:ident) => {
         paste::paste! {
-            #[doc = concat!("Read register *", stringify!($name), "* (addr: ", stringify!($addr), ", type: ", stringify!($reg_type), ")")]
+            #[doc = concat!("Read raw register *", stringify!($reg_name), "* (addr: ", stringify!($reg_addr), ", type: ", stringify!($reg_type), ")")]
             pub fn [<read_raw_ $reg_name>](
                 io: &$crate::DynamixelProtocolHandler,
                 serial_port: &mut dyn serialport::SerialPort,
@@ -458,6 +477,7 @@ macro_rules! generate_reg_read {
                 Ok(val)
             }
 
+            #[doc = concat!("Read register *", stringify!($reg_name), "* (addr: ", stringify!($reg_addr), ", converted by ", stringify!($conv), ")")]
             pub fn [<read_ $reg_name>](
                 io: &$crate::DynamixelProtocolHandler,
                 serial_port: &mut dyn serialport::SerialPort,
@@ -468,7 +488,7 @@ macro_rules! generate_reg_read {
                 Ok(val)
             }
 
-            #[doc = concat!("Sync read register *", stringify!($name), "* (addr: ", stringify!($addr), ", type: ", stringify!($reg_type), ")")]
+            #[doc = concat!("Sync read raw register *", stringify!($reg_name), "* (addr: ", stringify!($reg_addr), ", type: ", stringify!($reg_type), ")")]
             pub fn [<sync_read_raw_ $reg_name>](
                 io: &$crate::DynamixelProtocolHandler,
                 serial_port: &mut dyn serialport::SerialPort,
@@ -483,6 +503,7 @@ macro_rules! generate_reg_read {
                 Ok(val)
             }
 
+            #[doc = concat!("Sync read register *", stringify!($reg_name), "* (addr: ", stringify!($reg_addr), ", converted by ", stringify!($conv), ")")]
             pub fn [<sync_read_ $reg_name>](
                 io: &$crate::DynamixelProtocolHandler,
                 serial_port: &mut dyn serialport::SerialPort,
@@ -498,7 +519,7 @@ macro_rules! generate_reg_read {
             }
 
             impl [<$servo_name:camel Controller>] {
-                #[doc = concat!("Sync read raw register *", stringify!($name), "* (addr: ", stringify!($addr), ", type: ", stringify!(<$conv as Conversion>::UsiType), ")")]
+                #[doc = concat!("Sync read raw register *", stringify!($reg_name), "* (addr: ", stringify!($reg_addr), ", converted by ", stringify!($conv), ")")]
                 pub fn [<sync_read_raw_ $reg_name>](
                     &mut self,
                     ids: &[u8],
@@ -510,7 +531,7 @@ macro_rules! generate_reg_read {
                     )
                 }
 
-                #[doc = concat!("Sync read register *", stringify!($name), "* (addr: ", stringify!($addr), ", type: ", stringify!($reg_type), ")")]
+                #[doc = concat!("Sync read register *", stringify!($reg_name), "* (addr: ", stringify!($reg_addr), ", type: ", stringify!($reg_type), ")")]
                 pub fn [<sync_read_ $reg_name>](
                     &mut self,
                     ids: &[u8],
@@ -522,7 +543,7 @@ macro_rules! generate_reg_read {
                     )
                 }
 
-                #[doc = concat!("Read raw register *", stringify!($name), "* (addr: ", stringify!($addr), ", type: ", stringify!(<$conv as Conversion>::UsiType), ")")]
+                #[doc = concat!("Read raw register *", stringify!($reg_name), "* (addr: ", stringify!($reg_addr), ", converted by ", stringify!($conv), ")")]
                 pub fn [<read_raw_ $reg_name>](
                     &mut self,
                     id: u8,
@@ -539,7 +560,7 @@ macro_rules! generate_reg_read {
                     r
                 }
 
-                #[doc = concat!("Read register *", stringify!($name), "* (addr: ", stringify!($addr), ", type: ", stringify!($reg_type), ")")]
+                #[doc = concat!("Read register *", stringify!($reg_name), "* (addr: ", stringify!($reg_addr), ", type: ", stringify!($reg_type), ")")]
                 pub fn [<read_ $reg_name>](
                     &mut self,
                     id: u8,
@@ -562,7 +583,7 @@ macro_rules! generate_reg_read {
             #[gen_stub_pymethods]
             #[pymethods]
             impl [<$servo_name:camel PyController>] {
-                #[doc = concat!("Sync read raw register *", stringify!($name), "* (addr: ", stringify!($addr), ", type: ", stringify!($reg_type), ")")]
+                #[doc = concat!("Sync read raw register *", stringify!($reg_name), "* (addr: ", stringify!($reg_addr), ", type: ", stringify!($reg_type), ")")]
                 pub fn [<sync_read_raw_ $reg_name>](
                     &self,
                     py: Python,
@@ -576,7 +597,7 @@ macro_rules! generate_reg_read {
                     Ok(l.into())
                 }
 
-                #[doc = concat!("Sync read register *", stringify!($name), "* (addr: ", stringify!($addr), ", type: ", stringify!($reg_type), ")")]
+                #[doc = concat!("Sync read register *", stringify!($reg_name), "* (addr: ", stringify!($reg_addr), ", type: ", stringify!($reg_type), ")")]
                 pub fn [<sync_read_ $reg_name>](
                     &self,
                     py: Python,
@@ -590,7 +611,7 @@ macro_rules! generate_reg_read {
                     Ok(l.into())
                 }
 
-                #[doc = concat!("Read raw register *", stringify!($name), "* (addr: ", stringify!($addr), ", type: ", stringify!($reg_type), ")")]
+                #[doc = concat!("Read raw register *", stringify!($reg_name), "* (addr: ", stringify!($reg_addr), ", type: ", stringify!($reg_type), ")")]
                 pub fn [<read_raw_ $reg_name>](
                     &self,
                     py: Python,
@@ -604,7 +625,7 @@ macro_rules! generate_reg_read {
                     Ok(l.into())
                 }
 
-                #[doc = concat!("Read register *", stringify!($name), "* (addr: ", stringify!($addr), ", type: ", stringify!($reg_type), ")")]
+                #[doc = concat!("Read register *", stringify!($reg_name), "* (addr: ", stringify!($reg_addr), ", type: ", stringify!($reg_type), ")")]
                 pub fn [<read_ $reg_name>](
                     &self,
                     py: Python,
@@ -627,7 +648,7 @@ macro_rules! generate_reg_read {
 macro_rules! generate_reg_write {
     ($servo_name:ident, $reg_name:ident, $reg_addr:expr, $reg_type:ty, None) => {
         paste::paste! {
-            #[doc = concat!("Write register *", stringify!($name), "* (addr: ", stringify!($addr), ", type: ", stringify!($reg_type), ")")]
+            #[doc = concat!("Write register *", stringify!($reg_name), "* (addr: ", stringify!($reg_addr), ", type: ", stringify!($reg_type), ")")]
             pub fn [<write_ $reg_name>](
                 io: &$crate::DynamixelProtocolHandler,
                 serial_port: &mut dyn serialport::SerialPort,
@@ -637,7 +658,7 @@ macro_rules! generate_reg_write {
                 io.write(serial_port, id, $reg_addr, &val.to_le_bytes())
             }
 
-            #[doc = concat!("Sync write register *", stringify!($name), "* (addr: ", stringify!($addr), ", type: ", stringify!($reg_type), ")")]
+            #[doc = concat!("Sync write register *", stringify!($reg_name), "* (addr: ", stringify!($reg_addr), ", type: ", stringify!($reg_type), ")")]
             pub fn [<sync_write_ $reg_name>](
                 io: &$crate::DynamixelProtocolHandler,
                 serial_port: &mut dyn serialport::SerialPort,
@@ -656,7 +677,7 @@ macro_rules! generate_reg_write {
             }
 
             impl [<$servo_name:camel Controller>] {
-                #[doc = concat!("Sync write register *", stringify!($name), "* (addr: ", stringify!($addr), ", type: ", stringify!($reg_type), ")")]
+                #[doc = concat!("Sync write register *", stringify!($reg_name), "* (addr: ", stringify!($reg_addr), ", type: ", stringify!($reg_type), ")")]
                 pub fn [<sync_write_ $reg_name>](
                     &mut self,
                     ids: &[u8],
@@ -671,7 +692,7 @@ macro_rules! generate_reg_write {
                 }
 
 
-                #[doc = concat!("Write register *", stringify!($name), "* (addr: ", stringify!($addr), ", type: ", stringify!($reg_type), ")")]
+                #[doc = concat!("Write register *", stringify!($reg_name), "* (addr: ", stringify!($reg_addr), ", type: ", stringify!($reg_type), ")")]
                 pub fn [<write_ $reg_name>](
                     &mut self,
                     id: u8,
@@ -691,7 +712,7 @@ macro_rules! generate_reg_write {
             #[gen_stub_pymethods]
             #[pymethods]
             impl [<$servo_name:camel PyController>] {
-                #[doc = concat!("Sync write register *", stringify!($name), "* (addr: ", stringify!($addr), ", type: ", stringify!($reg_type), ")")]
+                #[doc = concat!("Sync write register *", stringify!($reg_name), "* (addr: ", stringify!($reg_addr), ", type: ", stringify!($reg_type), ")")]
                 pub fn [<sync_write_ $reg_name>](
                     &self,
                     ids: Bound<'_, pyo3::types::PyList>,
@@ -705,7 +726,7 @@ macro_rules! generate_reg_write {
                     })
                 }
 
-                #[doc = concat!("Write register *", stringify!($name), "* (addr: ", stringify!($addr), ", type: ", stringify!($reg_type), ")")]
+                #[doc = concat!("Write register *", stringify!($reg_name), "* (addr: ", stringify!($reg_addr), ", type: ", stringify!($reg_type), ")")]
                 pub fn [<write_ $reg_name>](
                     &self,
                     id: u8,
@@ -724,7 +745,7 @@ macro_rules! generate_reg_write {
     };
     ($servo_name:ident, $reg_name:ident, $reg_addr:expr, $reg_type:ty, $conv:ident) => {
         paste::paste! {
-            #[doc = concat!("Write register *", stringify!($name), "* (addr: ", stringify!($addr), ", type: ", stringify!($reg_type), ")")]
+            #[doc = concat!("Write raw register *", stringify!($reg_name), "* (addr: ", stringify!($reg_addr), ", type: ", stringify!($reg_type), ")")]
             pub fn [<write_raw_ $reg_name>](
                 io: &$crate::DynamixelProtocolHandler,
                 serial_port: &mut dyn serialport::SerialPort,
@@ -734,6 +755,7 @@ macro_rules! generate_reg_write {
                 io.write(serial_port, id, $reg_addr, &val.to_le_bytes())
             }
 
+            #[doc = concat!("Write register *", stringify!($reg_name), "* (addr: ", stringify!($reg_addr), ", converted by ", stringify!($conv), ")")]
             pub fn [<write_ $reg_name>](
                 io: &$crate::DynamixelProtocolHandler,
                 serial_port: &mut dyn serialport::SerialPort,
@@ -744,7 +766,7 @@ macro_rules! generate_reg_write {
                 [<write_raw_ $reg_name>](io, serial_port, id, val)
             }
 
-            #[doc = concat!("Sync write register *", stringify!($name), "* (addr: ", stringify!($addr), ", type: ", stringify!($reg_type), ")")]
+            #[doc = concat!("Sync write raw register *", stringify!($reg_name), "* (addr: ", stringify!($reg_addr), ", type: ", stringify!($reg_type), ")")]
             pub fn [<sync_write_raw_ $reg_name>](
                 io: &$crate::DynamixelProtocolHandler,
                 serial_port: &mut dyn serialport::SerialPort,
@@ -762,6 +784,7 @@ macro_rules! generate_reg_write {
                 )
             }
 
+            #[doc = concat!("Sync write register *", stringify!($reg_name), "* (addr: ", stringify!($reg_addr), ", converted by ", stringify!($conv), ")")]
             pub fn [<sync_write_ $reg_name>](
                 io: &$crate::DynamixelProtocolHandler,
                 serial_port: &mut dyn serialport::SerialPort,
@@ -776,7 +799,7 @@ macro_rules! generate_reg_write {
             }
 
             impl [<$servo_name:camel Controller>] {
-                #[doc = concat!("Sync write raw register *", stringify!($name), "* (addr: ", stringify!($addr), ", type: ", stringify!($reg_type), ")")]
+                #[doc = concat!("Sync write raw register *", stringify!($reg_name), "* (addr: ", stringify!($reg_addr), ", type: ", stringify!($reg_type), ")")]
                 pub fn [<sync_write_raw_ $reg_name>](
                     &mut self,
                     ids: &[u8],
@@ -790,7 +813,7 @@ macro_rules! generate_reg_write {
                     )
                 }
 
-                #[doc = concat!("Sync write register *", stringify!($name), "* (addr: ", stringify!($addr), ", type: ", stringify!(<$conv as Conversion>::UsiType), ")")]
+                #[doc = concat!("Sync write register *", stringify!($reg_name), "* (addr: ", stringify!($reg_addr), ", converted by ", stringify!($conv), ")")]
                 pub fn [<sync_write_ $reg_name>](
                     &mut self,
                     ids: &[u8],
@@ -804,7 +827,7 @@ macro_rules! generate_reg_write {
                     )
                 }
 
-                #[doc = concat!("Write raw register *", stringify!($name), "* (addr: ", stringify!($addr), ", type: ", stringify!($reg_type), ")")]
+                #[doc = concat!("Write raw register *", stringify!($reg_name), "* (addr: ", stringify!($reg_addr), ", type: ", stringify!($reg_type), ")")]
                 pub fn [<write_raw_ $reg_name>](
                     &mut self,
                     id: u8,
@@ -818,7 +841,7 @@ macro_rules! generate_reg_write {
                     )
                 }
 
-                #[doc = concat!("Write register *", stringify!($name), "* (addr: ", stringify!($addr), ", type: ", stringify!(<$conv as Conversion>::UsiType), ")")]
+                #[doc = concat!("Write register *", stringify!($reg_name), "* (addr: ", stringify!($reg_addr), ", converted by ", stringify!($conv), ")")]
                 pub fn [<write_ $reg_name>](
                     &mut self,
                     id: u8,
@@ -838,7 +861,7 @@ macro_rules! generate_reg_write {
             #[gen_stub_pymethods]
             #[pymethods]
             impl [<$servo_name:camel PyController>] {
-                #[doc = concat!("Sync write raw register *", stringify!($name), "* (addr: ", stringify!($addr), ", type: ", stringify!($reg_type), ")")]
+                #[doc = concat!("Sync write raw register *", stringify!($reg_name), "* (addr: ", stringify!($reg_addr), ", type: ", stringify!($reg_type), ")")]
                 pub fn [<sync_write_raw_ $reg_name>](
                     &self,
                     ids: Bound<'_, pyo3::types::PyList>,
@@ -852,7 +875,7 @@ macro_rules! generate_reg_write {
                     })
                 }
 
-                #[doc = concat!("Sync write register *", stringify!($name), "* (addr: ", stringify!($addr), ", type: ", stringify!($reg_type), ")")]
+                #[doc = concat!("Sync write register *", stringify!($reg_name), "* (addr: ", stringify!($reg_addr), ", type: ", stringify!($reg_type), ")")]
                 pub fn [<sync_write_ $reg_name>](
                     &self,
                     ids: &Bound<'_, pyo3::types::PyList>,
@@ -867,7 +890,7 @@ macro_rules! generate_reg_write {
                 }
 
 
-                #[doc = concat!("Write raw register *", stringify!($name), "* (addr: ", stringify!($addr), ", type: ", stringify!($reg_type), ")")]
+                #[doc = concat!("Write raw register *", stringify!($reg_name), "* (addr: ", stringify!($reg_addr), ", type: ", stringify!($reg_type), ")")]
                 pub fn [<write_raw_ $reg_name>](
                     &self,
                     id: u8,
@@ -879,7 +902,7 @@ macro_rules! generate_reg_write {
                     })
                 }
 
-                #[doc = concat!("Write register *", stringify!($name), "* (addr: ", stringify!($addr), ", type: ", stringify!($reg_type), ")")]
+                #[doc = concat!("Write register *", stringify!($reg_name), "* (addr: ", stringify!($reg_addr), ", type: ", stringify!($reg_type), ")")]
                 pub fn [<write_ $reg_name>](
                     &self,
                     id: u8,
