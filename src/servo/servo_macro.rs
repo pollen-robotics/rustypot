@@ -40,6 +40,23 @@ macro_rules! generate_servo {
         #[cfg(feature = "python")]
         use pyo3_stub_gen::derive::*;
 
+        /// Every register of this servo, in declaration order.
+        ///
+        /// Useful when the registers are chosen at runtime rather than in source, e.g.
+        /// building an indirect address map or a tool that takes register names.
+        pub const REGISTERS: &[$crate::servo::RegisterInfo] = &[
+            $($crate::servo::RegisterInfo {
+                name: stringify!($reg_name),
+                addr: $reg_addr,
+                size: std::mem::size_of::<$reg_type>() as u8,
+            },)*
+        ];
+
+        /// Look up a register by name, as spelled in [`REGISTERS`].
+        pub fn register(name: &str) -> Option<$crate::servo::RegisterInfo> {
+            REGISTERS.iter().copied().find(|r| r.name == name)
+        }
+
         $crate::generate_protocol_constructor!($servo_name, $protocol);
         $crate::generate_special_instructions!($servo_name);
         $crate::generate_addr_read_write!($servo_name);
