@@ -519,7 +519,7 @@ macro_rules! generate_reg_read {
             }
 
             impl [<$servo_name:camel Controller>] {
-                #[doc = concat!("Sync read raw register *", stringify!($reg_name), "* (addr: ", stringify!($reg_addr), ", converted by ", stringify!($conv), ")")]
+                #[doc = concat!("Sync read raw register *", stringify!($reg_name), "* (addr: ", stringify!($reg_addr), ", type: ", stringify!($reg_type), ")")]
                 pub fn [<sync_read_raw_ $reg_name>](
                     &mut self,
                     ids: &[u8],
@@ -531,7 +531,7 @@ macro_rules! generate_reg_read {
                     )
                 }
 
-                #[doc = concat!("Sync read register *", stringify!($reg_name), "* (addr: ", stringify!($reg_addr), ", type: ", stringify!($reg_type), ")")]
+                #[doc = concat!("Sync read register *", stringify!($reg_name), "* (addr: ", stringify!($reg_addr), ", converted by ", stringify!($conv), ")")]
                 pub fn [<sync_read_ $reg_name>](
                     &mut self,
                     ids: &[u8],
@@ -543,7 +543,7 @@ macro_rules! generate_reg_read {
                     )
                 }
 
-                #[doc = concat!("Read raw register *", stringify!($reg_name), "* (addr: ", stringify!($reg_addr), ", converted by ", stringify!($conv), ")")]
+                #[doc = concat!("Read raw register *", stringify!($reg_name), "* (addr: ", stringify!($reg_addr), ", type: ", stringify!($reg_type), ")")]
                 pub fn [<read_raw_ $reg_name>](
                     &mut self,
                     id: u8,
@@ -560,7 +560,7 @@ macro_rules! generate_reg_read {
                     r
                 }
 
-                #[doc = concat!("Read register *", stringify!($reg_name), "* (addr: ", stringify!($reg_addr), ", type: ", stringify!($reg_type), ")")]
+                #[doc = concat!("Read register *", stringify!($reg_name), "* (addr: ", stringify!($reg_addr), ", converted by ", stringify!($conv), ")")]
                 pub fn [<read_ $reg_name>](
                     &mut self,
                     id: u8,
@@ -597,7 +597,7 @@ macro_rules! generate_reg_read {
                     Ok(l.into())
                 }
 
-                #[doc = concat!("Sync read register *", stringify!($reg_name), "* (addr: ", stringify!($reg_addr), ", type: ", stringify!($reg_type), ")")]
+                #[doc = concat!("Sync read register *", stringify!($reg_name), "* (addr: ", stringify!($reg_addr), ", converted by ", stringify!($conv), ")")]
                 pub fn [<sync_read_ $reg_name>](
                     &self,
                     py: Python,
@@ -625,7 +625,7 @@ macro_rules! generate_reg_read {
                     Ok(l.into())
                 }
 
-                #[doc = concat!("Read register *", stringify!($reg_name), "* (addr: ", stringify!($reg_addr), ", type: ", stringify!($reg_type), ")")]
+                #[doc = concat!("Read register *", stringify!($reg_name), "* (addr: ", stringify!($reg_addr), ", converted by ", stringify!($conv), ")")]
                 pub fn [<read_ $reg_name>](
                     &self,
                     py: Python,
@@ -875,7 +875,7 @@ macro_rules! generate_reg_write {
                     })
                 }
 
-                #[doc = concat!("Sync write register *", stringify!($reg_name), "* (addr: ", stringify!($reg_addr), ", type: ", stringify!($reg_type), ")")]
+                #[doc = concat!("Sync write register *", stringify!($reg_name), "* (addr: ", stringify!($reg_addr), ", converted by ", stringify!($conv), ")")]
                 pub fn [<sync_write_ $reg_name>](
                     &self,
                     ids: &Bound<'_, pyo3::types::PyList>,
@@ -902,7 +902,7 @@ macro_rules! generate_reg_write {
                     })
                 }
 
-                #[doc = concat!("Write register *", stringify!($reg_name), "* (addr: ", stringify!($reg_addr), ", type: ", stringify!($reg_type), ")")]
+                #[doc = concat!("Write register *", stringify!($reg_name), "* (addr: ", stringify!($reg_addr), ", converted by ", stringify!($conv), ")")]
                 pub fn [<write_ $reg_name>](
                     &self,
                     id: u8,
