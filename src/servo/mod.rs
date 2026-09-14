@@ -1,11 +1,17 @@
 pub mod conversion;
 
+pub mod dynamixel;
+pub mod feetech;
+pub mod orbita;
+pub(crate) mod servo_macro;
+
 /// Where a register exists in a servo's control table.
 ///
 /// Each servo module exposes its full table as `REGISTERS`, which lets callers work with
 /// registers chosen at runtime (building an indirect address map, or a config tool that
 /// takes register names) without hardcoding addresses.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
 pub struct RegisterInfo {
     /// Register name, matching the generated accessor (`present_position` -> `read_present_position`).
     pub name: &'static str,
@@ -13,12 +19,23 @@ pub struct RegisterInfo {
     pub addr: u8,
     /// Size in bytes.
     pub size: u8,
+    /// Whether the register can be read, written, or both.
+    pub access: RegisterAccess,
 }
 
-pub mod dynamixel;
-pub mod feetech;
-pub mod orbita;
-pub(crate) mod servo_macro;
+/// How a register can be accessed, as declared in its servo definition.
+///
+/// Worth checking before a generic tool writes a register it was given by name: nothing else
+/// at runtime says whether a write will be refused.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum RegisterAccess {
+    /// Read only (`r`).
+    Read,
+    /// Write only (`w`).
+    Write,
+    /// Readable and writable (`rw`).
+    ReadWrite,
+}
 
 crate::register_servo!(
     servo: (dynamixel, AX,

@@ -48,7 +48,14 @@ macro_rules! generate_servo {
             $($crate::servo::RegisterInfo {
                 name: stringify!($reg_name),
                 addr: $reg_addr,
-                size: std::mem::size_of::<$reg_type>() as u8,
+                // Evaluated at compile time: a register type too large for the protocol's u8
+                // lengths fails the build here instead of being silently truncated.
+                size: {
+                    let size = std::mem::size_of::<$reg_type>();
+                    assert!(size <= u8::MAX as usize, "register type is larger than 255 bytes");
+                    size as u8
+                },
+                access: $crate::register_access!($reg_access),
             },)*
         ];
 
@@ -339,6 +346,21 @@ macro_rules! generate_addr_read_write {
                 }
             }
         }
+    };
+}
+
+/// Maps the access ident of a servo definition (`r`, `w`, `rw`) to a
+/// [`RegisterAccess`](crate::servo::RegisterAccess).
+#[macro_export]
+macro_rules! register_access {
+    (r) => {
+        $crate::servo::RegisterAccess::Read
+    };
+    (w) => {
+        $crate::servo::RegisterAccess::Write
+    };
+    (rw) => {
+        $crate::servo::RegisterAccess::ReadWrite
     };
 }
 
