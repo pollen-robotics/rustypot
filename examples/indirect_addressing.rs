@@ -191,6 +191,14 @@ fn mean_ms(
     (t.elapsed().as_secs_f64() * 1e3 / iterations as f64, errors)
 }
 
+/// A read that fails returns early, so a run full of errors would otherwise report a
+/// misleadingly fast mean.
+fn report_failures(errors: usize, iterations: usize) {
+    if errors > 0 {
+        println!("{:<34}{errors} of {iterations} reads failed", "");
+    }
+}
+
 fn main() -> Result<(), Box<dyn Error>> {
     let args = Args::parse();
     let ids = args.ids.clone();
@@ -208,24 +216,39 @@ fn main() -> Result<(), Box<dyn Error>> {
     let fast_dph = DynamixelProtocolHandler::v2().with_fast_sync_read();
 
     let (indirect_addr, indirect_data, slot_size) = indirect_bases()?;
+    // The pointer slots run from indirect_address_1 to indirect_data_1 (28 on XL330 firmware v53+)
+    let slot_count = ((indirect_data - indirect_addr) / slot_size) as usize;
 
     let fast_regs = resolve(&args.fast)?;
     let slow_regs = resolve(&args.slow)?;
     let const_regs = resolve(CONST_REGS)?;
     let all: Vec<(u8, u8)> = fast_regs.iter().chain(&slow_regs).copied().collect();
+
+    // Each gathered byte = one indirect slot; refuse a selection that cannot fit,
+    // before anything is written. This keeps the slot addresses computed here in range:
+    let slots_needed: usize = all.iter().map(|&(_, len)| len as usize).sum();
+    if slots_needed > slot_count {
+        return Err(format!(
+            "{slots_needed} bytes selected, but there are only {slot_count} indirect slots"
+        )
+        .into());
+    }
     let map = indirect_map(&all);
     let (fast_len, all_len) = (block_len(&fast_regs), block_len(&all));
 
     // What a single contiguous read would have to span to reach every chosen register.
     let wide_addr = all.iter().map(|&(a, _)| a).min().unwrap();
-    let wide_len = all.iter().map(|&(a, l)| a + l).max().unwrap() - wide_addr;
+    let wide_end = all.iter().map(|&(a, l)| a as u16 + l as u16).max().unwrap();
+    let wide_len = u8::try_from(wide_end - wide_addr as u16)?;
 
     println!(
         "bus: {} at {} baud, {n} motors",
         args.serialport, args.baudrate
     );
+    let firmware =
+        xl330::register("firmware_version").ok_or("this servo defines no firmware_version")?;
     for &id in &ids {
-        let fw = dph.read(port, id, 6, 1)?[0];
+        let fw = dph.read(port, id, firmware.addr, firmware.size)?[0];
         if fw < 53 {
             println!("  motor {id} firmware v{fw}: indirect data is at 208 below v53, not 224");
         }
@@ -237,181 +260,199 @@ fn main() -> Result<(), Box<dyn Error>> {
         args.fast, args.slow
     );
 
-    // --- correctness, on registers that cannot change under us --------------------
+    // --- correctness, on registers that don't change between reads --------------------
+    // The correctness probe installs its own map before the real one, and either may be the
+    // longer one, so save enough of the table to cover both.
+    let probe = indirect_map(&const_regs);
+    let save_len = map.len().max(probe.len()) as u8;
     let saved: Vec<Vec<u8>> = ids
         .iter()
-        .map(|&id| dph.read(port, id, indirect_addr, map.len() as u8))
+        .map(|&id| dph.read(port, id, indirect_addr, save_len))
         .collect::<Result<_, _>>()?;
 
-    dph.sync_write(
-        port,
-        &ids,
-        indirect_addr,
-        &vec![indirect_map(&const_regs); n],
-    )?;
-    let direct = read_separate(&dph, port, &ids, &const_regs)?;
-    let gathered = dph.sync_read(port, &ids, indirect_data, block_len(&const_regs))?;
-    if direct != gathered {
-        println!("  direct   {direct:02X?}\n  indirect {gathered:02X?}");
-        return Err("indirect data does not match direct reads".into());
-    }
-    println!(
-        "\ngathered {CONST_REGS:?} through indirect data: matches direct reads on all {n} motors"
-    );
-
-    // --- writing the real map -------------------------------------------------------
-    // Indirect Address 1..N is contiguous, so the whole table for every motor fits in one
-    // sync write. A slot at a time costs n * slots transactions, each awaiting a status
-    // packet, which is what makes the difference so large.
-    // Both paths finish with the same read back, so the timings are comparable: a sync
-    // write gets no status packet, so without it the measurement would only capture the
-    // host queueing bytes rather than the servos applying them.
-    let confirm = |port: &mut dyn serialport::SerialPort| {
-        dph.read(port, ids[n - 1], indirect_addr, map.len() as u8)
-    };
-
-    let t = Instant::now();
-    for &id in &ids {
-        for (slot, chunk) in map.chunks(2).enumerate() {
-            dph.write(port, id, indirect_addr + slot_size * slot as u8, chunk)?;
+    // Everything from here installs indirect maps, so it runs as one unit and the saved
+    // table is put back afterwards no matter what happens, including a read failing partway.
+    let result = (|| -> Result<(), Box<dyn Error>> {
+        dph.sync_write(port, &ids, indirect_addr, &vec![probe.clone(); n])?;
+        let direct = read_separate(&dph, port, &ids, &const_regs)?;
+        let gathered = dph.sync_read(port, &ids, indirect_data, block_len(&const_regs))?;
+        if direct != gathered {
+            println!("  direct   {direct:02X?}\n  indirect {gathered:02X?}");
+            return Err("indirect data does not match direct reads".into());
         }
-    }
-    confirm(port)?;
-    let per_slot = t.elapsed().as_secs_f64() * 1e3;
+        println!(
+            "\ngathered {CONST_REGS:?} through indirect data: matches direct reads on all {n} motors"
+        );
 
-    // Put the table back so the batched write has the same work to do.
-    dph.sync_write(
-        port,
-        &ids,
-        indirect_addr,
-        &vec![indirect_map(&const_regs); n],
-    )?;
-    confirm(port)?;
+        // --- writing the real map -------------------------------------------------------
+        // Indirect Address 1..N is contiguous, so the whole table for every motor fits in one
+        // sync write. A slot at a time costs n * slots transactions, each awaiting a status
+        // packet, which is what makes the difference so large.
+        // Both paths finish with the same read back, so the timings are comparable: a sync
+        // write gets no status packet, so without it the measurement would only capture the
+        // host queueing bytes rather than the servos applying them.
+        let confirm = |port: &mut dyn serialport::SerialPort| {
+            dph.read(port, ids[n - 1], indirect_addr, map.len() as u8)
+        };
 
-    let t = Instant::now();
-    dph.sync_write(port, &ids, indirect_addr, &vec![map.clone(); n])?;
-    let landed = confirm(port)?;
-    let batched = t.elapsed().as_secs_f64() * 1e3;
+        let t = Instant::now();
+        for &id in &ids {
+            for (slot, chunk) in map.chunks(slot_size as usize).enumerate() {
+                dph.write(port, id, indirect_addr + slot_size * slot as u8, chunk)?;
+            }
+        }
+        confirm(port)?;
+        let per_slot = t.elapsed().as_secs_f64() * 1e3;
 
-    // The servo rejects an out of range target silently, so check rather than trust Ok.
-    if landed != map {
-        return Err(format!("map did not land: wrote {map:02X?}, read {landed:02X?}").into());
-    }
+        // Put the table back so the batched write has the same work to do.
+        dph.sync_write(port, &ids, indirect_addr, &vec![probe.clone(); n])?;
+        confirm(port)?;
 
-    // A single register write is 14 bytes out and an 11 byte status back. A sync write
-    // carries every motor's table in one packet and gets no status at all.
-    let slots = map.len() / 2;
-    let per_slot_bytes = n * slots * (14 + 11);
-    let batched_bytes = 14 + n * (1 + map.len());
+        let t = Instant::now();
+        dph.sync_write(port, &ids, indirect_addr, &vec![map.clone(); n])?;
+        let landed = confirm(port)?;
+        let batched = t.elapsed().as_secs_f64() * 1e3;
 
-    println!("\nwriting the {slots}-slot map to {n} motors (each timing includes one read back):");
-    println!(
-        "{:<34}{:>10}{:>12}{:>14}",
-        "", "mean (ms)", "wire bytes", "transactions"
-    );
-    println!(
-        "{:<34}{per_slot:>10.2}{per_slot_bytes:>12}{:>14}",
-        "  one write per slot",
-        n * slots
-    );
-    println!(
-        "{:<34}{batched:>10.2}{batched_bytes:>12}{:>14}",
-        "  one sync write", 1
-    );
-    println!(
-        "  -> {:.0}x faster, {:.0}x fewer bytes",
-        per_slot / batched,
-        per_slot_bytes as f64 / batched_bytes as f64
-    );
+        // The servo rejects an out of range target silently, so check rather than trust "Ok".
+        if landed != map {
+            return Err(format!("map did not land: wrote {map:02X?}, read {landed:02X?}").into());
+        }
 
-    // Sanity check the live map landed, and show what it reads. The block layout follows
-    // whichever registers were asked for, so walk it rather than assuming offsets.
-    let indirect = dph.sync_read(port, &ids, indirect_data, all_len)?;
-    let names = args.fast.iter().chain(&args.slow);
-    let mut off = 0;
-    print!("  id {} reads", ids[0]);
-    for (name, &(_, len)) in names.zip(&all) {
-        let bytes = &indirect[0][off..off + len as usize];
-        let value = bytes
-            .iter()
-            .rev()
-            .fold(0u32, |acc, &b| (acc << 8) | b as u32);
-        print!("  {name} {value}");
-        off += len as usize;
-    }
-    println!();
+        // A single register write is 14 bytes out and an 11 byte status back. A sync write
+        // carries every motor's table in one packet and gets no status at all.
+        let slots = map.len() / slot_size as usize;
+        let per_slot_bytes = n * slots * (14 + 11);
+        let batched_bytes = 14 + n * (1 + map.len());
 
-    // --- timing -----------------------------------------------------------------------
-    println!(
-        "\n{:<34}{:>10}{:>12}{:>14}",
-        "", "mean (ms)", "wire bytes", "transactions"
-    );
-    let separate_bytes = |fast: bool| {
-        all.iter()
-            .map(|&(_, l)| wire_bytes(n, l, fast))
-            .sum::<usize>()
-    };
-
-    for (label, fast) in [("sync read", false), ("fast sync read", true)] {
-        let d = if fast { &fast_dph } else { &dph };
-        println!("{label}:");
-
-        let (ms, _) = mean_ms(
-            || read_separate(d, port, &ids, &all).map(|_| ()),
-            args.warmup,
-            args.iterations,
+        println!(
+            "\nwriting the {slots}-slot map to {n} motors (each timing includes one read back):"
         );
         println!(
-            "{:<34}{ms:>10.3}{:>12}{:>14}",
-            "  one read per register",
-            separate_bytes(fast),
-            all.len()
-        );
-
-        let (ms, _) = mean_ms(
-            || read_wide(d, port, &ids, &all, wide_addr, wide_len).map(|_| ()),
-            args.warmup,
-            args.iterations,
+            "{:<34}{:>10}{:>12}{:>14}",
+            "", "mean (ms)", "wire bytes", "transactions"
         );
         println!(
-            "{:<34}{ms:>10.3}{:>12}{:>14}",
-            &format!("  one wide read ({wide_len} B)"),
-            wire_bytes(n, wide_len, fast),
-            1
-        );
-
-        let (ms, _) = mean_ms(
-            || d.sync_read(port, &ids, indirect_data, all_len).map(|_| ()),
-            args.warmup,
-            args.iterations,
+            "{:<34}{per_slot:>10.2}{per_slot_bytes:>12}{:>14}",
+            "  one write per slot",
+            n * slots
         );
         println!(
-            "{:<34}{ms:>10.3}{:>12}{:>14}",
-            &format!("  indirect, fast+slow ({all_len} B)"),
-            wire_bytes(n, all_len, fast),
-            1
-        );
-
-        let (ms, _) = mean_ms(
-            || d.sync_read(port, &ids, indirect_data, fast_len).map(|_| ()),
-            args.warmup,
-            args.iterations,
+            "{:<34}{batched:>10.2}{batched_bytes:>12}{:>14}",
+            "  one sync write", 1
         );
         println!(
-            "{:<34}{ms:>10.3}{:>12}{:>14}",
-            &format!("  indirect, fast only ({fast_len} B)"),
-            wire_bytes(n, fast_len, fast),
-            1
+            "  -> {:.0}x faster, {:.0}x fewer bytes",
+            per_slot / batched,
+            per_slot_bytes as f64 / batched_bytes as f64
         );
-    }
+
+        // Sanity check that the live map landed, and show what it reads. The block layout follows
+        // whichever registers were asked for, so walk it rather than assuming offsets.
+        let indirect = dph.sync_read(port, &ids, indirect_data, all_len)?;
+        let names = args.fast.iter().chain(&args.slow);
+        let mut off = 0;
+        print!("  id {} reads", ids[0]);
+        for (name, &(_, len)) in names.zip(&all) {
+            let bytes = &indirect[0][off..off + len as usize];
+            let value = bytes
+                .iter()
+                .rev()
+                .fold(0u32, |acc, &b| (acc << 8) | b as u32);
+            print!("  {name} {value}");
+            off += len as usize;
+        }
+        println!();
+
+        // --- timing -----------------------------------------------------------------------
+        println!(
+            "\n{:<34}{:>10}{:>12}{:>14}",
+            "", "mean (ms)", "wire bytes", "transactions"
+        );
+        let separate_bytes = |fast: bool| {
+            all.iter()
+                .map(|&(_, l)| wire_bytes(n, l, fast))
+                .sum::<usize>()
+        };
+
+        for (label, fast) in [("sync read", false), ("fast sync read", true)] {
+            let d = if fast { &fast_dph } else { &dph };
+            println!("{label}:");
+
+            let (ms, errors) = mean_ms(
+                || read_separate(d, port, &ids, &all).map(|_| ()),
+                args.warmup,
+                args.iterations,
+            );
+            println!(
+                "{:<34}{ms:>10.3}{:>12}{:>14}",
+                "  one read per register",
+                separate_bytes(fast),
+                all.len()
+            );
+            report_failures(errors, args.iterations);
+
+            let (ms, errors) = mean_ms(
+                || read_wide(d, port, &ids, &all, wide_addr, wide_len).map(|_| ()),
+                args.warmup,
+                args.iterations,
+            );
+            println!(
+                "{:<34}{ms:>10.3}{:>12}{:>14}",
+                &format!("  one wide read ({wide_len} B)"),
+                wire_bytes(n, wide_len, fast),
+                1
+            );
+            report_failures(errors, args.iterations);
+
+            let (ms, errors) = mean_ms(
+                || d.sync_read(port, &ids, indirect_data, all_len).map(|_| ()),
+                args.warmup,
+                args.iterations,
+            );
+            println!(
+                "{:<34}{ms:>10.3}{:>12}{:>14}",
+                &format!("  indirect, fast+slow ({all_len} B)"),
+                wire_bytes(n, all_len, fast),
+                1
+            );
+            report_failures(errors, args.iterations);
+
+            let (ms, errors) = mean_ms(
+                || d.sync_read(port, &ids, indirect_data, fast_len).map(|_| ()),
+                args.warmup,
+                args.iterations,
+            );
+            println!(
+                "{:<34}{ms:>10.3}{:>12}{:>14}",
+                &format!("  indirect, fast only ({fast_len} B)"),
+                wire_bytes(n, fast_len, fast),
+                1
+            );
+            report_failures(errors, args.iterations);
+        }
+
+        Ok(())
+    })();
 
     // --- restore ----------------------------------------------------------------------
+    let mut restored = true;
     for (&id, data) in ids.iter().zip(&saved) {
-        if dph.write(port, id, indirect_addr, data).is_err() {
-            dph.write(port, id, indirect_addr, data)?;
+        // Retry once past a stale bus before giving up on this motor.
+        if dph.write(port, id, indirect_addr, data).is_err()
+            && dph.write(port, id, indirect_addr, data).is_err()
+        {
+            println!("  could not restore the indirect address table on motor {id}");
+            restored = false;
         }
     }
-    println!("\nindirect address table restored");
+    if restored {
+        println!("\nindirect address table restored");
+    }
 
+    // A failure during the run is the most useful error to report, so output it:
+    result?;
+    if !restored {
+        return Err("indirect address table was not restored".into());
+    }
     Ok(())
 }
