@@ -4,6 +4,7 @@ mod packet;
 use packet::{InstructionPacket, Packet, StatusPacket};
 
 mod v1;
+pub use v1::DynamixelErrorV1;
 use v1::V1;
 
 mod v2;
@@ -278,6 +279,61 @@ impl DynamixelProtocolHandler {
         Ok(())
     }
 
+    /// Same as [DynamixelProtocolHandler::read], and also returns the status packet's
+    /// error field. Like `read`, it honours the handler's post delay.
+    ///
+    /// A motor can answer a read it could serve while still reporting a fault.
+    /// [DynamixelProtocolHandler::read] drops that byte; this keeps it, so a caller can
+    /// surface the condition instead of driving a motor that is reporting one.
+    ///
+    /// The byte is returned unparsed, because its layout depends on the protocol and
+    /// only the caller knows which motor family it is talking to:
+    ///
+    /// - **Protocol v1** -- a bitfield of motor conditions: input voltage, angle limit,
+    ///   overheating, range, checksum, overload, instruction.
+    /// - **Protocol v2** -- not a bitfield. Bits 0-6 are an instruction-error *number*
+    ///   (1 Result Fail, 2 Instruction Error, 3 CRC Error, 4 Data Range Error,
+    ///   5 Data Length Error, 6 Data Limit Error, 7 Access Error), and bit 7 is Alert,
+    ///   which only says that a hardware fault is set -- the condition itself must be
+    ///   read from the Hardware Error Status register.
+    pub fn read_with_error(
+        &self,
+        serial_port: &mut dyn serialport::SerialPort,
+        id: u8,
+        addr: u8,
+        length: u8,
+    ) -> Result<(Vec<u8>, StatusError)> {
+        let res = match &self.protocol {
+            ProtocolKind::V1(p) => p.read_with_error(serial_port, id, addr, length),
+            ProtocolKind::V2(p, _) => p.read_with_error(serial_port, id, addr, length),
+        }
+        .map(|(values, e)| (values, StatusError::new(e)));
+        if let Some(delay) = self.post_delay {
+            std::thread::sleep(delay);
+        }
+        res
+    }
+
+    /// Same as [DynamixelProtocolHandler::write], and also returns the status packet's
+    /// error field. See [DynamixelProtocolHandler::read_with_error].
+    pub fn write_with_error(
+        &self,
+        serial_port: &mut dyn serialport::SerialPort,
+        id: u8,
+        addr: u8,
+        data: &[u8],
+    ) -> Result<StatusError> {
+        let err = match &self.protocol {
+            ProtocolKind::V1(p) => p.write_with_error(serial_port, id, addr, data),
+            ProtocolKind::V2(p, _) => p.write_with_error(serial_port, id, addr, data),
+        }
+        .map(StatusError::new)?;
+        if let Some(delay) = self.post_delay {
+            std::thread::sleep(delay);
+        }
+        Ok(err)
+    }
+
     pub fn write_fb(
         &self,
         serial_port: &mut dyn serialport::SerialPort,
@@ -346,6 +402,36 @@ impl DynamixelProtocolHandler {
             ProtocolKind::V2(p, false) => p.sync_read(serial_port, ids, addr, length),
             ProtocolKind::V2(p, true) => p.fast_sync_read(serial_port, ids, addr, length),
         }
+    }
+
+    /// Same as [DynamixelProtocolHandler::sync_read], and also returns each motor's
+    /// error field. Like `sync_read`, it routes to fast sync read when that is enabled.
+    ///
+    /// A control loop polling with `sync_read` is exactly where a motor reporting a fault
+    /// goes unnoticed: it keeps answering, so the read succeeds and the caller never sees
+    /// the condition. See [DynamixelProtocolHandler::read_with_error] for how to read the
+    /// byte on each protocol.
+    pub fn sync_read_with_error(
+        &self,
+        serial_port: &mut dyn serialport::SerialPort,
+        ids: &[u8],
+        addr: u8,
+        length: u8,
+    ) -> Result<Vec<(Vec<u8>, StatusError)>> {
+        let res = match &self.protocol {
+            ProtocolKind::V1(p) => p.sync_read_with_error(serial_port, ids, addr, length),
+            ProtocolKind::V2(p, false) => p.sync_read_with_error(serial_port, ids, addr, length),
+            ProtocolKind::V2(p, true) => {
+                p.fast_sync_read_with_error(serial_port, ids, addr, length)
+            }
+        };
+        if let Some(delay) = self.post_delay {
+            std::thread::sleep(delay);
+        }
+        Ok(res?
+            .into_iter()
+            .map(|(values, e)| (values, StatusError::new(e)))
+            .collect())
     }
 
     /// Reads raw register bytes from multiple ids at once, using a single status packet.
@@ -480,6 +566,29 @@ trait Protocol<P: Packet> {
         self.read_status_packet(port, id).map(|_| ())
     }
 
+    fn read_with_error(
+        &self,
+        port: &mut dyn SerialPort,
+        id: u8,
+        addr: u8,
+        length: u8,
+    ) -> Result<(Vec<u8>, u8)> {
+        self.send_instruction_packet(port, P::read_packet(id, addr, length).as_ref())?;
+        self.read_status_packet(port, id)
+            .map(|sp| (sp.params().to_vec(), sp.error_byte()))
+    }
+
+    fn write_with_error(
+        &self,
+        port: &mut dyn SerialPort,
+        id: u8,
+        addr: u8,
+        data: &[u8],
+    ) -> Result<u8> {
+        self.send_instruction_packet(port, P::write_packet(id, addr, data).as_ref())?;
+        self.read_status_packet(port, id).map(|sp| sp.error_byte())
+    }
+
     fn write_fb(
         &self,
         port: &mut dyn SerialPort,
@@ -504,6 +613,21 @@ trait Protocol<P: Packet> {
         for id in ids {
             let sp = self.read_status_packet(port, *id)?;
             result.push(sp.params().to_vec());
+        }
+        Ok(result)
+    }
+    fn sync_read_with_error(
+        &self,
+        port: &mut dyn SerialPort,
+        ids: &[u8],
+        addr: u8,
+        length: u8,
+    ) -> Result<Vec<(Vec<u8>, u8)>> {
+        self.send_instruction_packet(port, P::sync_read_packet(ids, addr, length).as_ref())?;
+        let mut result = Vec::with_capacity(ids.len());
+        for id in ids {
+            let sp = self.read_status_packet(port, *id)?;
+            result.push((sp.params().to_vec(), sp.error_byte()));
         }
         Ok(result)
     }
@@ -614,6 +738,66 @@ trait Protocol<P: Packet> {
 
 use std::{fmt, time::Duration};
 
+/// The error field of a status packet.
+///
+/// A motor can answer a request it could serve while still reporting a fault, so this
+/// travels beside the data rather than in place of it. The byte is kept raw because its
+/// layout depends on the protocol; the accessors below name the two readings.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct StatusError(u8);
+
+impl StatusError {
+    /// Wrap a status packet's error byte.
+    pub fn new(byte: u8) -> Self {
+        StatusError(byte)
+    }
+
+    /// The byte as it arrived.
+    pub fn byte(self) -> u8 {
+        self.0
+    }
+
+    /// Whether the motor reported nothing at all.
+    pub fn is_ok(self) -> bool {
+        self.0 == 0
+    }
+
+    /// Protocol v1 reading: the conditions the motor is reporting.
+    ///
+    /// On v1 the byte is a bitfield of motor conditions, so several can be set at once.
+    /// Meaningless on a v2 motor, where the same bits mean something else entirely.
+    pub fn v1_conditions(self) -> Vec<DynamixelErrorV1> {
+        DynamixelErrorV1::from_byte(self.0)
+    }
+
+    /// Protocol v2 reading: the instruction error number, 0 when there is none.
+    ///
+    /// On v2 bits 0-6 are a number, not a bitfield: 1 Result Fail, 2 Instruction Error,
+    /// 3 CRC Error, 4 Data Range Error, 5 Data Length Error, 6 Data Limit Error,
+    /// 7 Access Error.
+    pub fn v2_instruction_error(self) -> u8 {
+        self.0 & 0x7F
+    }
+
+    /// Protocol v2 reading: the alert bit.
+    ///
+    /// Set means a hardware fault is latched, and says nothing about which one -- that
+    /// lives in the motor's Hardware Error Status register.
+    pub fn v2_alert(self) -> bool {
+        self.0 & 0x80 != 0
+    }
+}
+
+impl fmt::Display for StatusError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        if self.is_ok() {
+            write!(f, "no error")
+        } else {
+            write!(f, "status error 0x{:02X}", self.0)
+        }
+    }
+}
+
 /// Dynamixel Communication Error
 #[derive(Debug, Clone, Copy)]
 pub enum CommunicationErrorKind {
@@ -643,3 +827,41 @@ impl fmt::Display for CommunicationErrorKind {
     }
 }
 impl std::error::Error for CommunicationErrorKind {}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn status_error_reads_v1_as_a_bitfield() {
+        let e = StatusError::new(0x24);
+        assert!(!e.is_ok());
+        assert_eq!(e.byte(), 0x24);
+        assert_eq!(
+            e.v1_conditions(),
+            vec![DynamixelErrorV1::Overheating, DynamixelErrorV1::Overload]
+        );
+    }
+
+    #[test]
+    fn status_error_reads_v2_as_a_number_plus_alert() {
+        // 0x83 is alert set with instruction error 3, not bits 0, 1 and 7.
+        let e = StatusError::new(0x83);
+        assert_eq!(e.v2_instruction_error(), 3);
+        assert!(e.v2_alert());
+
+        // Alert alone: a hardware fault is latched, no instruction error.
+        let e = StatusError::new(0x80);
+        assert_eq!(e.v2_instruction_error(), 0);
+        assert!(e.v2_alert());
+    }
+
+    #[test]
+    fn status_error_zero_is_ok() {
+        let e = StatusError::default();
+        assert!(e.is_ok());
+        assert!(e.v1_conditions().is_empty());
+        assert_eq!(e.v2_instruction_error(), 0);
+        assert!(!e.v2_alert());
+    }
+}

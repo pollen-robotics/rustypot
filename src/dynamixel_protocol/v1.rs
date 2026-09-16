@@ -152,6 +152,7 @@ struct StatusPacketV1 {
     id: u8,
     #[allow(dead_code)]
     errors: Vec<DynamixelErrorV1>,
+    error_byte: u8,
     params: Vec<u8>,
 }
 
@@ -182,7 +183,8 @@ impl StatusPacket<PacketV1> for StatusPacketV1 {
         }
 
         let params_length = data[3] as usize;
-        let errors = DynamixelErrorV1::from_byte(data[4]);
+        let error_byte = data[4];
+        let errors = DynamixelErrorV1::from_byte(error_byte);
 
         if params_length != data.len() - PacketV1::HEADER_SIZE || params_length < 2 {
             return Err(Box::new(CommunicationErrorKind::ParsingError));
@@ -190,7 +192,12 @@ impl StatusPacket<PacketV1> for StatusPacketV1 {
 
         let params = data[5..3 + params_length].to_vec();
 
-        Ok(StatusPacketV1 { id, errors, params })
+        Ok(StatusPacketV1 {
+            id,
+            errors,
+            error_byte,
+            params,
+        })
     }
 
     fn id(&self) -> u8 {
@@ -201,13 +208,17 @@ impl StatusPacket<PacketV1> for StatusPacketV1 {
         &self.errors
     }
 
+    fn error_byte(&self) -> u8 {
+        self.error_byte
+    }
+
     fn params(&self) -> &Vec<u8> {
         &self.params
     }
 }
 
 #[derive(Debug, PartialEq, Eq, Hash, Clone, Copy)]
-pub(crate) enum DynamixelErrorV1 {
+pub enum DynamixelErrorV1 {
     Instruction,
     Overload,
     Checksum,
@@ -217,7 +228,7 @@ pub(crate) enum DynamixelErrorV1 {
     InputVoltage,
 }
 impl DynamixelErrorV1 {
-    fn from_byte(error: u8) -> Vec<Self> {
+    pub(crate) fn from_byte(error: u8) -> Vec<Self> {
         (0..7)
             .filter(|i| error & (1 << i) != 0)
             .map(|i| DynamixelErrorV1::from_bit(i).unwrap())
@@ -345,6 +356,20 @@ mod tests {
         assert_eq!(sp.params.len(), 1);
         assert_eq!(sp.params[0], 0x20);
     }
+
+    #[test]
+    fn parse_status_packet_keeps_error_byte() {
+        // Error byte 0x24: overheating (bit 2) and overload (bit 5) both set.
+        // Checksum is !(id + length + error) = !(0x01 + 0x02 + 0x24) = 0xD8.
+        let bytes = vec![0xFF, 0xFF, 0x01, 0x02, 0x24, 0xD8];
+        let sp = StatusPacketV1::from_bytes(&bytes, 0x01).unwrap();
+        assert_eq!(sp.error_byte, 0x24);
+        assert_eq!(
+            sp.errors,
+            vec![DynamixelErrorV1::Overheating, DynamixelErrorV1::Overload]
+        );
+    }
+
     #[test]
     fn check_error_on_wrong_id() {
         let bytes = vec![0xFF, 0xFF, 0x01, 0x03, 0x00, 0x20, 0xDB];

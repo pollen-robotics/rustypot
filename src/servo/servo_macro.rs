@@ -278,6 +278,45 @@ macro_rules! generate_addr_read_write {
                     dph.write(serial_port, id, addr, &data)
                 }
 
+                /// Same as [`read_raw_data`](Self::read_raw_data), plus the status
+                /// packet's error field. See [`$crate::DynamixelProtocolHandler::read_with_error`].
+                pub fn read_raw_data_with_error(
+                    &mut self,
+                    id: u8,
+                    addr: u8,
+                    length: u8,
+                ) -> $crate::Result<(Vec<u8>, $crate::StatusError)> {
+                    let dph = self.dph.as_ref().unwrap();
+                    let serial_port = self.serial_port.as_mut().unwrap().as_mut();
+                    dph.read_with_error(serial_port, id, addr, length)
+                }
+
+                /// Same as [`write_raw_data`](Self::write_raw_data), plus the status
+                /// packet's error field.
+                pub fn write_raw_data_with_error(
+                    &mut self,
+                    id: u8,
+                    addr: u8,
+                    data: Vec<u8>,
+                ) -> $crate::Result<$crate::StatusError> {
+                    let dph = self.dph.as_ref().unwrap();
+                    let serial_port = self.serial_port.as_mut().unwrap().as_mut();
+                    dph.write_with_error(serial_port, id, addr, &data)
+                }
+
+                /// Same as [`sync_read_raw_data`](Self::sync_read_raw_data), plus each
+                /// motor's error field.
+                pub fn sync_read_raw_data_with_error(
+                    &mut self,
+                    ids: &[u8],
+                    addr: u8,
+                    length: u8,
+                ) -> $crate::Result<Vec<(Vec<u8>, $crate::StatusError)>> {
+                    let dph = self.dph.as_ref().unwrap();
+                    let serial_port = self.serial_port.as_mut().unwrap().as_mut();
+                    dph.sync_read_with_error(serial_port, ids, addr, length)
+                }
+
                 pub fn sync_read_raw_data(
                     &mut self,
                     ids: &[u8],
@@ -345,6 +384,83 @@ macro_rules! generate_addr_read_write {
                         })
                         .map_err(pyo3::exceptions::PyRuntimeError::new_err)?;
                     Ok(())
+                }
+
+                /// Read raw bytes and the status packet's error field.
+                ///
+                /// The error is the raw byte. On protocol v1 it is a bitfield of motor
+                /// conditions; on v2, bits 0-6 are an instruction-error number and bit 7
+                /// is the alert flag.
+                pub fn read_raw_data_with_error(
+                    &self,
+                    py: Python,
+                    id: u8,
+                    addr: u8,
+                    length: u8,
+                ) -> PyResult<(Py<PyAny>, u8)> {
+                    let (x, err) = py
+                        .detach(|| {
+                            let mut guard = self.0.lock().unwrap();
+                            Self::borrow(&mut guard)?
+                                .read_raw_data_with_error(id, addr, length)
+                                .map_err(|e| e.to_string())
+                        })
+                        .map_err(pyo3::exceptions::PyRuntimeError::new_err)?;
+                    let l = pyo3::types::PyList::new(py, x)?;
+
+                    Ok((l.into(), err.byte()))
+                }
+
+                /// Sync read raw bytes and each motor's error field.
+                ///
+                /// Returns one (values, error) pair per id, in the order they were asked
+                /// for. See `read_raw_data_with_error` for how to read the byte.
+                pub fn sync_read_raw_data_with_error(
+                    &self,
+                    py: Python,
+                    ids: &Bound<'_, pyo3::types::PyList>,
+                    addr: u8,
+                    length: u8,
+                ) -> PyResult<Vec<(Py<PyAny>, u8)>> {
+                    let ids = ids.extract::<Vec<u8>>()?;
+
+                    let values = py
+                        .detach(|| {
+                            let mut guard = self.0.lock().unwrap();
+                            Self::borrow(&mut guard)?
+                                .sync_read_raw_data_with_error(&ids, addr, length)
+                                .map_err(|e| e.to_string())
+                        })
+                        .map_err(pyo3::exceptions::PyRuntimeError::new_err)?;
+
+                    values
+                        .into_iter()
+                        .map(|(x, err)| {
+                            let l = pyo3::types::PyList::new(py, x)?;
+                            Ok((l.into(), err.byte()))
+                        })
+                        .collect()
+                }
+
+                /// Write raw bytes and return the status packet's error field.
+                pub fn write_raw_data_with_error(
+                    &self,
+                    py: Python,
+                    id: u8,
+                    addr: u8,
+                    data: &Bound<'_, pyo3::types::PyList>,
+                ) -> PyResult<u8> {
+                    let data = data.extract::<Vec<u8>>()?;
+
+                    py
+                        .detach(|| {
+                            let mut guard = self.0.lock().unwrap();
+                            Self::borrow(&mut guard)?
+                                .write_raw_data_with_error(id, addr, data)
+                                .map_err(|e| e.to_string())
+                        })
+                        .map(|err| err.byte())
+                        .map_err(pyo3::exceptions::PyRuntimeError::new_err)
                 }
 
                 pub fn sync_read_raw_data(

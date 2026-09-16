@@ -35,6 +35,22 @@ impl V2 {
         let data = self.read_status_packet_bytes(port)?;
         parse_fast_sync_read_status(&data, ids, length)
     }
+
+    /// Same as [`V2::fast_sync_read`], and also returns each motor's error byte.
+    pub(crate) fn fast_sync_read_with_error(
+        &self,
+        port: &mut dyn SerialPort,
+        ids: &[u8],
+        addr: u8,
+        length: u8,
+    ) -> Result<Vec<(Vec<u8>, u8)>> {
+        self.send_instruction_packet(
+            port,
+            PacketV2::fast_sync_read_packet(ids, addr, length).as_ref(),
+        )?;
+        let data = self.read_status_packet_bytes(port)?;
+        parse_fast_sync_read_status_with_error(&data, ids, length)
+    }
 }
 
 impl PacketV2 {
@@ -79,6 +95,17 @@ impl PacketV2 {
 /// here. We do the same, but the per block CRC check above means a stuffed byte would
 /// be reported as a checksum error rather than silently shifting the data.
 fn parse_fast_sync_read_status(data: &[u8], ids: &[u8], length: u8) -> Result<Vec<Vec<u8>>> {
+    Ok(parse_fast_sync_read_status_with_error(data, ids, length)?
+        .into_iter()
+        .map(|(values, _)| values)
+        .collect())
+}
+
+fn parse_fast_sync_read_status_with_error(
+    data: &[u8],
+    ids: &[u8],
+    length: u8,
+) -> Result<Vec<(Vec<u8>, u8)>> {
     // Header + the 0x55 marking a status packet
     const BODY_START: usize = PacketV2::HEADER_SIZE + 1;
     // ERROR + ID + DATA + CRC16
@@ -111,7 +138,7 @@ fn parse_fast_sync_read_status(data: &[u8], ids: &[u8], length: u8) -> Result<Ve
             )));
         }
 
-        values.push(data[block + 2..crc_at].to_vec());
+        values.push((data[block + 2..crc_at].to_vec(), data[block]));
     }
 
     Ok(values)
@@ -345,6 +372,7 @@ impl InstructionPacket<PacketV2> for InstructionPacketV2 {
 struct StatusPacketV2 {
     id: u8,
     errors: Vec<DynamixelErrorV2>,
+    error_byte: u8,
     params: Vec<u8>,
 }
 
@@ -390,10 +418,16 @@ impl StatusPacket<PacketV2> for StatusPacketV2 {
         // inserts 0xFD after any FF FF FD, and the length field and CRC cover
         // the stuffed form — so de-stuff only now, after those checks.
         let body = remove_stuffing(&data[8..msg_length - 2]);
-        let errors = DynamixelErrorV2::from_byte(body[0]);
+        let error_byte = body[0];
+        let errors = DynamixelErrorV2::from_byte(error_byte);
         let params = body[1..].to_vec();
 
-        Ok(StatusPacketV2 { id, errors, params })
+        Ok(StatusPacketV2 {
+            id,
+            errors,
+            error_byte,
+            params,
+        })
     }
 
     fn id(&self) -> u8 {
@@ -402,6 +436,10 @@ impl StatusPacket<PacketV2> for StatusPacketV2 {
 
     fn errors(&self) -> &Vec<<PacketV2 as Packet>::ErrorKind> {
         &self.errors
+    }
+
+    fn error_byte(&self) -> u8 {
+        self.error_byte
     }
 
     fn params(&self) -> &Vec<u8> {
@@ -669,6 +707,22 @@ mod tests {
     }
 
     #[test]
+    fn parse_status_packet_keeps_error_byte() {
+        // Protocol 2.0 packs an instruction-error number in bits 0-6 and the alert
+        // flag in bit 7, so 0x83 is "alert set, error number 3" -- not a bitfield.
+        // Same frame as parse_status_packet, error byte 0x00 -> 0x83.
+        let mut bytes = vec![
+            0xFF, 0xFF, 0xFD, 0x00, 0x01, 0x08, 0x00, 0x55, 0x83, 0xA6, 0x00, 0x00, 0x00,
+        ];
+        bytes.extend(crc(&bytes).to_le_bytes());
+
+        let sp = StatusPacketV2::from_bytes(&bytes, 0x01).unwrap();
+        assert_eq!(sp.id, 1);
+        assert_eq!(sp.error_byte, 0x83);
+        assert_eq!(sp.params, [0xA6, 0x00, 0x00, 0x00]);
+    }
+
+    #[test]
     fn create_fast_sync_read_packet() {
         // Same bytes as a sync read, with instruction 0x82 -> 0x8A.
         let p = PacketV2::fast_sync_read_packet(&[1, 2], 132, 4);
@@ -698,6 +752,28 @@ mod tests {
         assert_eq!(values[0], [0xA6, 0x00, 0x00, 0x00]); // id 3: 166
         assert_eq!(values[1], [0x1F, 0x08, 0x00, 0x00]); // id 7: 2079
         assert_eq!(values[2], [0xFF, 0x03, 0x00, 0x00]); // id 4: 1023
+    }
+
+    #[test]
+    fn fast_sync_read_keeps_each_motor_error_byte() {
+        // Same frame, with a fault reported by the second motor only. Each block ends
+        // with the CRC of the packet up to that point, so touching a byte means
+        // recomputing that block's CRC and every one after it.
+        let mut data = FAST_SYNC_READ_STATUS;
+        for (error_at, error) in [(8, 0x00), (16, 0x80), (24, 0x00)] {
+            data[error_at] = error;
+        }
+        for crc_at in [14, 22, 30] {
+            let bytes = crc(&data[..crc_at]).to_le_bytes();
+            data[crc_at..crc_at + 2].copy_from_slice(&bytes);
+        }
+
+        let values = parse_fast_sync_read_status_with_error(&data, &[3, 7, 4], 4).unwrap();
+
+        assert_eq!(values.len(), 3);
+        assert_eq!(values[0], ([0xA6, 0x00, 0x00, 0x00].to_vec(), 0x00));
+        assert_eq!(values[1], ([0x1F, 0x08, 0x00, 0x00].to_vec(), 0x80));
+        assert_eq!(values[2], ([0xFF, 0x03, 0x00, 0x00].to_vec(), 0x00));
     }
 
     #[test]
