@@ -8,6 +8,18 @@
   byte-identical.
 - Document `sys.setswitchinterval` in the README: it caps how much GIL time a competing
   thread gets back, and its 5 ms default dominates a millisecond-scale bus transaction.
+- Surface the status packet's error field, which was parsed and then dropped, so a caller
+  can tell a healthy motor from one answering while it reports a fault. Adds
+  `read_with_error`, `write_with_error` and `sync_read_with_error` on the protocol handler
+  (sync read included, since a control loop polls there), the matching
+  `read_raw_data_with_error`, `write_raw_data_with_error` and
+  `sync_read_raw_data_with_error` on the controllers, and all three in Python.
+  `read`/`write`/`sync_read` are untouched.
+- Add `StatusError`, a newtype over that byte with the two protocol readings named:
+  `v1_conditions()` decodes the v1 bitfield, while `v2_instruction_error()` and
+  `v2_alert()` read the v2 layout, where bits 0-6 are an error *number* rather than
+  flags. `DynamixelErrorV1` is now public. Python receives the raw byte, as the vendor
+  SDKs do.
 
 ## Version 1.7.0
 

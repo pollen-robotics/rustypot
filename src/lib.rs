@@ -59,7 +59,9 @@
 pub mod servo;
 
 mod dynamixel_protocol;
-pub use dynamixel_protocol::{CommunicationErrorKind, DynamixelProtocolHandler};
+pub use dynamixel_protocol::{
+    CommunicationErrorKind, DynamixelErrorV1, DynamixelProtocolHandler, StatusError,
+};
 
 type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
 

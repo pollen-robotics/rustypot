@@ -56,6 +56,14 @@ pub trait StatusPacket<P: Packet> {
 
     fn id(&self) -> u8;
     fn errors(&self) -> &Vec<P::ErrorKind>;
+    /// The status packet's error field, unparsed.
+    ///
+    /// [`errors`](Self::errors) decodes it into protocol-specific variants; this hands
+    /// back the byte itself. It occupies the same position in both protocols, so it
+    /// survives the protocol-erased API and the Python bindings, but its layout is not
+    /// the same on the two -- see
+    /// [`read_with_error`](crate::DynamixelProtocolHandler::read_with_error).
+    fn error_byte(&self) -> u8;
     fn params(&self) -> &Vec<u8>;
 }
 
