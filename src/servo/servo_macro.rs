@@ -32,7 +32,46 @@ macro_rules! generate_servo {
             #[cfg(feature = "python")]
             #[gen_stub_pyclass]
             #[pyo3::pyclass(frozen)]
-            pub struct [<$servo_name:camel PyController>](std::sync::Mutex<[<$servo_name:camel Controller>]>);
+            pub struct [<$servo_name:camel PyController>](
+                std::sync::Mutex<Option<[<$servo_name:camel Controller>]>>,
+            );
+
+            #[cfg(feature = "python")]
+            impl [<$servo_name:camel PyController>] {
+                /// Borrow the controller, or report that it has been closed.
+                fn borrow(
+                    guard: &mut Option<[<$servo_name:camel Controller>]>,
+                ) -> PyResult<&mut [<$servo_name:camel Controller>]> {
+                    guard.as_mut().ok_or_else(|| {
+                        pyo3::exceptions::PyRuntimeError::new_err(
+                            "controller is closed: its serial port has been released",
+                        )
+                    })
+                }
+            }
+
+            #[cfg(feature = "python")]
+            #[gen_stub_pymethods]
+            #[pymethods]
+            impl [<$servo_name:camel PyController>] {
+                /// Release the serial port.
+                ///
+                /// Dropping the controller does this too, but a caller that needs the port
+                /// freed at a known point -- to reopen it at another baudrate, or to hand it
+                /// to another process -- cannot rely on when that happens. In Python an
+                /// exception traceback can keep the object alive long past the last reference
+                /// a caller knows about, and the next open then fails with 'port is in use'.
+                ///
+                /// Every later operation raises `RuntimeError`. Calling it twice is harmless.
+                pub fn close(&self) {
+                    *self.0.lock().unwrap() = None;
+                }
+
+                /// Whether the controller still holds its serial port.
+                pub fn is_open(&self) -> bool {
+                    self.0.lock().unwrap().is_some()
+                }
+            }
         }
 
         #[cfg(feature = "python")]
@@ -103,7 +142,7 @@ macro_rules! generate_protocol_constructor {
                         .with_serial_port(serial_port)
                         .with_protocol_v1();
 
-                    Ok(Self(std::sync::Mutex::new(c)))
+                    Ok(Self(std::sync::Mutex::new(Some(c))))
                 }
             }
         }
@@ -147,8 +186,10 @@ macro_rules! generate_protocol_constructor {
             #[pymethods]
             impl [<$servo_name:camel PyController>] {
                 /// Turn the fast sync read routing of the `sync_read_*` methods on or off.
-                pub fn set_fast_sync_read(&self, enabled: bool) {
-                    self.0.lock().unwrap().set_fast_sync_read(enabled);
+                pub fn set_fast_sync_read(&self, enabled: bool) -> PyResult<()> {
+                    let mut guard = self.0.lock().unwrap();
+                    Self::borrow(&mut guard)?.set_fast_sync_read(enabled);
+                    Ok(())
                 }
             }
 
@@ -167,7 +208,7 @@ macro_rules! generate_protocol_constructor {
                         .with_serial_port(serial_port)
                         .with_protocol_v2();
 
-                    Ok(Self(std::sync::Mutex::new(c)))
+                    Ok(Self(std::sync::Mutex::new(Some(c))))
                 }
             }
         }
@@ -270,7 +311,8 @@ macro_rules! generate_addr_read_write {
                 ) -> PyResult<Py<PyAny>> {
 
 
-                    let x = self.0.lock().unwrap().read_raw_data(id, addr, length)
+                    let mut guard = self.0.lock().unwrap();
+                    let x = Self::borrow(&mut guard)?.read_raw_data(id, addr, length)
                         .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
                     let l = pyo3::types::PyList::new(py, x.clone())?;
 
@@ -285,7 +327,8 @@ macro_rules! generate_addr_read_write {
                 ) -> PyResult<()> {
                     let data = data.extract::<Vec<u8>>()?;
 
-                    self.0.lock().unwrap().write_raw_data(id, addr, data)
+                    let mut guard = self.0.lock().unwrap();
+                    Self::borrow(&mut guard)?.write_raw_data(id, addr, data)
                         .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
                     Ok(())
                 }
@@ -299,7 +342,8 @@ macro_rules! generate_addr_read_write {
                 ) -> PyResult<Py<PyAny>> {
                     let ids = ids.extract::<Vec<u8>>()?;
 
-                    let x = self.0.lock().unwrap().sync_read_raw_data(&ids, addr, length)
+                    let mut guard = self.0.lock().unwrap();
+                    let x = Self::borrow(&mut guard)?.sync_read_raw_data(&ids, addr, length)
                         .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
                     let l = pyo3::types::PyList::new(py, x.clone())?;
 
@@ -315,18 +359,21 @@ macro_rules! generate_addr_read_write {
                     let ids = ids.extract::<Vec<u8>>()?;
                     let data = data.extract::<Vec<Vec<u8>>>()?;
 
-                    self.0.lock().unwrap().sync_write_raw_data(&ids, addr, &data)
+                    let mut guard = self.0.lock().unwrap();
+                    Self::borrow(&mut guard)?.sync_write_raw_data(&ids, addr, &data)
                         .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
                     Ok(())
                 }
 
                 pub fn ping(&self, id: u8) -> PyResult<bool> {
-                    self.0.lock().unwrap().ping(id)
+                    let mut guard = self.0.lock().unwrap();
+                    Self::borrow(&mut guard)?.ping(id)
                         .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))
                 }
 
                 pub fn reboot(&self, id: u8) -> PyResult<bool> {
-                    self.0.lock().unwrap().reboot(id)
+                    let mut guard = self.0.lock().unwrap();
+                    Self::borrow(&mut guard)?.reboot(id)
                         .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))
                 }
 
@@ -341,7 +388,8 @@ macro_rules! generate_addr_read_write {
                     conserve_id_only: bool,
                     conserve_id_and_baudrate: bool,
                 ) -> PyResult<()> {
-                    self.0.lock().unwrap().factory_reset(id, conserve_id_only, conserve_id_and_baudrate)
+                    let mut guard = self.0.lock().unwrap();
+                    Self::borrow(&mut guard)?.factory_reset(id, conserve_id_only, conserve_id_and_baudrate)
                         .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))
                 }
             }
@@ -454,7 +502,8 @@ macro_rules! generate_reg_read {
                 ) -> PyResult<Py<PyAny>> {
                     let ids = ids.extract::<Vec<u8>>()?;
 
-                    let x = self.0.lock().unwrap().[<sync_read_ $reg_name>](&ids)
+                    let mut guard = self.0.lock().unwrap();
+                    let x = Self::borrow(&mut guard)?.[<sync_read_ $reg_name>](&ids)
                         .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
                     let l = pyo3::types::PyList::new(py, x.clone())?;
 
@@ -474,7 +523,8 @@ macro_rules! generate_reg_read {
                     id: u8,
                 ) -> PyResult<Py<PyAny>> {
 
-                    let x = self.0.lock().unwrap().[<read_ $reg_name>](id)
+                    let mut guard = self.0.lock().unwrap();
+                    let x = Self::borrow(&mut guard)?.[<read_ $reg_name>](id)
                         .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
                     let l = pyo3::types::PyList::new(py, x.clone())?;
 
@@ -613,7 +663,8 @@ macro_rules! generate_reg_read {
                 ) -> PyResult<Py<PyAny>> {
                     let ids = ids.extract::<Vec<u8>>()?;
 
-                    let x = self.0.lock().unwrap().[<sync_read_raw_ $reg_name>](&ids)
+                    let mut guard = self.0.lock().unwrap();
+                    let x = Self::borrow(&mut guard)?.[<sync_read_raw_ $reg_name>](&ids)
                         .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
                     let l = pyo3::types::PyList::new(py, x.clone())?;
                     Ok(l.into())
@@ -627,7 +678,8 @@ macro_rules! generate_reg_read {
                 ) -> PyResult<Py<PyAny>> {
                     let ids = ids.extract::<Vec<u8>>()?;
 
-                    let x = self.0.lock().unwrap().[<sync_read_ $reg_name>](&ids)
+                    let mut guard = self.0.lock().unwrap();
+                    let x = Self::borrow(&mut guard)?.[<sync_read_ $reg_name>](&ids)
                         .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
                     let l = pyo3::types::PyList::new(py, x.clone())?;
                     Ok(l.into())
@@ -641,7 +693,8 @@ macro_rules! generate_reg_read {
                 ) -> PyResult<Py<PyAny>> {
 
 
-                    let x = self.0.lock().unwrap().[<read_raw_ $reg_name>](id)
+                    let mut guard = self.0.lock().unwrap();
+                    let x = Self::borrow(&mut guard)?.[<read_raw_ $reg_name>](id)
                         .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
                     let l = pyo3::types::PyList::new(py, x.clone())?;
                     Ok(l.into())
@@ -655,7 +708,8 @@ macro_rules! generate_reg_read {
                 ) -> PyResult<Py<PyAny>> {
 
 
-                    let x = self.0.lock().unwrap().[<read_ $reg_name>](id)
+                    let mut guard = self.0.lock().unwrap();
+                    let x = Self::borrow(&mut guard)?.[<read_ $reg_name>](id)
                         .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
                     let l = pyo3::types::PyList::new(py, x.clone())?;
                     Ok(l.into())
@@ -743,7 +797,8 @@ macro_rules! generate_reg_write {
                     let ids = ids.extract::<Vec<u8>>()?;
                     let values = values.extract::<Vec<$reg_type>>()?;
 
-                    self.0.lock().unwrap().[<sync_write_ $reg_name>](&ids, &values).map_err(|e| {
+                    let mut guard = self.0.lock().unwrap();
+                    Self::borrow(&mut guard)?.[<sync_write_ $reg_name>](&ids, &values).map_err(|e| {
                         pyo3::exceptions::PyRuntimeError::new_err(e.to_string())
                     })
                 }
@@ -755,7 +810,8 @@ macro_rules! generate_reg_write {
                     value: $reg_type,
                 ) -> PyResult<()> {
 
-                    self.0.lock().unwrap().[<write_ $reg_name>](id, value).map_err(|e| {
+                    let mut guard = self.0.lock().unwrap();
+                    Self::borrow(&mut guard)?.[<write_ $reg_name>](id, value).map_err(|e| {
                         pyo3::exceptions::PyRuntimeError::new_err(e.to_string())
                     })
                 }
@@ -892,7 +948,8 @@ macro_rules! generate_reg_write {
                     let ids = ids.extract::<Vec<u8>>()?;
                     let values = values.extract::<Vec<$reg_type>>()?;
 
-                    self.0.lock().unwrap().[<sync_write_raw_ $reg_name>](&ids, &values).map_err(|e| {
+                    let mut guard = self.0.lock().unwrap();
+                    Self::borrow(&mut guard)?.[<sync_write_raw_ $reg_name>](&ids, &values).map_err(|e| {
                         pyo3::exceptions::PyRuntimeError::new_err(e.to_string())
                     })
                 }
@@ -906,7 +963,8 @@ macro_rules! generate_reg_write {
                     let ids = ids.extract::<Vec<u8>>()?;
                     let values = values.extract::<Vec<<$conv as Conversion>::UsiType>>()?;
 
-                    self.0.lock().unwrap().[<sync_write_ $reg_name>](&ids, &values).map_err(|e| {
+                    let mut guard = self.0.lock().unwrap();
+                    Self::borrow(&mut guard)?.[<sync_write_ $reg_name>](&ids, &values).map_err(|e| {
                         pyo3::exceptions::PyRuntimeError::new_err(e.to_string())
                     })
                 }
@@ -919,7 +977,8 @@ macro_rules! generate_reg_write {
                     value: $reg_type,
                 ) -> PyResult<()> {
 
-                    self.0.lock().unwrap().[<write_raw_ $reg_name>](id, value).map_err(|e| {
+                    let mut guard = self.0.lock().unwrap();
+                    Self::borrow(&mut guard)?.[<write_raw_ $reg_name>](id, value).map_err(|e| {
                         pyo3::exceptions::PyRuntimeError::new_err(e.to_string())
                     })
                 }
@@ -931,7 +990,8 @@ macro_rules! generate_reg_write {
                     value: <$conv as Conversion>::UsiType,
                 ) -> PyResult<()> {
 
-                    self.0.lock().unwrap().[<write_ $reg_name>](id, value).map_err(|e| {
+                    let mut guard = self.0.lock().unwrap();
+                    Self::borrow(&mut guard)?.[<write_ $reg_name>](id, value).map_err(|e| {
                         pyo3::exceptions::PyRuntimeError::new_err(e.to_string())
                     })
                 }
