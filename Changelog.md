@@ -1,12 +1,20 @@
-## Unreleased
+## Version 1.8.0
 
-- Fix `with_post_delay` being ignored by `sync_read`, `fast_sync_read` and `sync_write`.
-  The delay is documented as applying after each communication, but only `read`, `write`
-  and `write_fb` ever slept it, so a control loop polling with `sync_read` -- the common
-  case on hardware that needs the gap -- ran without one. Every transaction now sleeps
-  it, including one that failed, which is when an immediate retry would otherwise close
-  the gap; `write` and `write_with_error` previously skipped it on error and no longer
-  do.
+- Expose each servo's control table: every servo module now has `REGISTERS: &[RegisterInfo]`
+  and `register(name)`, giving each register's name, address, size and access (read, write
+  or read-write). Code that picks a register at runtime no longer has to hand maintain a
+  name to accessor match. `RegisterInfo` is `#[non_exhaustive]`.
+- Add the `indirect_addressing` example, which points a block of indirect address slots at
+  scattered registers so they can be read as one contiguous block, and compares it against
+  one read per register and one wide read spanning the gaps. Registers are named on the
+  command line and resolved through `REGISTERS`.
+- Fix the documentation generated for the per-register accessors: a register with a
+  conversion documented only its raw accessor, one without rendered the literal
+  placeholder `Read register $name (addr: $addr, ...)`, and raw and converted labels were
+  swapped on several controller and Python methods.
+- Python: add `close()` and `is_open()` on the controllers, so the serial port is released
+  at a known point instead of whenever the object happens to be dropped. Methods called on
+  a closed controller raise `RuntimeError`.
 - Python: release the GIL for the duration of every serial transaction. Other Python
   threads now keep running while the bus is busy, instead of being blocked for the whole
   read or write. Covers the raw-address bindings and every generated per-register
@@ -27,6 +35,13 @@
   `v2_alert()` read the v2 layout, where bits 0-6 are an error *number* rather than
   flags. `DynamixelErrorV1` is now public. Python receives the raw byte, as the vendor
   SDKs do.
+- Fix `with_post_delay` being ignored by `sync_read`, `fast_sync_read` and `sync_write`.
+  The delay is documented as applying after each communication, but only `read`, `write`
+  and `write_fb` ever slept it, so a control loop polling with `sync_read` -- the common
+  case on hardware that needs the gap -- ran without one. Every transaction now sleeps
+  it, including one that failed, which is when an immediate retry would otherwise close
+  the gap; `write` and `write_with_error` previously skipped it on error and no longer
+  do.
 
 ## Version 1.7.0
 
