@@ -88,6 +88,17 @@ impl DynamixelProtocolHandler {
         }
     }
 
+    /// Sleep the configured post delay, if there is one.
+    ///
+    /// Called after every bus transaction, whether or not it succeeded: the delay is
+    /// there to leave a gap on the wire, and a transaction that timed out has used the
+    /// bus just the same -- an immediate retry is exactly the case it guards against.
+    fn sleep_post_delay(&self) {
+        if let Some(delay) = self.post_delay {
+            std::thread::sleep(delay);
+        }
+    }
+
     /// Make [DynamixelProtocolHandler::sync_read] use Fast Sync Read.
     ///
     /// Protocol v2 only, and needs firmware accepting instruction 0x8A (XL330: v46+).
@@ -227,9 +238,7 @@ impl DynamixelProtocolHandler {
             ProtocolKind::V1(p) => p.read(serial_port, id, addr, length),
             ProtocolKind::V2(p, _) => p.read(serial_port, id, addr, length),
         };
-        if let Some(delay) = self.post_delay {
-            std::thread::sleep(delay);
-        }
+        self.sleep_post_delay();
         res
     }
 
@@ -269,14 +278,12 @@ impl DynamixelProtocolHandler {
         addr: u8,
         data: &[u8],
     ) -> Result<()> {
-        match &self.protocol {
+        let res = match &self.protocol {
             ProtocolKind::V1(p) => p.write(serial_port, id, addr, data),
             ProtocolKind::V2(p, _) => p.write(serial_port, id, addr, data),
-        }?;
-        if let Some(delay) = self.post_delay {
-            std::thread::sleep(delay);
-        }
-        Ok(())
+        };
+        self.sleep_post_delay();
+        res
     }
 
     /// Same as [DynamixelProtocolHandler::read], and also returns the status packet's
@@ -308,9 +315,7 @@ impl DynamixelProtocolHandler {
             ProtocolKind::V2(p, _) => p.read_with_error(serial_port, id, addr, length),
         }
         .map(|(values, e)| (values, StatusError::new(e)));
-        if let Some(delay) = self.post_delay {
-            std::thread::sleep(delay);
-        }
+        self.sleep_post_delay();
         res
     }
 
@@ -323,15 +328,13 @@ impl DynamixelProtocolHandler {
         addr: u8,
         data: &[u8],
     ) -> Result<StatusError> {
-        let err = match &self.protocol {
+        let res = match &self.protocol {
             ProtocolKind::V1(p) => p.write_with_error(serial_port, id, addr, data),
             ProtocolKind::V2(p, _) => p.write_with_error(serial_port, id, addr, data),
         }
-        .map(StatusError::new)?;
-        if let Some(delay) = self.post_delay {
-            std::thread::sleep(delay);
-        }
-        Ok(err)
+        .map(StatusError::new);
+        self.sleep_post_delay();
+        res
     }
 
     pub fn write_fb(
@@ -344,9 +347,7 @@ impl DynamixelProtocolHandler {
         match &self.protocol {
             ProtocolKind::V1(p) => {
                 let res = p.write_fb(serial_port, id, addr, data);
-                if let Some(delay) = self.post_delay {
-                    std::thread::sleep(delay);
-                }
+                self.sleep_post_delay();
                 res
             }
             ProtocolKind::V2(..) => Err(Box::new(CommunicationErrorKind::Unsupported)),
@@ -397,11 +398,13 @@ impl DynamixelProtocolHandler {
         addr: u8,
         length: u8,
     ) -> Result<Vec<Vec<u8>>> {
-        match &self.protocol {
+        let res = match &self.protocol {
             ProtocolKind::V1(p) => p.sync_read(serial_port, ids, addr, length),
             ProtocolKind::V2(p, false) => p.sync_read(serial_port, ids, addr, length),
             ProtocolKind::V2(p, true) => p.fast_sync_read(serial_port, ids, addr, length),
-        }
+        };
+        self.sleep_post_delay();
+        res
     }
 
     /// Same as [DynamixelProtocolHandler::sync_read], and also returns each motor's
@@ -425,9 +428,7 @@ impl DynamixelProtocolHandler {
                 p.fast_sync_read_with_error(serial_port, ids, addr, length)
             }
         };
-        if let Some(delay) = self.post_delay {
-            std::thread::sleep(delay);
-        }
+        self.sleep_post_delay();
         Ok(res?
             .into_iter()
             .map(|(values, e)| (values, StatusError::new(e)))
@@ -478,9 +479,15 @@ impl DynamixelProtocolHandler {
         addr: u8,
         length: u8,
     ) -> Result<Vec<Vec<u8>>> {
+        // The v1 arm never reaches the bus, so it has no gap to leave -- same shape as
+        // write_fb.
         match &self.protocol {
             ProtocolKind::V1(_) => Err(Box::new(CommunicationErrorKind::Unsupported)),
-            ProtocolKind::V2(p, _) => p.fast_sync_read(serial_port, ids, addr, length),
+            ProtocolKind::V2(p, _) => {
+                let res = p.fast_sync_read(serial_port, ids, addr, length);
+                self.sleep_post_delay();
+                res
+            }
         }
     }
 
@@ -522,10 +529,12 @@ impl DynamixelProtocolHandler {
         addr: u8,
         data: &[Vec<u8>],
     ) -> Result<()> {
-        match &self.protocol {
+        let res = match &self.protocol {
             ProtocolKind::V1(p) => p.sync_write(serial_port, ids, addr, data),
             ProtocolKind::V2(p, _) => p.sync_write(serial_port, ids, addr, data),
-        }
+        };
+        self.sleep_post_delay();
+        res
     }
 }
 
@@ -831,6 +840,8 @@ impl std::error::Error for CommunicationErrorKind {}
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::io;
+    use std::time::Instant;
 
     #[test]
     fn status_error_reads_v1_as_a_bitfield() {
@@ -863,5 +874,185 @@ mod tests {
         assert!(e.v1_conditions().is_empty());
         assert_eq!(e.v2_instruction_error(), 0);
         assert!(!e.v2_alert());
+    }
+
+    /// A serial port that replays canned bytes and throws away what is written.
+    ///
+    /// `bytes_to_read` always answers 0, so the pre-send flush never eats the queued
+    /// response. Everything the protocol does not call is left unimplemented.
+    struct FakePort {
+        to_read: io::Cursor<Vec<u8>>,
+    }
+
+    impl FakePort {
+        fn new(to_read: Vec<u8>) -> Self {
+            FakePort {
+                to_read: io::Cursor::new(to_read),
+            }
+        }
+    }
+
+    impl io::Read for FakePort {
+        fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
+            self.to_read.read(buf)
+        }
+    }
+
+    impl io::Write for FakePort {
+        fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
+            Ok(buf.len())
+        }
+        fn flush(&mut self) -> io::Result<()> {
+            Ok(())
+        }
+    }
+
+    impl serialport::SerialPort for FakePort {
+        fn bytes_to_read(&self) -> serialport::Result<u32> {
+            Ok(0)
+        }
+        fn timeout(&self) -> Duration {
+            Duration::from_millis(10)
+        }
+
+        fn name(&self) -> Option<String> {
+            None
+        }
+        fn baud_rate(&self) -> serialport::Result<u32> {
+            unimplemented!()
+        }
+        fn data_bits(&self) -> serialport::Result<serialport::DataBits> {
+            unimplemented!()
+        }
+        fn flow_control(&self) -> serialport::Result<serialport::FlowControl> {
+            unimplemented!()
+        }
+        fn parity(&self) -> serialport::Result<serialport::Parity> {
+            unimplemented!()
+        }
+        fn stop_bits(&self) -> serialport::Result<serialport::StopBits> {
+            unimplemented!()
+        }
+        fn set_baud_rate(&mut self, _: u32) -> serialport::Result<()> {
+            unimplemented!()
+        }
+        fn set_data_bits(&mut self, _: serialport::DataBits) -> serialport::Result<()> {
+            unimplemented!()
+        }
+        fn set_flow_control(&mut self, _: serialport::FlowControl) -> serialport::Result<()> {
+            unimplemented!()
+        }
+        fn set_parity(&mut self, _: serialport::Parity) -> serialport::Result<()> {
+            unimplemented!()
+        }
+        fn set_stop_bits(&mut self, _: serialport::StopBits) -> serialport::Result<()> {
+            unimplemented!()
+        }
+        fn set_timeout(&mut self, _: Duration) -> serialport::Result<()> {
+            unimplemented!()
+        }
+        fn write_request_to_send(&mut self, _: bool) -> serialport::Result<()> {
+            unimplemented!()
+        }
+        fn write_data_terminal_ready(&mut self, _: bool) -> serialport::Result<()> {
+            unimplemented!()
+        }
+        fn read_clear_to_send(&mut self) -> serialport::Result<bool> {
+            unimplemented!()
+        }
+        fn read_data_set_ready(&mut self) -> serialport::Result<bool> {
+            unimplemented!()
+        }
+        fn read_ring_indicator(&mut self) -> serialport::Result<bool> {
+            unimplemented!()
+        }
+        fn read_carrier_detect(&mut self) -> serialport::Result<bool> {
+            unimplemented!()
+        }
+        fn bytes_to_write(&self) -> serialport::Result<u32> {
+            unimplemented!()
+        }
+        fn clear(&self, _: serialport::ClearBuffer) -> serialport::Result<()> {
+            unimplemented!()
+        }
+        fn try_clone(&self) -> serialport::Result<Box<dyn serialport::SerialPort>> {
+            unimplemented!()
+        }
+        fn set_break(&self) -> serialport::Result<()> {
+            unimplemented!()
+        }
+        fn clear_break(&self) -> serialport::Result<()> {
+            unimplemented!()
+        }
+    }
+
+    const POST_DELAY: Duration = Duration::from_millis(20);
+
+    /// One v1 status packet per motor, each carrying the single byte 0x20.
+    /// Checksum is !(id + length + error + params), e.g. !(0x0A + 0x03 + 0x20) = 0xD2.
+    const SYNC_READ_RESPONSE: [u8; 21] = [
+        0xFF, 0xFF, 0x0A, 0x03, 0x00, 0x20, 0xD2, // id 10
+        0xFF, 0xFF, 0x0B, 0x03, 0x00, 0x20, 0xD1, // id 11
+        0xFF, 0xFF, 0x0C, 0x03, 0x00, 0x20, 0xD0, // id 12
+    ];
+
+    #[test]
+    fn sync_read_honours_the_post_delay() {
+        let dph = DynamixelProtocolHandler::v1().with_post_delay(POST_DELAY);
+        let mut port = FakePort::new(SYNC_READ_RESPONSE.to_vec());
+
+        let start = Instant::now();
+        let values = dph.sync_read(&mut port, &[10, 11, 12], 43, 1).unwrap();
+        let elapsed = start.elapsed();
+
+        assert_eq!(values, vec![vec![0x20], vec![0x20], vec![0x20]]);
+        assert!(
+            elapsed >= POST_DELAY,
+            "sync_read returned after {elapsed:?}, before the {POST_DELAY:?} post delay"
+        );
+    }
+
+    #[test]
+    fn sync_write_honours_the_post_delay() {
+        let dph = DynamixelProtocolHandler::v1().with_post_delay(POST_DELAY);
+        let mut port = FakePort::new(Vec::new());
+
+        let start = Instant::now();
+        dph.sync_write(&mut port, &[40, 41], 25, &[vec![0], vec![1]])
+            .unwrap();
+        let elapsed = start.elapsed();
+
+        assert!(
+            elapsed >= POST_DELAY,
+            "sync_write returned after {elapsed:?}, before the {POST_DELAY:?} post delay"
+        );
+    }
+
+    #[test]
+    fn a_failed_transaction_still_honours_the_post_delay() {
+        // The port answers nothing, so the read times out. The bus was used all the
+        // same, and an immediate retry is what the delay exists to space out.
+        let dph = DynamixelProtocolHandler::v1().with_post_delay(POST_DELAY);
+        let mut port = FakePort::new(Vec::new());
+
+        let start = Instant::now();
+        assert!(dph.sync_read(&mut port, &[10], 43, 1).is_err());
+        let elapsed = start.elapsed();
+
+        assert!(
+            elapsed >= POST_DELAY,
+            "sync_read returned after {elapsed:?}, before the {POST_DELAY:?} post delay"
+        );
+    }
+
+    #[test]
+    fn no_post_delay_configured_means_no_sleep() {
+        let dph = DynamixelProtocolHandler::v1();
+        let mut port = FakePort::new(SYNC_READ_RESPONSE.to_vec());
+
+        let start = Instant::now();
+        dph.sync_read(&mut port, &[10, 11, 12], 43, 1).unwrap();
+
+        assert!(start.elapsed() < POST_DELAY);
     }
 }

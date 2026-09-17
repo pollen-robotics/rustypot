@@ -1,5 +1,12 @@
 ## Unreleased
 
+- Fix `with_post_delay` being ignored by `sync_read`, `fast_sync_read` and `sync_write`.
+  The delay is documented as applying after each communication, but only `read`, `write`
+  and `write_fb` ever slept it, so a control loop polling with `sync_read` -- the common
+  case on hardware that needs the gap -- ran without one. Every transaction now sleeps
+  it, including one that failed, which is when an immediate retry would otherwise close
+  the gap; `write` and `write_with_error` previously skipped it on error and no longer
+  do.
 - Python: release the GIL for the duration of every serial transaction. Other Python
   threads now keep running while the bus is busy, instead of being blocked for the whole
   read or write. Covers the raw-address bindings and every generated per-register
