@@ -1,3 +1,14 @@
+## Unreleased
+
+- Python: release the GIL for the duration of every serial transaction. Other Python
+  threads now keep running while the bus is busy, instead of being blocked for the whole
+  read or write. Covers the raw-address bindings and every generated per-register
+  accessor (`read_*`, `sync_read_*`, `write_*`, `sync_write_*`), plus `ping`, `reboot`
+  and `factory_reset`. The Python API is unchanged -- the generated `rustypot.pyi` is
+  byte-identical.
+- Document `sys.setswitchinterval` in the README: it caps how much GIL time a competing
+  thread gets back, and its 5 ms default dominates a millisecond-scale bus transaction.
+
 ## Version 1.7.0
 
 - Add fast sync read (protocol v2 instruction 0x8A): every motor appends its answer to a

@@ -166,6 +166,24 @@ import numpy as np
 c.sync_write_goal_position([1, 2], [0.0, np.deg2rad(90.0)])
 ```
 
+### Threading and the GIL
+
+Every binding releases the GIL for the duration of the serial transaction, so other
+Python threads -- a camera loop, a policy -- keep running while the bus is busy.
+
+How much they actually get back depends on `sys.setswitchinterval`, which is 5 ms by
+default. That is the delay a thread waits before it can take the GIL from another, and
+on a bus transaction of a millisecond or two it dominates. Lowering it is worth testing
+in any threaded control loop:
+
+```python
+import sys
+sys.setswitchinterval(0.001)  # default is 0.005
+```
+
+On one six-motor chain at 1 Mbaud, with a second Python thread competing, this moved the
+bus from 126 Hz to 340 Hz without taking GIL time away from the other thread. The right
+value is workload-specific, so measure it rather than copying this one.
 
 ## Contributing
 
