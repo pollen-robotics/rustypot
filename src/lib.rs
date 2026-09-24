@@ -76,6 +76,8 @@ fn rustypot(m: &Bound<'_, PyModule>) -> PyResult<()> {
     pyo3_log::init();
 
     servo::register_class(m)?;
+    m.add_class::<servo::RegisterInfo>()?;
+    m.add_class::<servo::RegisterAccess>()?;
 
     Ok(())
 }

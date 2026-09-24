@@ -1,3 +1,12 @@
+## Unreleased
+
+- Python: expose each servo's control table. Every controller class gets two static
+  methods, `registers()` and `register(name)`, so a register name can be resolved to its
+  address and size from Python without opening a serial port. The Rust side already had
+  `REGISTERS` and `register()`; the Python side was left to copy the table by hand. Entries
+  are `RegisterInfo` values (`name`, `addr`, `size`, `access`) and `access` is a
+  `RegisterAccess` enum (`Read`, `Write`, `ReadWrite`); both types are new in the module.
+
 ## Version 1.8.0
 
 - Expose each servo's control table: every servo module now has `REGISTERS: &[RegisterInfo]`
