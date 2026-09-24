@@ -1,3 +1,10 @@
+## Unreleased
+
+- Feetech STS3215: `maximum_acceleration` (address 85) is one byte, not two, and
+  `acceleration_multiplier` is added at 86. The two-byte size was inherited from an early
+  LeRobot table that marked the register as not in the memory table; Feetech's memory
+  table has two one-byte registers there, so a two-byte write clobbered the multiplier.
+
 ## Version 1.8.0
 
 - Expose each servo's control table: every servo module now has `REGISTERS: &[RegisterInfo]`
