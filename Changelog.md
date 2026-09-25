@@ -1,4 +1,4 @@
-## Unreleased
+## Version 1.9.0
 
 - Feetech STS3215: `maximum_acceleration` (address 85) is one byte, not two, and
   `acceleration_multiplier` is added at 86. The two-byte size was inherited from an early
