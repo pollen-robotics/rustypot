@@ -758,6 +758,31 @@ macro_rules! generate_register_access {
                     }
                     self.sync_write_raw_data(ids, reg.addr, &data)
                 }
+
+                /// Run `op`, and run it again up to `retries` more times while it fails
+                /// on the bus.
+                ///
+                /// A timeout or a corrupted status packet is worth another try, and each
+                /// attempt starts with the pre-send flush. A bad name or value is not: it
+                /// fails at once, before anything reaches the bus. A motor that answers
+                /// with a fault did answer, so the `_with_error` variants hand its error
+                /// field back rather than retry. For instance,
+                /// `c.with_retries(3, |c| c.read_register(1, "present_position"))`.
+                pub fn with_retries<T>(
+                    &mut self,
+                    retries: u32,
+                    mut op: impl FnMut(&mut Self) -> $crate::Result<T>,
+                ) -> $crate::Result<T> {
+                    let mut attempt = 0;
+                    loop {
+                        match op(self) {
+                            Err(e) if attempt < retries && !e.is::<$crate::servo::RegisterError>() => {
+                                attempt += 1
+                            }
+                            result => return result,
+                        }
+                    }
+                }
             }
 
             #[cfg(feature = "python")]
@@ -790,71 +815,104 @@ macro_rules! generate_register_access {
             #[pymethods]
             impl [<$servo_name:camel PyController>] {
                 /// Read register `name` as an integer, decoded from the servo's word
-                /// order and the register's sign encoding.
-                pub fn read_register(&self, py: Python, id: u8, name: String) -> PyResult<i64> {
-                    self.by_name(py, |c| c.read_register(id, &name))
+                /// order and the register's sign encoding. A bus failure is tried again
+                /// up to `retries` more times; a bad name never is.
+                #[pyo3(signature = (id, name, retries = 0))]
+                pub fn read_register(&self, py: Python, id: u8, name: String, retries: u32) -> PyResult<i64> {
+                    self.by_name(py, |c| c.with_retries(retries, |c| c.read_register(id, &name)))
                 }
 
                 /// Same as `read_register`, plus the status packet's error field. See
-                /// `read_raw_data_with_error` for how to read the byte.
+                /// `read_raw_data_with_error` for how to read the byte. A motor that
+                /// answers with a fault is not tried again.
+                #[pyo3(signature = (id, name, retries = 0))]
                 pub fn read_register_with_error(
                     &self,
                     py: Python,
                     id: u8,
                     name: String,
+                    retries: u32,
                 ) -> PyResult<(i64, u8)> {
-                    self.by_name(py, |c| c.read_register_with_error(id, &name))
+                    self.by_name(py, |c| c.with_retries(retries, |c| c.read_register_with_error(id, &name)))
                         .map(|(value, error)| (value, error.byte()))
                 }
 
                 /// Write `value` to register `name`, laid out in the servo's word order
                 /// and the register's sign encoding. A value that does not fit the
                 /// register, or a name the servo does not define, raises `ValueError`
-                /// before anything reaches the bus.
-                pub fn write_register(&self, py: Python, id: u8, name: String, value: i64) -> PyResult<()> {
-                    self.by_name(py, |c| c.write_register(id, &name, value))
+                /// before anything reaches the bus. A bus failure is tried again up to
+                /// `retries` more times.
+                #[pyo3(signature = (id, name, value, retries = 0))]
+                pub fn write_register(
+                    &self,
+                    py: Python,
+                    id: u8,
+                    name: String,
+                    value: i64,
+                    retries: u32,
+                ) -> PyResult<()> {
+                    self.by_name(py, |c| c.with_retries(retries, |c| c.write_register(id, &name, value)))
                 }
 
                 /// Same as `write_register`, and return the status packet's error field.
+                #[pyo3(signature = (id, name, value, retries = 0))]
                 pub fn write_register_with_error(
                     &self,
                     py: Python,
                     id: u8,
                     name: String,
                     value: i64,
+                    retries: u32,
                 ) -> PyResult<u8> {
-                    self.by_name(py, |c| c.write_register_with_error(id, &name, value))
-                        .map(|error| error.byte())
+                    self.by_name(py, |c| {
+                        c.with_retries(retries, |c| c.write_register_with_error(id, &name, value))
+                    })
+                    .map(|error| error.byte())
                 }
 
                 /// Sync read register `name` from `ids`, each value decoded like
-                /// `read_register`.
-                pub fn sync_read_register(&self, py: Python, ids: Vec<u8>, name: String) -> PyResult<Vec<i64>> {
-                    self.by_name(py, |c| c.sync_read_register(&ids, &name))
+                /// `read_register`, with the same `retries`.
+                #[pyo3(signature = (ids, name, retries = 0))]
+                pub fn sync_read_register(
+                    &self,
+                    py: Python,
+                    ids: Vec<u8>,
+                    name: String,
+                    retries: u32,
+                ) -> PyResult<Vec<i64>> {
+                    self.by_name(py, |c| c.with_retries(retries, |c| c.sync_read_register(&ids, &name)))
                 }
 
                 /// Same as `sync_read_register`, plus each motor's error field, as one
                 /// (value, error) pair per id in the order they were asked for.
+                #[pyo3(signature = (ids, name, retries = 0))]
                 pub fn sync_read_register_with_error(
                     &self,
                     py: Python,
                     ids: Vec<u8>,
                     name: String,
+                    retries: u32,
                 ) -> PyResult<Vec<(i64, u8)>> {
-                    self.by_name(py, |c| c.sync_read_register_with_error(&ids, &name))
-                        .map(|values| values.into_iter().map(|(v, e)| (v, e.byte())).collect())
+                    self.by_name(py, |c| {
+                        c.with_retries(retries, |c| c.sync_read_register_with_error(&ids, &name))
+                    })
+                    .map(|values| values.into_iter().map(|(v, e)| (v, e.byte())).collect())
                 }
 
                 /// Sync write `values` to register `name` of `ids`, one value per id,
-                /// each encoded like `write_register`.
+                /// each encoded like `write_register`, with the same `retries`.
+                #[pyo3(signature = (ids, name, values, retries = 0))]
                 pub fn sync_write_register(
                     &self,
                     py: Python,
                     ids: Vec<u8>,
                     name: String,
                     values: Vec<i64>,
+                    retries: u32,
                 ) -> PyResult<()> {
-                    self.by_name(py, |c| c.sync_write_register(&ids, &name, &values))
+                    self.by_name(py, |c| {
+                        c.with_retries(retries, |c| c.sync_write_register(&ids, &name, &values))
+                    })
                 }
             }
         }
