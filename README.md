@@ -166,6 +166,23 @@ import numpy as np
 c.sync_write_goal_position([1, 2], [0.0, np.deg2rad(90.0)])
 ```
 
+### Register tables
+
+Each controller class carries its servo's control table, reachable without a serial port. `registers()` lists every register in declaration order, and `register(name)` looks one up by the name its accessors use (`present_position` for `read_present_position`). Paired with the raw-address methods, this lets code pick registers at runtime instead of hardcoding addresses:
+
+```python
+from rustypot import RegisterAccess, Sts3215PyController
+
+for r in Sts3215PyController.registers():
+    print(r.name, r.addr, r.size, r.access)
+
+pos = Sts3215PyController.register("present_position")
+assert pos.access == RegisterAccess.Read
+raw = c.read_raw_data(1, pos.addr, pos.size)
+```
+
+`register()` returns `None` for a name the servo does not define.
+
 ### Threading and the GIL
 
 Every binding releases the GIL for the duration of the serial transaction, so other

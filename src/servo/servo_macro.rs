@@ -72,6 +72,24 @@ macro_rules! generate_servo {
                 pub fn is_open(&self) -> bool {
                     self.0.lock().unwrap().is_some()
                 }
+
+                /// Every register of this servo, in declaration order.
+                ///
+                /// The control table, for code that picks registers at runtime: pair an
+                /// entry's `addr` and `size` with `read_raw_data` or `write_raw_data`.
+                /// A static method, so it needs no serial port.
+                #[staticmethod]
+                pub fn registers() -> Vec<$crate::servo::RegisterInfo> {
+                    REGISTERS.to_vec()
+                }
+
+                /// Look up a register by name, as spelled in `registers()`.
+                ///
+                /// `None` when this servo has no such register.
+                #[staticmethod]
+                pub fn register(name: &str) -> Option<$crate::servo::RegisterInfo> {
+                    register(name)
+                }
             }
         }
 

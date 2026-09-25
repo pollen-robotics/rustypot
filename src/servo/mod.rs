@@ -10,8 +10,16 @@ pub(crate) mod servo_macro;
 /// Each servo module exposes its full table as `REGISTERS`, which lets callers work with
 /// registers chosen at runtime (building an indirect address map, or a config tool that
 /// takes register names) without hardcoding addresses.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+///
+/// In Python the same table is reached through the static `registers()` and
+/// `register(name)` of each controller class, with no serial port involved.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[non_exhaustive]
+#[cfg_attr(
+    feature = "python",
+    pyo3_stub_gen::derive::gen_stub_pyclass,
+    pyo3::pyclass(frozen, eq, hash, skip_from_py_object)
+)]
 pub struct RegisterInfo {
     /// Register name, matching the generated accessor (`present_position` -> `read_present_position`).
     pub name: &'static str,
@@ -23,11 +31,52 @@ pub struct RegisterInfo {
     pub access: RegisterAccess,
 }
 
+#[cfg(feature = "python")]
+#[pyo3_stub_gen::derive::gen_stub_pymethods]
+#[pyo3::pymethods]
+impl RegisterInfo {
+    /// Register name, as spelled in the servo definition (`present_position`).
+    #[getter]
+    fn name(&self) -> &'static str {
+        self.name
+    }
+
+    /// Address in the control table.
+    #[getter]
+    fn addr(&self) -> u8 {
+        self.addr
+    }
+
+    /// Size in bytes.
+    #[getter]
+    fn size(&self) -> u8 {
+        self.size
+    }
+
+    /// Whether the register can be read, written, or both.
+    #[getter]
+    fn access(&self) -> RegisterAccess {
+        self.access
+    }
+
+    fn __repr__(&self) -> String {
+        format!(
+            "RegisterInfo(name='{}', addr={}, size={}, access=RegisterAccess.{:?})",
+            self.name, self.addr, self.size, self.access
+        )
+    }
+}
+
 /// How a register can be accessed, as declared in its servo definition.
 ///
 /// Worth checking before a generic tool writes a register it was given by name: nothing else
 /// at runtime says whether a write will be refused.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[cfg_attr(
+    feature = "python",
+    pyo3_stub_gen::derive::gen_stub_pyclass_enum,
+    pyo3::pyclass(frozen, eq, eq_int, hash, skip_from_py_object)
+)]
 pub enum RegisterAccess {
     /// Read only (`r`).
     Read,
