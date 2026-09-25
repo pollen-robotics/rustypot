@@ -1,6 +1,11 @@
 #[macro_export]
 macro_rules! generate_servo {
     ($servo_name:ident, $protocol:ident,
+     $(resolution: $resolution:expr,)?
+     $(word_order: $word_order:ident,)?
+     $(supports_sync_read: $supports_sync_read:expr,)?
+     $(baudrates: [$(($baud:expr, $baud_code:expr)),* $(,)?],)?
+     $(encoding: [$(($enc_reg:ident, $enc_kind:ident $(($enc_arg:expr))?)),* $(,)?],)?
      $(reg: ($reg_name:ident, $reg_access:ident, $reg_addr:expr, $reg_type:ty, $conv:ident),)+
     ) => {
         paste::paste! {
@@ -90,6 +95,30 @@ macro_rules! generate_servo {
                 pub fn register(name: &str) -> Option<$crate::servo::RegisterInfo> {
                     register(name)
                 }
+
+                /// Encoder steps per turn, or `None` when the servo does not count steps.
+                #[staticmethod]
+                pub fn resolution() -> Option<u32> {
+                    INFO.resolution
+                }
+
+                /// Byte order of multi-byte registers on the wire: "little" or "big".
+                #[staticmethod]
+                pub fn word_order() -> &'static str {
+                    INFO.word_order.as_str()
+                }
+
+                /// Whether the firmware answers the Sync Read instruction.
+                #[staticmethod]
+                pub fn supports_sync_read() -> bool {
+                    INFO.supports_sync_read
+                }
+
+                /// Serial rates the servo can be set to, as {baud rate: register value}.
+                #[staticmethod]
+                pub fn baudrates() -> std::collections::HashMap<u32, u8> {
+                    INFO.baudrates.iter().copied().collect()
+                }
             }
         }
 
@@ -97,6 +126,18 @@ macro_rules! generate_servo {
         use pyo3::prelude::*;
         #[cfg(feature = "python")]
         use pyo3_stub_gen::derive::*;
+
+        /// What this servo states about itself beyond its registers.
+        pub const INFO: $crate::servo::ServoInfo = $crate::servo::ServoInfo {
+            resolution: $crate::servo_resolution!($($resolution)?),
+            word_order: $crate::servo_word_order!($($word_order)?),
+            supports_sync_read: $crate::servo_supports_sync_read!($($supports_sync_read)?),
+            baudrates: &[$($(($baud, $baud_code)),*)?],
+        };
+
+        const ENCODING_OVERRIDES: &[(&str, $crate::servo::Encoding)] = &[
+            $($((stringify!($enc_reg), $crate::register_encoding!($enc_kind $(($enc_arg))?))),*)?
+        ];
 
         /// Every register of this servo, in declaration order.
         ///
@@ -114,6 +155,11 @@ macro_rules! generate_servo {
                     size as u8
                 },
                 access: $crate::register_access!($reg_access),
+                encoding: $crate::servo::encoding_for(
+                    stringify!($reg_name),
+                    ENCODING_OVERRIDES,
+                    <$reg_type as $crate::servo::RegisterType>::DEFAULT_ENCODING,
+                ),
             },)*
         ];
 
@@ -584,6 +630,57 @@ macro_rules! register_access {
     };
     (rw) => {
         $crate::servo::RegisterAccess::ReadWrite
+    };
+}
+
+/// Maps an `encoding:` entry of a servo definition (`unsigned`, `twos_complement`,
+/// `sign_magnitude(bit)`) to an [`Encoding`](crate::servo::Encoding).
+#[macro_export]
+macro_rules! register_encoding {
+    (unsigned) => {
+        $crate::servo::Encoding::Unsigned
+    };
+    (twos_complement) => {
+        $crate::servo::Encoding::TwosComplement
+    };
+    (sign_magnitude($bit:expr)) => {
+        $crate::servo::Encoding::SignMagnitude { sign_bit: $bit }
+    };
+}
+
+#[doc(hidden)]
+#[macro_export]
+macro_rules! servo_resolution {
+    () => {
+        None
+    };
+    ($resolution:expr) => {
+        Some($resolution)
+    };
+}
+
+#[doc(hidden)]
+#[macro_export]
+macro_rules! servo_word_order {
+    () => {
+        $crate::servo::WordOrder::Little
+    };
+    (little) => {
+        $crate::servo::WordOrder::Little
+    };
+    (big) => {
+        $crate::servo::WordOrder::Big
+    };
+}
+
+#[doc(hidden)]
+#[macro_export]
+macro_rules! servo_supports_sync_read {
+    () => {
+        true
+    };
+    ($supports_sync_read:expr) => {
+        $supports_sync_read
     };
 }
 
@@ -1304,8 +1401,35 @@ macro_rules! register_servo {
                 }
             }
 
+            $(
+                impl $group::[<$servo:lower>]::[<$servo:camel Controller>] {
+                    /// Model numbers of the servos this definition covers, by name.
+                    pub const MODELS: &'static [(&'static str, u16)] = &[
+                        $((stringify!($name), $model_number)),+
+                    ];
+                }
+            )+
+
             #[cfg(feature = "python")]
             use pyo3::prelude::*;
+            #[cfg(feature = "python")]
+            use pyo3_stub_gen::derive::*;
+
+            $(
+                #[cfg(feature = "python")]
+                #[gen_stub_pymethods]
+                #[pymethods]
+                impl $group::[<$servo:lower>]::[<$servo:camel PyController>] {
+                    /// Model numbers of the servos this definition covers, as {name: number}.
+                    #[staticmethod]
+                    pub fn models() -> std::collections::HashMap<String, u16> {
+                        $group::[<$servo:lower>]::[<$servo:camel Controller>]::MODELS
+                            .iter()
+                            .map(|&(name, number)| (name.to_string(), number))
+                            .collect()
+                    }
+                }
+            )+
 
             #[cfg(feature = "python")]
             pub(crate) fn register_class(m: &Bound<'_, PyModule>) -> PyResult<()> {

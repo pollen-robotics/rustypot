@@ -9,6 +9,8 @@ pub mod sts3215.rs
 
 * Add the servo definition in the new file. You can use the [MX](./servo/dynamixel/mx.rs) as a template. The macro should defined the `name` of the servo, the `protocol version` used and then a list of all registers with their name, address, access, type and conversion type (can be set to None to get the raw register value). 
 
+* Between the protocol version and the registers, the definition can state what a caller of the raw address API needs to know to make sense of the bytes. Every entry is optional and they come in this order: `resolution: 4096,` (encoder steps per turn), `word_order: big,` (default `little`), `supports_sync_read: false,` (default `true`), `baudrates: [(1_000_000, 0), ...],` (baud rate and the value of the baud rate register) and `encoding: [(present_load, sign_magnitude(10)), (goal_pwm, twos_complement), (goal_position, unsigned)],` for registers whose sign handling differs from their integer type (signed types default to two's complement, everything else to unsigned). See [sts3215.rs](./feetech/sts3215.rs). They are exposed as `INFO`, `MODELS` and the `encoding` of each `RegisterInfo`, and to Python as static methods of the controller class.
+
 * Finally, add the servo registration in the servo root module [./mod.rs]. You can specify all variants supported by your servo definition. This registration allows for the scan function to detect your new kind of servo.
 
 By doing this, you will be able to use the servo in the same way as the other servos. The servo will be automatically detected and registered when you run the scan function. You can then use it in your application. 

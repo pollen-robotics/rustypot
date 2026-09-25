@@ -1,9 +1,12 @@
 pub mod conversion;
+pub mod info;
 
 pub mod dynamixel;
 pub mod feetech;
 pub mod orbita;
 pub(crate) mod servo_macro;
+
+pub use info::{encoding_for, Encoding, RegisterType, ServoInfo, WordOrder};
 
 /// Where a register exists in a servo's control table.
 ///
@@ -29,6 +32,9 @@ pub struct RegisterInfo {
     pub size: u8,
     /// Whether the register can be read, written, or both.
     pub access: RegisterAccess,
+    /// How the raw bytes carry a sign, for callers reading the register through the raw
+    /// address API.
+    pub encoding: Encoding,
 }
 
 #[cfg(feature = "python")]
@@ -59,10 +65,31 @@ impl RegisterInfo {
         self.access
     }
 
+    /// How the raw bytes carry a sign: "unsigned", "twos_complement" or "sign_magnitude".
+    #[getter]
+    fn encoding(&self) -> &'static str {
+        self.encoding.as_str()
+    }
+
+    /// The sign bit of a sign-magnitude register, `None` for the other encodings.
+    #[getter]
+    fn sign_bit(&self) -> Option<u8> {
+        self.encoding.sign_bit()
+    }
+
     fn __repr__(&self) -> String {
+        let sign = match self.encoding.sign_bit() {
+            Some(bit) => format!(", sign_bit={bit}"),
+            None => String::new(),
+        };
         format!(
-            "RegisterInfo(name='{}', addr={}, size={}, access=RegisterAccess.{:?})",
-            self.name, self.addr, self.size, self.access
+            "RegisterInfo(name='{}', addr={}, size={}, access=RegisterAccess.{:?}, encoding='{}'{})",
+            self.name,
+            self.addr,
+            self.size,
+            self.access,
+            self.encoding.as_str(),
+            sign
         )
     }
 }
@@ -141,7 +168,66 @@ crate::register_servo!(
 
 #[cfg(test)]
 mod tests {
-    use super::ServoKind;
+    use super::{
+        dynamixel::{mx, xl330, xl430},
+        feetech::{scs0009, sts3215},
+        Encoding, ServoKind, WordOrder,
+    };
+
+    #[test]
+    fn definitions_state_their_facts() {
+        assert_eq!(sts3215::INFO.resolution, Some(4096));
+        assert_eq!(sts3215::INFO.word_order, WordOrder::Little);
+        assert!(sts3215::INFO.supports_sync_read);
+        assert!(sts3215::INFO.baudrates.contains(&(1_000_000, 0)));
+
+        assert_eq!(scs0009::INFO.resolution, Some(1024));
+        assert_eq!(scs0009::INFO.word_order, WordOrder::Big);
+        assert!(!scs0009::INFO.supports_sync_read);
+
+        assert_eq!(mx::INFO.resolution, Some(4096));
+        assert!(mx::INFO.baudrates.is_empty());
+    }
+
+    #[test]
+    fn encodings_come_from_the_override_or_the_type() {
+        let encoding = |reg: Option<super::RegisterInfo>| reg.unwrap().encoding;
+        assert_eq!(
+            encoding(sts3215::register("present_position")),
+            Encoding::SignMagnitude { sign_bit: 15 }
+        );
+        assert_eq!(
+            encoding(sts3215::register("present_load")),
+            Encoding::SignMagnitude { sign_bit: 10 }
+        );
+        assert_eq!(
+            encoding(sts3215::register("min_position_limit")),
+            Encoding::Unsigned
+        );
+        assert_eq!(encoding(sts3215::register("id")), Encoding::Unsigned);
+        assert_eq!(
+            encoding(scs0009::register("goal_position")),
+            Encoding::Unsigned
+        );
+        // Declared i32, nothing to override.
+        assert_eq!(
+            encoding(xl330::register("goal_position")),
+            Encoding::TwosComplement
+        );
+        // Declared u16, overridden.
+        assert_eq!(
+            encoding(xl330::register("goal_pwm")),
+            Encoding::TwosComplement
+        );
+        assert_eq!(
+            encoding(xl430::register("present_position")),
+            Encoding::TwosComplement
+        );
+        assert_eq!(
+            encoding(xl430::register("torque_enable")),
+            Encoding::Unsigned
+        );
+    }
 
     #[test]
     fn model_numbers_resolve_to_their_definition() {

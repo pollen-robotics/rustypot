@@ -183,6 +183,15 @@ raw = c.read_raw_data(1, pos.addr, pos.size)
 
 `register()` returns `None` for a name the servo does not define.
 
+A raw read hands back bytes, and what they mean is on the class too: `word_order()` gives the byte order (`"little"` or `"big"`), each register's `encoding` says whether the value is `"unsigned"`, `"twos_complement"` or `"sign_magnitude"` (with `sign_bit` for the last), `resolution()` is the number of steps per turn, `baudrates()` maps a baud rate to the value of the baud rate register, `supports_sync_read()` tells whether the firmware answers Sync Read, and `models()` lists the model numbers the definition covers:
+
+```python
+info = Sts3215PyController
+info.models()                      # {'STS3215': 777, 'STS3250': 2825, 'SM8512BL': 11272}
+info.resolution(), info.word_order()  # (4096, 'little')
+info.register("present_position").sign_bit  # 15
+```
+
 ### Threading and the GIL
 
 Every binding releases the GIL for the duration of the serial transaction, so other

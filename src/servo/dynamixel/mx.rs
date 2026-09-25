@@ -13,6 +13,7 @@ use crate::{generate_servo, servo::conversion::Conversion};
 
 generate_servo!(
     MX, v1,
+    resolution: 4096,
     reg: (model_number, r, 0, u16, None),
     reg: (firmware_version, r, 2, u8, None),
     reg: (id, rw, 3, u8, None),

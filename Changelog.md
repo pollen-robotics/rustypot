@@ -14,6 +14,19 @@
   `max_position_limit`, `homing_offset`, `operating_mode`, `goal_velocity`,
   `present_velocity`. Same address, size and access; the original names stay.
 
+- Servo definitions can state what a raw-address caller needs to know beyond the
+  registers, with `resolution:`, `word_order:`, `supports_sync_read:`, `baudrates:` and
+  `encoding:` entries ahead of the `reg:` list, all optional. They fill a `ServoInfo`
+  (`INFO` on each servo module) and an `encoding` on every `RegisterInfo`: unsigned,
+  two's complement, or sign-magnitude with its sign bit, taken from the register's
+  integer type unless the definition says otherwise. Each servo module also gets
+  `MODELS`, the (name, model number) pairs its registry entry lists. Filled in for the
+  Feetech STS3215 and SCS0009 (big-endian, no Sync Read) and the Dynamixel XL330 and
+  XL430, resolution alone for MX, AX and XL320.
+- Python: `resolution()`, `word_order()`, `supports_sync_read()`, `baudrates()` and
+  `models()` on every controller class, static like `registers()`, and `encoding` /
+  `sign_bit` on `RegisterInfo`.
+
 ## Version 1.9.0
 
 - Feetech STS3215: `maximum_acceleration` (address 85) is one byte, not two, and
