@@ -1,3 +1,9 @@
+## Unreleased
+
+- Feetech SCS0009: the model number is 1284, not 1280: bytes 5 and 4 at address 3, read
+  big-endian as the SCS series stores words. LeRobot has checked the 16 SCS0009 of its
+  HopeJR hand against 1284 at every connection.
+
 ## Version 1.9.0
 
 - Feetech STS3215: `maximum_acceleration` (address 85) is one byte, not two, and

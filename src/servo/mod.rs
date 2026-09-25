@@ -112,7 +112,7 @@ crate::register_servo!(
         (STS3215, 2307)
     ),
     servo: (feetech, SCS0009,
-        (SCS0009, 1280)
+        (SCS0009, 1284) // Bytes 5, 4 at address 3, read big-endian as the SCS series stores words.
     ),
     servo: (feetech, SCS0043,
         (SCS0043, 1290)
@@ -130,3 +130,17 @@ crate::register_servo!(
         (orbita3d_foc, 10031)
     )
 );
+
+#[cfg(test)]
+mod tests {
+    use super::ServoKind;
+
+    #[test]
+    fn scs0009_model_number_resolves_to_its_definition() {
+        assert!(matches!(
+            ServoKind::try_from(1284),
+            Ok(ServoKind::feetech_SCS0009)
+        ));
+        assert!(ServoKind::try_from(1280).is_err());
+    }
+}
