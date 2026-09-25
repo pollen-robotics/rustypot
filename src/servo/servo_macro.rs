@@ -210,6 +210,7 @@ macro_rules! generate_servo {
         $crate::generate_protocol_constructor!($servo_name, $protocol);
         $crate::generate_special_instructions!($servo_name);
         $crate::generate_addr_read_write!($servo_name);
+        $crate::generate_register_access!($servo_name);
 
         $(
             $crate::generate_reg_access!($servo_name, $reg_name, $reg_access, $reg_addr, $reg_type, $conv);
@@ -651,6 +652,208 @@ macro_rules! generate_addr_read_write {
                                 .map_err(|e| e.to_string())
                         })
                         .map_err(pyo3::exceptions::PyRuntimeError::new_err)
+                }
+            }
+        }
+    };
+}
+
+/// Integer access to registers chosen by name, for code that picks them at runtime.
+///
+/// The raw address API hands back bytes; these methods apply what the definition
+/// states about them -- the servo's word order and each register's sign encoding --
+/// so a Feetech sign-magnitude position or a Dynamixel two's complement offset
+/// comes and goes as the value it stands for. The generated `read_<name>` methods
+/// remain the typed way for a register known in source.
+#[macro_export]
+macro_rules! generate_register_access {
+    ($servo_name:ident) => {
+        paste::paste! {
+            impl [<$servo_name:camel Controller>] {
+                fn named(name: &str) -> $crate::Result<$crate::servo::RegisterInfo> {
+                    register(name).ok_or_else(|| {
+                        $crate::servo::RegisterError::Unknown(name.to_string()).into()
+                    })
+                }
+
+                /// Read register `name` as an integer, decoded from the servo's word
+                /// order and the register's sign encoding.
+                pub fn read_register(&mut self, id: u8, name: &str) -> $crate::Result<i64> {
+                    let reg = Self::named(name)?;
+                    let bytes = self.read_raw_data(id, reg.addr, reg.size)?;
+                    Ok(reg.decode(INFO.word_order, &bytes)?)
+                }
+
+                /// Same as [`read_register`](Self::read_register), plus the status
+                /// packet's error field.
+                pub fn read_register_with_error(
+                    &mut self,
+                    id: u8,
+                    name: &str,
+                ) -> $crate::Result<(i64, $crate::StatusError)> {
+                    let reg = Self::named(name)?;
+                    let (bytes, error) = self.read_raw_data_with_error(id, reg.addr, reg.size)?;
+                    Ok((reg.decode(INFO.word_order, &bytes)?, error))
+                }
+
+                /// Write `value` to register `name`, laid out in the servo's word order
+                /// and the register's sign encoding. A value that does not fit the
+                /// register fails before anything reaches the bus.
+                pub fn write_register(&mut self, id: u8, name: &str, value: i64) -> $crate::Result<()> {
+                    let reg = Self::named(name)?;
+                    self.write_raw_data(id, reg.addr, reg.encode(INFO.word_order, value)?)
+                }
+
+                /// Same as [`write_register`](Self::write_register), plus the status
+                /// packet's error field.
+                pub fn write_register_with_error(
+                    &mut self,
+                    id: u8,
+                    name: &str,
+                    value: i64,
+                ) -> $crate::Result<$crate::StatusError> {
+                    let reg = Self::named(name)?;
+                    self.write_raw_data_with_error(id, reg.addr, reg.encode(INFO.word_order, value)?)
+                }
+
+                /// Sync read register `name` from `ids`, each value decoded like
+                /// [`read_register`](Self::read_register).
+                pub fn sync_read_register(&mut self, ids: &[u8], name: &str) -> $crate::Result<Vec<i64>> {
+                    let reg = Self::named(name)?;
+                    let mut values = Vec::with_capacity(ids.len());
+                    for bytes in self.sync_read_raw_data(ids, reg.addr, reg.size)? {
+                        values.push(reg.decode(INFO.word_order, &bytes)?);
+                    }
+                    Ok(values)
+                }
+
+                /// Same as [`sync_read_register`](Self::sync_read_register), plus each
+                /// motor's error field.
+                pub fn sync_read_register_with_error(
+                    &mut self,
+                    ids: &[u8],
+                    name: &str,
+                ) -> $crate::Result<Vec<(i64, $crate::StatusError)>> {
+                    let reg = Self::named(name)?;
+                    let mut values = Vec::with_capacity(ids.len());
+                    for (bytes, error) in self.sync_read_raw_data_with_error(ids, reg.addr, reg.size)? {
+                        values.push((reg.decode(INFO.word_order, &bytes)?, error));
+                    }
+                    Ok(values)
+                }
+
+                /// Sync write `values` to register `name` of `ids`, one value per id,
+                /// each encoded like [`write_register`](Self::write_register).
+                pub fn sync_write_register(
+                    &mut self,
+                    ids: &[u8],
+                    name: &str,
+                    values: &[i64],
+                ) -> $crate::Result<()> {
+                    let reg = Self::named(name)?;
+                    let mut data = Vec::with_capacity(values.len());
+                    for &value in values {
+                        data.push(reg.encode(INFO.word_order, value)?);
+                    }
+                    self.sync_write_raw_data(ids, reg.addr, &data)
+                }
+            }
+
+            #[cfg(feature = "python")]
+            impl [<$servo_name:camel PyController>] {
+                /// Run a name-based access with the GIL released, telling a bad name or
+                /// value (`ValueError`) apart from a bus failure (`RuntimeError`).
+                fn by_name<T: Send>(
+                    &self,
+                    py: Python,
+                    op: impl FnOnce(&mut [<$servo_name:camel Controller>]) -> $crate::Result<T> + Send,
+                ) -> PyResult<T> {
+                    py.detach(|| {
+                        let mut guard = self.0.lock().unwrap();
+                        let controller = Self::borrow(&mut guard).map_err(|e| (false, e))?;
+                        op(controller)
+                            .map_err(|e| (e.is::<$crate::servo::RegisterError>(), e.to_string()))
+                    })
+                    .map_err(|(bad_argument, message)| {
+                        if bad_argument {
+                            pyo3::exceptions::PyValueError::new_err(message)
+                        } else {
+                            pyo3::exceptions::PyRuntimeError::new_err(message)
+                        }
+                    })
+                }
+            }
+
+            #[cfg(feature = "python")]
+            #[gen_stub_pymethods]
+            #[pymethods]
+            impl [<$servo_name:camel PyController>] {
+                /// Read register `name` as an integer, decoded from the servo's word
+                /// order and the register's sign encoding.
+                pub fn read_register(&self, py: Python, id: u8, name: String) -> PyResult<i64> {
+                    self.by_name(py, |c| c.read_register(id, &name))
+                }
+
+                /// Same as `read_register`, plus the status packet's error field. See
+                /// `read_raw_data_with_error` for how to read the byte.
+                pub fn read_register_with_error(
+                    &self,
+                    py: Python,
+                    id: u8,
+                    name: String,
+                ) -> PyResult<(i64, u8)> {
+                    self.by_name(py, |c| c.read_register_with_error(id, &name))
+                        .map(|(value, error)| (value, error.byte()))
+                }
+
+                /// Write `value` to register `name`, laid out in the servo's word order
+                /// and the register's sign encoding. A value that does not fit the
+                /// register, or a name the servo does not define, raises `ValueError`
+                /// before anything reaches the bus.
+                pub fn write_register(&self, py: Python, id: u8, name: String, value: i64) -> PyResult<()> {
+                    self.by_name(py, |c| c.write_register(id, &name, value))
+                }
+
+                /// Same as `write_register`, and return the status packet's error field.
+                pub fn write_register_with_error(
+                    &self,
+                    py: Python,
+                    id: u8,
+                    name: String,
+                    value: i64,
+                ) -> PyResult<u8> {
+                    self.by_name(py, |c| c.write_register_with_error(id, &name, value))
+                        .map(|error| error.byte())
+                }
+
+                /// Sync read register `name` from `ids`, each value decoded like
+                /// `read_register`.
+                pub fn sync_read_register(&self, py: Python, ids: Vec<u8>, name: String) -> PyResult<Vec<i64>> {
+                    self.by_name(py, |c| c.sync_read_register(&ids, &name))
+                }
+
+                /// Same as `sync_read_register`, plus each motor's error field, as one
+                /// (value, error) pair per id in the order they were asked for.
+                pub fn sync_read_register_with_error(
+                    &self,
+                    py: Python,
+                    ids: Vec<u8>,
+                    name: String,
+                ) -> PyResult<Vec<(i64, u8)>> {
+                    self.by_name(py, |c| c.sync_read_register_with_error(&ids, &name))
+                        .map(|values| values.into_iter().map(|(v, e)| (v, e.byte())).collect())
+                }
+
+                /// Sync write `values` to register `name` of `ids`, one value per id,
+                /// each encoded like `write_register`.
+                pub fn sync_write_register(
+                    &self,
+                    py: Python,
+                    ids: Vec<u8>,
+                    name: String,
+                    values: Vec<i64>,
+                ) -> PyResult<()> {
+                    self.by_name(py, |c| c.sync_write_register(&ids, &name, &values))
                 }
             }
         }
