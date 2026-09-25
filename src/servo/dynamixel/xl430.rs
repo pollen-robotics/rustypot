@@ -10,7 +10,7 @@ generate_servo!(
     reg: (model_information, r, 2, u32, None),
     reg: (firmware_version, r, 6, u8, None),
     reg: (id, rw, 7, u8, None),
-    reg: (buad_rate, rw, 8, u8, None),
+    reg: (baud_rate, rw, 8, u8, None),
     reg: (return_delay_time, rw, 9, u8, None),
     reg: (drive_mode, rw, 10, u8, None),
     reg: (operating_mode, rw, 11, u8, None),

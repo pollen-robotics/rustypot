@@ -1,5 +1,8 @@
 ## Unreleased
 
+- XL430: the baud rate register is now spelled `baud_rate`, as on the XL330; it was
+  `buad_rate`. The generated `read_buad_rate` / `write_buad_rate` accessors and their sync
+  variants are renamed accordingly, in Rust and Python.
 - Python: expose each servo's control table. Every controller class gets two static
   methods, `registers()` and `register(name)`, so a register name can be resolved to its
   address and size from Python without opening a serial port. The Rust side already had
