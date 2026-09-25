@@ -352,6 +352,28 @@ mod tests {
     }
 
     #[test]
+    fn a_full_scan_sweeps_every_id_the_protocol_allows() {
+        use crate::fake_port::FakePort;
+
+        // Nothing answers: the sweep is one instruction per id.
+        let port = FakePort::new(vec![]);
+        let written = port.written();
+        let mut c = sts3215::Sts3215Controller::new()
+            .with_serial_port(Box::new(port))
+            .with_protocol_v1();
+        assert!(c.scan_all().unwrap().is_empty());
+        assert_eq!(written.lock().unwrap().len(), 254);
+
+        let port = FakePort::new(vec![]);
+        let written = port.written();
+        let mut c = xl330::Xl330Controller::new()
+            .with_serial_port(Box::new(port))
+            .with_protocol_v2();
+        assert!(c.scan_all().unwrap().is_empty());
+        assert_eq!(written.lock().unwrap().len(), 253);
+    }
+
+    #[test]
     fn the_scan_timeout_follows_the_baud_rate_down_to_a_floor() {
         use std::time::Duration;
 

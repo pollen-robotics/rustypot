@@ -890,19 +890,35 @@ macro_rules! generate_scan {
                     self.serial_port.as_mut().unwrap().set_timeout(timeout)?;
                     Ok(found)
                 }
+
+                /// [`scan`](Self::scan) every id the protocol allows, from 0 to
+                /// [`max_id`](crate::DynamixelProtocolHandler::max_id).
+                pub fn scan_all(&mut self) -> $crate::Result<std::collections::BTreeMap<u8, u16>> {
+                    let ids: Vec<u8> = (0..=self.dph.as_ref().unwrap().max_id()).collect();
+                    self.scan(&ids)
+                }
             }
 
             #[cfg(feature = "python")]
             #[gen_stub_pymethods]
             #[pymethods]
             impl [<$servo_name:camel PyController>] {
-                /// Which of `ids` answer, as {id: model number}.
+                /// Which of `ids` answer, as {id: model number}; every id the protocol
+                /// allows when `ids` is left out (0 to 253 on v1, 0 to 252 on v2).
                 ///
                 /// One Model Number read per id, under a timeout sized to the baud rate
                 /// so that absent ids do not each cost the port's timeout; the port's
                 /// timeout is put back afterwards.
-                pub fn scan(&self, py: Python, ids: Vec<u8>) -> PyResult<std::collections::BTreeMap<u8, u16>> {
-                    self.by_name(py, |c| c.scan(&ids))
+                #[pyo3(signature = (ids = None))]
+                pub fn scan(
+                    &self,
+                    py: Python,
+                    ids: Option<Vec<u8>>,
+                ) -> PyResult<std::collections::BTreeMap<u8, u16>> {
+                    self.by_name(py, |c| match &ids {
+                        Some(ids) => c.scan(ids),
+                        None => c.scan_all(),
+                    })
                 }
             }
         }
