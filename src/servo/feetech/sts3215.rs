@@ -51,7 +51,8 @@ generate_servo!(
     reg: (status, r, 65, u8, None),
     reg: (moving, r, 66, u8, bool),
     reg: (present_current, r, 69, u16, None),
-    reg: (maximum_acceleration, rw, 85, u16, None),
+    reg: (maximum_acceleration, rw, 85, u8, None),
+    reg: (acceleration_multiplier, rw, 86, u8, None),
 );
 
 pub struct Velocity;
@@ -113,6 +114,16 @@ impl Conversion for Offset {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn maximum_acceleration_and_multiplier_are_one_byte_each() {
+        use crate::servo::feetech::sts3215::register;
+
+        let acceleration = register("maximum_acceleration").unwrap();
+        let multiplier = register("acceleration_multiplier").unwrap();
+        assert_eq!((acceleration.addr, acceleration.size), (85, 1));
+        assert_eq!((multiplier.addr, multiplier.size), (86, 1));
+    }
+
     #[test]
     fn offset_conversions() {
         use crate::servo::{conversion::Conversion, feetech::sts3215::Offset};
