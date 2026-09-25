@@ -6,6 +6,21 @@ use crate::servo::dynamixel::mx::AnglePosition;
 
 generate_servo!(
     STS3215, v1,
+    resolution: 4096,
+    baudrates: [
+        (1_000_000, 0), (500_000, 1), (250_000, 2), (128_000, 3),
+        (115_200, 4), (57_600, 5), (38_400, 6), (19_200, 7),
+    ],
+    // Positions, speeds and the offset are sign-magnitude; the limits are plain steps.
+    encoding: [
+        (min_angle_limit, unsigned), (min_position_limit, unsigned),
+        (max_angle_limit, unsigned), (max_position_limit, unsigned),
+        (offset, sign_magnitude(11)), (homing_offset, sign_magnitude(11)),
+        (goal_position, sign_magnitude(15)), (present_position, sign_magnitude(15)),
+        (goal_speed, sign_magnitude(15)), (goal_velocity, sign_magnitude(15)),
+        (present_speed, sign_magnitude(15)), (present_velocity, sign_magnitude(15)),
+        (present_load, sign_magnitude(10)),
+    ],
     reg: (firmware_major_version, r, 0, u8, None),
     reg: (firmware_minor_version, r, 1, u8, None),
     reg: (model, r, 3, u16, None),
