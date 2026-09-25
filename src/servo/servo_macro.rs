@@ -211,6 +211,7 @@ macro_rules! generate_servo {
         $crate::generate_special_instructions!($servo_name);
         $crate::generate_addr_read_write!($servo_name);
         $crate::generate_register_access!($servo_name);
+        $crate::generate_scan!($servo_name);
 
         $(
             $crate::generate_reg_access!($servo_name, $reg_name, $reg_access, $reg_addr, $reg_type, $conv);
@@ -854,6 +855,54 @@ macro_rules! generate_register_access {
                     values: Vec<i64>,
                 ) -> PyResult<()> {
                     self.by_name(py, |c| c.sync_write_register(&ids, &name, &values))
+                }
+            }
+        }
+    };
+}
+
+/// A sweep of the bus: which ids answer, and what they are.
+#[macro_export]
+macro_rules! generate_scan {
+    ($servo_name:ident) => {
+        paste::paste! {
+            impl [<$servo_name:camel Controller>] {
+                /// Which of `ids` answer, with their model number.
+                ///
+                /// One Model Number read per id, so presence and identity cost a single
+                /// round trip. An absent id costs a timeout, so the sweep runs under one
+                /// sized to the baud rate, see [`scan_timeout`](crate::servo::scan_timeout),
+                /// and puts the port's timeout back afterwards. An id that answers with
+                /// anything the protocol cannot parse counts as absent.
+                pub fn scan(&mut self, ids: &[u8]) -> $crate::Result<std::collections::BTreeMap<u8, u16>> {
+                    let reg = Self::named("model_number")?;
+                    let port = self.serial_port.as_mut().unwrap();
+                    let timeout = port.timeout();
+                    port.set_timeout($crate::servo::scan_timeout(port.baud_rate()?))?;
+                    let found = ids
+                        .iter()
+                        .filter_map(|&id| {
+                            let bytes = self.read_raw_data(id, reg.addr, reg.size).ok()?;
+                            let model = reg.decode(INFO.word_order, &bytes).ok()?;
+                            Some((id, model as u16))
+                        })
+                        .collect();
+                    self.serial_port.as_mut().unwrap().set_timeout(timeout)?;
+                    Ok(found)
+                }
+            }
+
+            #[cfg(feature = "python")]
+            #[gen_stub_pymethods]
+            #[pymethods]
+            impl [<$servo_name:camel PyController>] {
+                /// Which of `ids` answer, as {id: model number}.
+                ///
+                /// One Model Number read per id, under a timeout sized to the baud rate
+                /// so that absent ids do not each cost the port's timeout; the port's
+                /// timeout is put back afterwards.
+                pub fn scan(&self, py: Python, ids: Vec<u8>) -> PyResult<std::collections::BTreeMap<u8, u16>> {
+                    self.by_name(py, |c| c.scan(&ids))
                 }
             }
         }

@@ -136,6 +136,8 @@ c = Sts3215PyController(serial_port='/dev/ttyUSB0', baudrate=1_000_000, timeout=
 
 Both port settings can be changed later without closing it, with `c.set_baudrate(500_000)` and `c.set_timeout(0.01)` (seconds).
 
+To find out what is on the bus, `c.scan(list(range(254)))` returns `{id: model number}` for every id that answers, under a read timeout sized to the baud rate so that the absent ones go by quickly.
+
 
 Then, you can directly read/write any register of the motor. For instance, to read the present position of the motor with id 1, you can do:
 
