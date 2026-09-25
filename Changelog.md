@@ -1,3 +1,19 @@
+## Unreleased
+
+- Register the model numbers of the X-series servos that share an existing definition:
+  XC330-T181 and XC330-T288 under XL330; XC430-W150, XM430-W350, XM540-W270 and
+  XH540-W150 under XL430, whose definition is the XM430 control table. On the Feetech
+  side, STS3250 and SM8512BL join STS3215, and the STS3215 model number is corrected to
+  777: bytes 9 and 3 at address 3 read little-endian, as the scan tool reads them; 2307
+  was the same bytes swapped and never matched.
+- STS3215 and SCS0009: add the firmware version bytes and the factory block (moving
+  velocity threshold, DTs, velocity unit factor, Hts and maximum velocity limit on the
+  STS3215; acceleration, sync write flag, PWM maximum step, and the velocity threshold and
+  limits on the SCS0009). Registers that exist on Dynamixel servos under another name get
+  that name as a second name: `model_number`, `baud_rate`, `min_position_limit`,
+  `max_position_limit`, `homing_offset`, `operating_mode`, `goal_velocity`,
+  `present_velocity`. Same address, size and access; the original names stay.
+
 ## Version 1.9.0
 
 - Feetech STS3215: `maximum_acceleration` (address 85) is one byte, not two, and

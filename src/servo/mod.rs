@@ -102,14 +102,22 @@ crate::register_servo!(
     ),
     servo: (dynamixel, XL330,
         (XL330M077, 1190),
-        (XL330M288, 1200)
+        (XL330M288, 1200),
+        (XC330T181, 1210), // Same control table as the XL330.
+        (XC330T288, 1220)
     ),
     servo: (dynamixel, XL430,
         (XL430W250, 1060),
-        (XL430W2502, 1090)
+        (XL430W2502, 1090),
+        (XC430W150, 1070),
+        (XM430W350, 1020), // The XL430 definition is the XM430 control table, current registers included.
+        (XM540W270, 1120),
+        (XH540W150, 1110)
     ),
     servo: (feetech, STS3215,
-        (STS3215, 2307)
+        (STS3215, 777), // Bytes 9, 3 at address 3, read little-endian like the scan does.
+        (STS3250, 2825),
+        (SM8512BL, 11272) // Same control table as the STS3215.
     ),
     servo: (feetech, SCS0009,
         (SCS0009, 1280)
@@ -130,3 +138,33 @@ crate::register_servo!(
         (orbita3d_foc, 10031)
     )
 );
+
+#[cfg(test)]
+mod tests {
+    use super::ServoKind;
+
+    #[test]
+    fn model_numbers_resolve_to_their_definition() {
+        assert!(matches!(
+            ServoKind::try_from(777),
+            Ok(ServoKind::feetech_STS3215)
+        ));
+        assert!(matches!(
+            ServoKind::try_from(2825),
+            Ok(ServoKind::feetech_STS3250)
+        ));
+        assert!(matches!(
+            ServoKind::try_from(11272),
+            Ok(ServoKind::feetech_SM8512BL)
+        ));
+        assert!(matches!(
+            ServoKind::try_from(1220),
+            Ok(ServoKind::dynamixel_XC330T288)
+        ));
+        assert!(matches!(
+            ServoKind::try_from(1020),
+            Ok(ServoKind::dynamixel_XM430W350)
+        ));
+        assert!(ServoKind::try_from(2307).is_err());
+    }
+}
