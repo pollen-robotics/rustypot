@@ -13,6 +13,9 @@
   that name as a second name: `model_number`, `baud_rate`, `min_position_limit`,
   `max_position_limit`, `homing_offset`, `operating_mode`, `goal_velocity`,
   `present_velocity`. Same address, size and access; the original names stay.
+- Feetech SCS0009: the model number is 1284, not 1280: bytes 5 and 4 at address 3, read
+  big-endian as the SCS series stores words. LeRobot has checked the 16 SCS0009 of its
+  HopeJR hand against 1284 at every connection.
 
 ## Version 1.9.0
 

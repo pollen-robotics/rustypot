@@ -120,7 +120,7 @@ crate::register_servo!(
         (SM8512BL, 11272) // Same control table as the STS3215.
     ),
     servo: (feetech, SCS0009,
-        (SCS0009, 1280)
+        (SCS0009, 1284) // Bytes 5, 4 at address 3, read big-endian as the SCS series stores words.
     ),
     servo: (feetech, SCS0043,
         (SCS0043, 1290)
@@ -166,5 +166,14 @@ mod tests {
             Ok(ServoKind::dynamixel_XM430W350)
         ));
         assert!(ServoKind::try_from(2307).is_err());
+    }
+
+    #[test]
+    fn scs0009_model_number_resolves_to_its_definition() {
+        assert!(matches!(
+            ServoKind::try_from(1284),
+            Ok(ServoKind::feetech_SCS0009)
+        ));
+        assert!(ServoKind::try_from(1280).is_err());
     }
 }
