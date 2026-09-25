@@ -3,6 +3,19 @@ use crate::servo::conversion::Conversion;
 
 generate_servo!(
     SCS0009, v1,
+    resolution: 1024,
+    word_order: big,
+    supports_sync_read: false,
+    baudrates: [
+        (1_000_000, 0), (500_000, 1), (250_000, 2), (128_000, 3),
+        (115_200, 4), (57_600, 5), (38_400, 6), (19_200, 7),
+    ],
+    // Positions and limits are plain steps on the SCS.
+    encoding: [
+        (min_angle_limit, unsigned), (min_position_limit, unsigned),
+        (max_angle_limit, unsigned), (max_position_limit, unsigned),
+        (goal_position, unsigned), (present_position, unsigned),
+    ],
     reg: (firmware_major_version, r, 0, u8, None),
     reg: (firmware_minor_version, r, 1, u8, None),
     reg: (model, r, 3, u16, None),

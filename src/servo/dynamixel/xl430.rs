@@ -6,6 +6,18 @@ use crate::generate_servo;
 
 generate_servo!(
     XL430, v2,
+    resolution: 4096,
+    baudrates: [
+        (9_600, 0), (57_600, 1), (115_200, 2), (1_000_000, 3),
+        (2_000_000, 4), (3_000_000, 5), (4_000_000, 6),
+    ],
+    // Signed on the wire although declared unsigned below, so the raw path can tell.
+    encoding: [
+        (goal_pwm, twos_complement), (goal_current, twos_complement),
+        (goal_velocity, twos_complement), (goal_position, twos_complement),
+        (present_pwm, twos_complement), (present_current, twos_complement),
+        (present_velocity, twos_complement), (present_position, twos_complement),
+    ],
     reg: (model_number, r, 0, u16, None),
     reg: (model_information, r, 2, u32, None),
     reg: (firmware_version, r, 6, u8, None),

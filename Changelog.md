@@ -16,6 +16,19 @@
 - Feetech SCS0009: the model number is 1284, not 1280: bytes 5 and 4 at address 3, read
   big-endian as the SCS series stores words. LeRobot has checked the 16 SCS0009 of its
   HopeJR hand against 1284 at every connection.
+- Servo definitions can state what a raw-address caller needs to know beyond the
+  registers, with `resolution:`, `word_order:`, `supports_sync_read:`, `baudrates:` and
+  `encoding:` entries ahead of the `reg:` list, all optional. They fill a `ServoInfo`
+  (`INFO` on each servo module) and an `encoding` on every `RegisterInfo`: unsigned,
+  two's complement, or sign-magnitude with its sign bit, taken from the register's
+  integer type unless the definition says otherwise; an `encoding:` entry that names no
+  register of the servo fails the build. Each servo module also gets
+  `MODELS`, the (name, model number) pairs its registry entry lists. Filled in for the
+  Feetech STS3215 and SCS0009 (big-endian, no Sync Read) and the Dynamixel XL330 and
+  XL430, resolution alone for MX, AX and XL320.
+- Python: `resolution()`, `word_order()`, `supports_sync_read()`, `baudrates()` and
+  `models()` on every controller class, static like `registers()`, and `encoding` /
+  `sign_bit` on `RegisterInfo`.
 
 ## Version 1.9.0
 

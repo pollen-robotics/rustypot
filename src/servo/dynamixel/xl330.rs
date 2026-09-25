@@ -8,6 +8,13 @@ use crate::{generate_servo, servo::conversion::Conversion};
 
 generate_servo!(
     XL330, v2,
+    resolution: 4096,
+    baudrates: [
+        (9_600, 0), (57_600, 1), (115_200, 2), (1_000_000, 3),
+        (2_000_000, 4), (3_000_000, 5), (4_000_000, 6),
+    ],
+    // The PWM registers are signed on the wire; the signed integer types cover the rest.
+    encoding: [(goal_pwm, twos_complement), (present_pwm, twos_complement)],
     reg: (model_number, r, 0, u16, None),
     reg: (model_information, r, 2, u32, None),
     reg: (firmware_version, rw, 6, u8, None),
