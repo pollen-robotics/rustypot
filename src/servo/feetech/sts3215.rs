@@ -6,13 +6,19 @@ use crate::servo::dynamixel::mx::AnglePosition;
 
 generate_servo!(
     STS3215, v1,
+    reg: (firmware_major_version, r, 0, u8, None),
+    reg: (firmware_minor_version, r, 1, u8, None),
     reg: (model, r, 3, u16, None),
+    reg: (model_number, r, 3, u16, None),
     reg: (id, rw, 5, u8, None),
     reg: (baudrate, rw, 6, u8, None),
+    reg: (baud_rate, rw, 6, u8, None),
     reg: (return_delay_time, rw, 7, u8, None),
     reg: (response_status_level, rw, 8, u8, None),
     reg: (min_angle_limit, rw, 9, i16, AnglePosition),
+    reg: (min_position_limit, rw, 9, i16, AnglePosition),
     reg: (max_angle_limit, rw, 11, i16, AnglePosition),
+    reg: (max_position_limit, rw, 11, i16, AnglePosition),
     reg: (max_temperature_limit, rw, 13, u8, None),
     reg: (max_voltage_limit, rw, 14, u8, None),
     reg: (min_voltage_limit, rw, 15, u8, None),
@@ -29,7 +35,9 @@ generate_servo!(
     reg: (protection_current, rw, 28, u16, None),
     reg: (angular_resolution, rw, 30, u8, None),
     reg: (offset, rw, 31, u16, Offset),
+    reg: (homing_offset, rw, 31, u16, Offset),
     reg: (mode, rw, 33, u8, None),
+    reg: (operating_mode, rw, 33, u8, None),
     reg: (protective_torque, rw, 34, u8, None),
     reg: (protection_time, rw, 35, u8, None),
     reg: (overload_torque, rw, 36, u8, None),
@@ -41,16 +49,24 @@ generate_servo!(
     reg: (goal_position, rw, 42, i16, AnglePosition),
     reg: (goal_time, rw, 44, u16, None),
     reg: (goal_speed, rw, 46, u16, Velocity),
+    reg: (goal_velocity, rw, 46, u16, Velocity),
     reg: (torque_limit, rw, 48, u16, None),
     reg: (lock, rw, 55, u8, bool),
     reg: (present_position, r, 56, i16, AnglePosition),
     reg: (present_speed, r, 58, u16, Velocity),
+    reg: (present_velocity, r, 58, u16, Velocity),
     reg: (present_load, r, 60, u16, None),
     reg: (present_voltage, r, 62, u8, None),
     reg: (present_temperature, r, 63, u8, None),
     reg: (status, r, 65, u8, None),
     reg: (moving, r, 66, u8, bool),
     reg: (present_current, r, 69, u16, None),
+    // Factory block; hts is only meaningful from firmware 2.54 and reads 0 before.
+    reg: (moving_velocity_threshold, rw, 80, u8, None),
+    reg: (dts, rw, 81, u8, None),
+    reg: (velocity_unit_factor, rw, 82, u8, None),
+    reg: (hts, rw, 83, u8, None),
+    reg: (maximum_velocity_limit, rw, 84, u8, None),
     reg: (maximum_acceleration, rw, 85, u8, None),
     reg: (acceleration_multiplier, rw, 86, u8, None),
 );
@@ -114,6 +130,29 @@ impl Conversion for Offset {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn aliases_share_their_register() {
+        use crate::servo::feetech::sts3215::register;
+
+        for (alias, original) in [
+            ("model_number", "model"),
+            ("baud_rate", "baudrate"),
+            ("min_position_limit", "min_angle_limit"),
+            ("max_position_limit", "max_angle_limit"),
+            ("homing_offset", "offset"),
+            ("operating_mode", "mode"),
+            ("goal_velocity", "goal_speed"),
+            ("present_velocity", "present_speed"),
+        ] {
+            let (a, o) = (register(alias).unwrap(), register(original).unwrap());
+            assert_eq!(
+                (a.addr, a.size, a.access),
+                (o.addr, o.size, o.access),
+                "{alias}"
+            );
+        }
+    }
+
     #[test]
     fn maximum_acceleration_and_multiplier_are_one_byte_each() {
         use crate::servo::feetech::sts3215::register;
