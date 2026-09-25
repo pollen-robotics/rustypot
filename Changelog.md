@@ -57,6 +57,10 @@
   since the `_with_error` variants carry its error field. The Python by-name methods take
   it as a `retries=0` keyword, so a caller retrying a read no longer crosses back into
   Python between attempts.
+- `sync_read_register` and its `_with_error` variant read a servo whose firmware has no
+  Sync Read (the Feetech SCS series, `supports_sync_read` false) one id at a time, in the
+  order asked, instead of sending an instruction that is never answered. The raw and
+  typed sync reads still send Sync Read as asked.
 
 ## Version 1.9.0
 
