@@ -32,6 +32,21 @@ macro_rules! generate_servo {
                         ..self
                     }
                 }
+
+                /// Switch the open serial port to `baudrate`.
+                ///
+                /// Motors set to another rate stop answering until they are switched
+                /// too; this is how a bus is probed at each rate a motor might be at.
+                pub fn set_baudrate(&mut self, baudrate: u32) -> $crate::Result<()> {
+                    Ok(self.serial_port.as_mut().unwrap().set_baud_rate(baudrate)?)
+                }
+
+                /// Give the open serial port a new read timeout.
+                ///
+                /// This bounds every transaction with a motor that does not answer.
+                pub fn set_timeout(&mut self, timeout: std::time::Duration) -> $crate::Result<()> {
+                    Ok(self.serial_port.as_mut().unwrap().set_timeout(timeout)?)
+                }
             }
 
             #[cfg(feature = "python")]
@@ -76,6 +91,30 @@ macro_rules! generate_servo {
                 /// Whether the controller still holds its serial port.
                 pub fn is_open(&self) -> bool {
                     self.0.lock().unwrap().is_some()
+                }
+
+                /// Switch the open serial port to `baudrate`.
+                ///
+                /// Motors set to another rate stop answering until they are switched
+                /// too; this is how a bus is probed at each rate a motor might be at.
+                pub fn set_baudrate(&self, baudrate: u32) -> PyResult<()> {
+                    let mut guard = self.0.lock().unwrap();
+                    Self::borrow(&mut guard)
+                        .map_err(pyo3::exceptions::PyRuntimeError::new_err)?
+                        .set_baudrate(baudrate)
+                        .map_err(|e| pyo3::exceptions::PyIOError::new_err(e.to_string()))
+                }
+
+                /// Give the open serial port a new read timeout, in seconds like the
+                /// constructor's.
+                ///
+                /// This bounds every transaction with a motor that does not answer.
+                pub fn set_timeout(&self, timeout: f32) -> PyResult<()> {
+                    let mut guard = self.0.lock().unwrap();
+                    Self::borrow(&mut guard)
+                        .map_err(pyo3::exceptions::PyRuntimeError::new_err)?
+                        .set_timeout(std::time::Duration::from_secs_f32(timeout))
+                        .map_err(|e| pyo3::exceptions::PyIOError::new_err(e.to_string()))
                 }
 
                 /// Every register of this servo, in declaration order.

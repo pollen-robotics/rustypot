@@ -840,7 +840,7 @@ impl std::error::Error for CommunicationErrorKind {}
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::io;
+    use crate::fake_port::FakePort;
     use std::time::Instant;
 
     #[test]
@@ -876,116 +876,6 @@ mod tests {
         assert!(!e.v2_alert());
     }
 
-    /// A serial port that replays canned bytes and throws away what is written.
-    ///
-    /// `bytes_to_read` always answers 0, so the pre-send flush never eats the queued
-    /// response. Everything the protocol does not call is left unimplemented.
-    struct FakePort {
-        to_read: io::Cursor<Vec<u8>>,
-    }
-
-    impl FakePort {
-        fn new(to_read: Vec<u8>) -> Self {
-            FakePort {
-                to_read: io::Cursor::new(to_read),
-            }
-        }
-    }
-
-    impl io::Read for FakePort {
-        fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
-            self.to_read.read(buf)
-        }
-    }
-
-    impl io::Write for FakePort {
-        fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
-            Ok(buf.len())
-        }
-        fn flush(&mut self) -> io::Result<()> {
-            Ok(())
-        }
-    }
-
-    impl serialport::SerialPort for FakePort {
-        fn bytes_to_read(&self) -> serialport::Result<u32> {
-            Ok(0)
-        }
-        fn timeout(&self) -> Duration {
-            Duration::from_millis(10)
-        }
-
-        fn name(&self) -> Option<String> {
-            None
-        }
-        fn baud_rate(&self) -> serialport::Result<u32> {
-            unimplemented!()
-        }
-        fn data_bits(&self) -> serialport::Result<serialport::DataBits> {
-            unimplemented!()
-        }
-        fn flow_control(&self) -> serialport::Result<serialport::FlowControl> {
-            unimplemented!()
-        }
-        fn parity(&self) -> serialport::Result<serialport::Parity> {
-            unimplemented!()
-        }
-        fn stop_bits(&self) -> serialport::Result<serialport::StopBits> {
-            unimplemented!()
-        }
-        fn set_baud_rate(&mut self, _: u32) -> serialport::Result<()> {
-            unimplemented!()
-        }
-        fn set_data_bits(&mut self, _: serialport::DataBits) -> serialport::Result<()> {
-            unimplemented!()
-        }
-        fn set_flow_control(&mut self, _: serialport::FlowControl) -> serialport::Result<()> {
-            unimplemented!()
-        }
-        fn set_parity(&mut self, _: serialport::Parity) -> serialport::Result<()> {
-            unimplemented!()
-        }
-        fn set_stop_bits(&mut self, _: serialport::StopBits) -> serialport::Result<()> {
-            unimplemented!()
-        }
-        fn set_timeout(&mut self, _: Duration) -> serialport::Result<()> {
-            unimplemented!()
-        }
-        fn write_request_to_send(&mut self, _: bool) -> serialport::Result<()> {
-            unimplemented!()
-        }
-        fn write_data_terminal_ready(&mut self, _: bool) -> serialport::Result<()> {
-            unimplemented!()
-        }
-        fn read_clear_to_send(&mut self) -> serialport::Result<bool> {
-            unimplemented!()
-        }
-        fn read_data_set_ready(&mut self) -> serialport::Result<bool> {
-            unimplemented!()
-        }
-        fn read_ring_indicator(&mut self) -> serialport::Result<bool> {
-            unimplemented!()
-        }
-        fn read_carrier_detect(&mut self) -> serialport::Result<bool> {
-            unimplemented!()
-        }
-        fn bytes_to_write(&self) -> serialport::Result<u32> {
-            unimplemented!()
-        }
-        fn clear(&self, _: serialport::ClearBuffer) -> serialport::Result<()> {
-            unimplemented!()
-        }
-        fn try_clone(&self) -> serialport::Result<Box<dyn serialport::SerialPort>> {
-            unimplemented!()
-        }
-        fn set_break(&self) -> serialport::Result<()> {
-            unimplemented!()
-        }
-        fn clear_break(&self) -> serialport::Result<()> {
-            unimplemented!()
-        }
-    }
-
     const POST_DELAY: Duration = Duration::from_millis(20);
 
     /// One v1 status packet per motor, each carrying the single byte 0x20.
@@ -999,7 +889,7 @@ mod tests {
     #[test]
     fn sync_read_honours_the_post_delay() {
         let dph = DynamixelProtocolHandler::v1().with_post_delay(POST_DELAY);
-        let mut port = FakePort::new(SYNC_READ_RESPONSE.to_vec());
+        let mut port = FakePort::new(vec![SYNC_READ_RESPONSE.to_vec()]);
 
         let start = Instant::now();
         let values = dph.sync_read(&mut port, &[10, 11, 12], 43, 1).unwrap();
@@ -1015,7 +905,7 @@ mod tests {
     #[test]
     fn sync_write_honours_the_post_delay() {
         let dph = DynamixelProtocolHandler::v1().with_post_delay(POST_DELAY);
-        let mut port = FakePort::new(Vec::new());
+        let mut port = FakePort::new(vec![]);
 
         let start = Instant::now();
         dph.sync_write(&mut port, &[40, 41], 25, &[vec![0], vec![1]])
@@ -1033,7 +923,7 @@ mod tests {
         // The port answers nothing, so the read times out. The bus was used all the
         // same, and an immediate retry is what the delay exists to space out.
         let dph = DynamixelProtocolHandler::v1().with_post_delay(POST_DELAY);
-        let mut port = FakePort::new(Vec::new());
+        let mut port = FakePort::new(vec![]);
 
         let start = Instant::now();
         assert!(dph.sync_read(&mut port, &[10], 43, 1).is_err());
@@ -1048,7 +938,7 @@ mod tests {
     #[test]
     fn no_post_delay_configured_means_no_sleep() {
         let dph = DynamixelProtocolHandler::v1();
-        let mut port = FakePort::new(SYNC_READ_RESPONSE.to_vec());
+        let mut port = FakePort::new(vec![SYNC_READ_RESPONSE.to_vec()]);
 
         let start = Instant::now();
         dph.sync_read(&mut port, &[10, 11, 12], 43, 1).unwrap();
