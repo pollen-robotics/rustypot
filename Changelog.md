@@ -26,6 +26,11 @@
 - Python: `resolution()`, `word_order()`, `supports_sync_read()`, `baudrates()` and
   `models()` on every controller class, static like `registers()`, and `encoding` /
   `sign_bit` on `RegisterInfo`.
+- `set_baudrate(baudrate)` and `set_timeout(duration)` on every controller, and on the
+  Python classes with the timeout in seconds like the constructor's. Both change the
+  open port in place. A caller probing a bus at each rate a motor might be at, or
+  shortening the timeout for an ID sweep, no longer has to close the controller and
+  build a new one, which on Python could fail on a port still held by a traceback.
 
 ## Version 1.9.0
 
