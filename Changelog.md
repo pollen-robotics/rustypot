@@ -44,6 +44,13 @@
   Python classes and release the GIL like the raw ones. `WordOrder::to_bytes` / `from_bytes`, `Encoding::encode` /
   `decode` and `RegisterInfo::encode` / `decode` are public for callers holding their
   own bytes.
+- `scan(ids)` on every controller: which of `ids` answer, with their model number, as
+  one Model Number read per id. The sweep runs under a read timeout sized to the baud
+  rate (`servo::scan_timeout`: 320 bits of wire time, 5 ms at least) so that absent ids
+  do not each cost the port's timeout, and puts the timeout back afterwards. On Python
+  it returns `{id: model number}` and releases the GIL for the whole sweep. `scan_all()`,
+  and `scan()` without ids on Python, sweep every id the protocol allows: 0 to 253 on v1,
+  0 to 252 on v2, now given by `DynamixelProtocolHandler::max_id()`.
 
 ## Version 1.9.0
 

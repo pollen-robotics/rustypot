@@ -8,6 +8,15 @@ pub(crate) mod servo_macro;
 
 pub use info::{encoding_for, Encoding, RegisterError, RegisterType, ServoInfo, WordOrder};
 
+/// The read timeout of an ID sweep at `baudrate`.
+///
+/// Every absent id costs one timeout, so a sweep at a port's usual timeout takes
+/// minutes. A Model Number read and its answer are under 320 bits on the wire; the
+/// floor leaves room for the motor's return delay and for USB scheduling.
+pub fn scan_timeout(baudrate: u32) -> std::time::Duration {
+    std::time::Duration::from_micros(u64::from(320_000_000 / baudrate).max(5_000))
+}
+
 /// Where a register exists in a servo's control table.
 ///
 /// Each servo module exposes its full table as `REGISTERS`, which lets callers work with
@@ -311,6 +320,67 @@ mod tests {
             "no register named 'current_limit'"
         );
         assert!(written.lock().unwrap().is_empty());
+    }
+
+    #[test]
+    fn a_scan_reports_the_ids_that_answer_and_puts_the_timeout_back() {
+        use crate::fake_port::FakePort;
+        use std::time::Duration;
+
+        // Only motor 2 answers, with model number 777: bytes 9, 3 at address 3.
+        let port = FakePort::new(vec![
+            vec![],
+            vec![0xFF, 0xFF, 0x02, 0x04, 0x00, 0x09, 0x03, 0xED],
+            vec![],
+        ]);
+        let settings = port.settings();
+        let mut c = sts3215::Sts3215Controller::new()
+            .with_serial_port(Box::new(port))
+            .with_protocol_v1();
+
+        let found = c.scan(&[1, 2, 3]).unwrap();
+
+        assert_eq!(found, std::collections::BTreeMap::from([(2, 777)]));
+        assert_eq!(
+            settings.lock().unwrap().timeouts,
+            [
+                Duration::from_millis(10),
+                super::scan_timeout(1_000_000),
+                Duration::from_millis(10)
+            ]
+        );
+    }
+
+    #[test]
+    fn a_full_scan_sweeps_every_id_the_protocol_allows() {
+        use crate::fake_port::FakePort;
+
+        // Nothing answers: the sweep is one instruction per id.
+        let port = FakePort::new(vec![]);
+        let written = port.written();
+        let mut c = sts3215::Sts3215Controller::new()
+            .with_serial_port(Box::new(port))
+            .with_protocol_v1();
+        assert!(c.scan_all().unwrap().is_empty());
+        assert_eq!(written.lock().unwrap().len(), 254);
+
+        let port = FakePort::new(vec![]);
+        let written = port.written();
+        let mut c = xl330::Xl330Controller::new()
+            .with_serial_port(Box::new(port))
+            .with_protocol_v2();
+        assert!(c.scan_all().unwrap().is_empty());
+        assert_eq!(written.lock().unwrap().len(), 253);
+    }
+
+    #[test]
+    fn the_scan_timeout_follows_the_baud_rate_down_to_a_floor() {
+        use std::time::Duration;
+
+        assert_eq!(super::scan_timeout(1_000_000), Duration::from_millis(5));
+        assert_eq!(super::scan_timeout(115_200), Duration::from_millis(5));
+        assert_eq!(super::scan_timeout(57_600), Duration::from_micros(5_555));
+        assert_eq!(super::scan_timeout(9_600), Duration::from_micros(33_333));
     }
 
     #[test]
