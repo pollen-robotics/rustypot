@@ -230,6 +230,25 @@ mod tests {
     }
 
     #[test]
+    fn port_settings_reach_the_serial_port() {
+        use crate::fake_port::FakePort;
+        use std::time::Duration;
+
+        let port = FakePort::new(vec![]);
+        let settings = port.settings();
+        let mut c = sts3215::Sts3215Controller::new()
+            .with_serial_port(Box::new(port))
+            .with_protocol_v1();
+
+        c.set_baudrate(57_600).unwrap();
+        c.set_timeout(Duration::from_millis(20)).unwrap();
+
+        let settings = settings.lock().unwrap();
+        assert_eq!(settings.baud_rate, 57_600);
+        assert_eq!(settings.timeouts.last(), Some(&Duration::from_millis(20)));
+    }
+
+    #[test]
     fn model_numbers_resolve_to_their_definition() {
         assert!(matches!(
             ServoKind::try_from(777),

@@ -134,6 +134,8 @@ from rustypot import Sts3215PyController
 c = Sts3215PyController(serial_port='/dev/ttyUSB0', baudrate=1_000_000, timeout=0.1)
 ```
 
+Both port settings can be changed later without closing it, with `c.set_baudrate(500_000)` and `c.set_timeout(0.01)` (seconds).
+
 
 Then, you can directly read/write any register of the motor. For instance, to read the present position of the motor with id 1, you can do:
 
