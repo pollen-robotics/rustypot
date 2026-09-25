@@ -31,6 +31,19 @@
   open port in place. A caller probing a bus at each rate a motor might be at, or
   shortening the timeout for an ID sweep, no longer has to close the controller and
   build a new one, which on Python could fail on a port still held by a traceback.
+- Integer access to registers chosen by name: `read_register(id, name)`,
+  `write_register(id, name, value)`, `sync_read_register(ids, name)` and
+  `sync_write_register(ids, name, values)` on every controller, plus `_with_error`
+  variants of the first three carrying the status packet's error field. They apply
+  what the definition states about the register: the bytes go in the servo's word
+  order (a big-endian servo swaps the two bytes of each 16-bit word, low word first)
+  and the sign follows the register's encoding, so a Feetech sign-magnitude offset
+  reads as `-709` and writes back as `0x0AC5`. A value that does not fit the register,
+  or a name the servo does not define, fails before anything reaches the bus
+  (`RegisterError`, a `ValueError` on Python). The same eight methods exist on the
+  Python classes and release the GIL like the raw ones. `WordOrder::to_bytes` / `from_bytes`, `Encoding::encode` /
+  `decode` and `RegisterInfo::encode` / `decode` are public for callers holding their
+  own bytes.
 
 ## Version 1.9.0
 
