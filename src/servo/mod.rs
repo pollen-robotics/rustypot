@@ -323,6 +323,32 @@ mod tests {
     }
 
     #[test]
+    fn a_servo_without_sync_read_is_read_one_id_at_a_time() {
+        use crate::fake_port::FakePort;
+
+        // Present position 256 from motor 1 and 16 from motor 2, big-endian.
+        let port = FakePort::new(vec![
+            vec![0xFF, 0xFF, 0x01, 0x04, 0x00, 0x01, 0x00, 0xF9],
+            vec![0xFF, 0xFF, 0x02, 0x04, 0x00, 0x00, 0x10, 0xE9],
+        ]);
+        let written = port.written();
+        let mut c = scs0009::Scs0009Controller::new()
+            .with_serial_port(Box::new(port))
+            .with_protocol_v1();
+
+        assert_eq!(
+            c.sync_read_register(&[1, 2], "present_position").unwrap(),
+            [256, 16]
+        );
+
+        // Two Read instructions (0x02), one per id; no Sync Read (0x82).
+        let written = written.lock().unwrap();
+        assert_eq!(written.len(), 2);
+        assert!(written.iter().all(|packet| packet[4] == 0x02));
+        assert_eq!([written[0][2], written[1][2]], [1, 2]);
+    }
+
+    #[test]
     fn a_bus_failure_is_tried_again_until_the_retries_run_out() {
         use crate::fake_port::FakePort;
 

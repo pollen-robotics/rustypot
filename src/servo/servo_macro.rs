@@ -719,7 +719,15 @@ macro_rules! generate_register_access {
 
                 /// Sync read register `name` from `ids`, each value decoded like
                 /// [`read_register`](Self::read_register).
+                ///
+                /// A servo whose firmware has no Sync Read (`INFO.supports_sync_read`,
+                /// false on the Feetech SCS series) is read one id at a time instead, in
+                /// the order asked. The values come back the same way, but from one
+                /// transaction per id rather than one for the whole bus.
                 pub fn sync_read_register(&mut self, ids: &[u8], name: &str) -> $crate::Result<Vec<i64>> {
+                    if !INFO.supports_sync_read {
+                        return ids.iter().map(|&id| self.read_register(id, name)).collect();
+                    }
                     let reg = Self::named(name)?;
                     let mut values = Vec::with_capacity(ids.len());
                     for bytes in self.sync_read_raw_data(ids, reg.addr, reg.size)? {
@@ -729,12 +737,18 @@ macro_rules! generate_register_access {
                 }
 
                 /// Same as [`sync_read_register`](Self::sync_read_register), plus each
-                /// motor's error field.
+                /// motor's error field, with the same fallback to one read per id.
                 pub fn sync_read_register_with_error(
                     &mut self,
                     ids: &[u8],
                     name: &str,
                 ) -> $crate::Result<Vec<(i64, $crate::StatusError)>> {
+                    if !INFO.supports_sync_read {
+                        return ids
+                            .iter()
+                            .map(|&id| self.read_register_with_error(id, name))
+                            .collect();
+                    }
                     let reg = Self::named(name)?;
                     let mut values = Vec::with_capacity(ids.len());
                     for (bytes, error) in self.sync_read_raw_data_with_error(ids, reg.addr, reg.size)? {
@@ -871,7 +885,8 @@ macro_rules! generate_register_access {
                 }
 
                 /// Sync read register `name` from `ids`, each value decoded like
-                /// `read_register`, with the same `retries`.
+                /// `read_register`, with the same `retries`. A servo without Sync Read
+                /// (`supports_sync_read()`) is read one id at a time instead.
                 #[pyo3(signature = (ids, name, retries = 0))]
                 pub fn sync_read_register(
                     &self,
