@@ -61,6 +61,16 @@
   Sync Read (the Feetech SCS series, `supports_sync_read` false) one id at a time, in the
   order asked, instead of sending an instruction that is never answered. The raw and
   typed sync reads still send Sync Read as asked.
+- A controller can address motors of other definitions on its bus by name:
+  `set_definition(id, definition)` makes the by-name access look motor `id`'s registers
+  up, lay them out and sign them as `definition` states, and `definition_of(id)` says
+  which one applies. Each servo module has its definition as `DEFINITION`, a
+  `ServoDefinition` (name, protocol, `ServoInfo`, registers); on Python it comes from the
+  static `definition()` of each controller class. A sync read or write needs the
+  register at the same address and size on every motor (`RegisterError::Layout`
+  otherwise), and falls back to one read per id when one of them has no Sync Read. A
+  definition of another protocol is refused. The typed accessors, the raw address API
+  and `scan` keep the controller's own definition.
 
 ## Version 1.9.0
 

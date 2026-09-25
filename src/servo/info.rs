@@ -140,6 +140,9 @@ pub enum RegisterError {
     NotAnInteger { name: &'static str, size: u8 },
     /// The value does not fit the register's width and encoding.
     OutOfRange { name: &'static str, value: i64 },
+    /// A Sync Read or Sync Write reached motors whose definitions put the register at
+    /// different addresses or sizes; one instruction carries a single address and length.
+    Layout(String),
 }
 
 impl fmt::Display for RegisterError {
@@ -152,11 +155,62 @@ impl fmt::Display for RegisterError {
             RegisterError::OutOfRange { name, value } => {
                 write!(f, "{value} does not fit register '{name}'")
             }
+            RegisterError::Layout(name) => write!(
+                f,
+                "register '{name}' is not at the same address and size on every motor asked"
+            ),
         }
     }
 }
 
 impl std::error::Error for RegisterError {}
+
+/// A servo definition as a value: its name, the protocol it speaks, what it states
+/// about itself and its registers.
+///
+/// Every servo module has one as `DEFINITION`. A controller addresses a motor of
+/// another definition on its bus through it, see `set_definition` on the controllers.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[cfg_attr(
+    feature = "python",
+    pyo3_stub_gen::derive::gen_stub_pyclass,
+    pyo3::pyclass(frozen, eq, from_py_object)
+)]
+pub struct ServoDefinition {
+    pub name: &'static str,
+    /// The Dynamixel protocol version the servo speaks: 1 or 2.
+    pub protocol: u8,
+    pub info: ServoInfo,
+    pub registers: &'static [RegisterInfo],
+}
+
+impl ServoDefinition {
+    /// Look up a register by name, as spelled in `registers`.
+    pub fn register(&self, name: &str) -> Option<RegisterInfo> {
+        self.registers.iter().copied().find(|r| r.name == name)
+    }
+}
+
+#[cfg(feature = "python")]
+#[pyo3_stub_gen::derive::gen_stub_pymethods]
+#[pyo3::pymethods]
+impl ServoDefinition {
+    /// The servo's name, as its controller class spells it (`XL330`).
+    #[getter]
+    fn name(&self) -> &'static str {
+        self.name
+    }
+
+    /// The Dynamixel protocol version the servo speaks: 1 or 2.
+    #[getter]
+    fn protocol(&self) -> u8 {
+        self.protocol
+    }
+
+    fn __repr__(&self) -> String {
+        format!("ServoDefinition('{}')", self.name)
+    }
+}
 
 impl RegisterInfo {
     /// The bytes that write `value` to this register, in the servo's `order`.
