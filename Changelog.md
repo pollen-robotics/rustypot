@@ -4,6 +4,9 @@
   `acceleration_multiplier` is added at 86. The two-byte size was inherited from an early
   LeRobot table that marked the register as not in the memory table; Feetech's memory
   table has two one-byte registers there, so a two-byte write clobbered the multiplier.
+- XL430: the baud rate register is now spelled `baud_rate`, as on the XL330; it was
+  `buad_rate`. The generated `read_buad_rate` / `write_buad_rate` accessors and their sync
+  variants are renamed accordingly, in Rust and Python.
 
 ## Version 1.8.0
 
