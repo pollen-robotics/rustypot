@@ -51,6 +51,12 @@
   it returns `{id: model number}` and releases the GIL for the whole sweep. `scan_all()`,
   and `scan()` without ids on Python, sweep every id the protocol allows: 0 to 253 on v1,
   0 to 252 on v2, now given by `DynamixelProtocolHandler::max_id()`.
+- `with_retries(retries, op)` on every controller runs a register access again, up to
+  `retries` more times, while it fails on the bus: a timeout or a corrupted status packet.
+  A bad name or value fails at once, and a motor answering with a fault is not retried,
+  since the `_with_error` variants carry its error field. The Python by-name methods take
+  it as a `retries=0` keyword, so a caller retrying a read no longer crosses back into
+  Python between attempts.
 
 ## Version 1.9.0
 
