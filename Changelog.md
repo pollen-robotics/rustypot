@@ -1,3 +1,9 @@
+## Unreleased
+
+- XL430: the baud rate register is now spelled `baud_rate`, as on the XL330; it was
+  `buad_rate`. The generated `read_buad_rate` / `write_buad_rate` accessors and their sync
+  variants are renamed accordingly, in Rust and Python.
+
 ## Version 1.8.0
 
 - Expose each servo's control table: every servo module now has `REGISTERS: &[RegisterInfo]`
