@@ -129,6 +129,15 @@ impl DynamixelProtocolHandler {
         matches!(self.protocol, ProtocolKind::V2(_, true))
     }
 
+    /// The highest id a motor can take on this protocol: 253 on v1, 252 on v2, where
+    /// 253 is reserved. Ids start at 0 on both.
+    pub fn max_id(&self) -> u8 {
+        match self.protocol {
+            ProtocolKind::V1(_) => v1::MAX_ID,
+            ProtocolKind::V2(..) => v2::MAX_ID,
+        }
+    }
+
     /// Send a ping instruction.
     ///
     /// Ping the motor with specified `id`.
