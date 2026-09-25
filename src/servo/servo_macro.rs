@@ -12,6 +12,8 @@ macro_rules! generate_servo {
             pub struct [<$servo_name:camel Controller>] {
                 dph: Option<$crate::DynamixelProtocolHandler>,
                 serial_port: Option<Box<dyn serialport::SerialPort>>,
+                /// Motors addressed by name through another definition than this one.
+                definitions: std::collections::BTreeMap<u8, $crate::servo::ServoDefinition>,
             }
 
             impl Default for [<$servo_name:camel Controller>] {
@@ -22,7 +24,11 @@ macro_rules! generate_servo {
 
             impl [<$servo_name:camel Controller>] {
                 pub fn new() -> Self {
-                    Self {dph: None, serial_port: None}
+                    Self {
+                        dph: None,
+                        serial_port: None,
+                        definitions: std::collections::BTreeMap::new(),
+                    }
                 }
                 pub fn with_serial_port(self,
                                         serial_port: Box<dyn serialport::SerialPort>,
@@ -158,6 +164,13 @@ macro_rules! generate_servo {
                 pub fn baudrates() -> std::collections::HashMap<u32, u8> {
                     INFO.baudrates.iter().copied().collect()
                 }
+
+                /// This servo's definition, to hand to `set_definition` on the controller
+                /// of a bus that mixes it with servos of another definition.
+                #[staticmethod]
+                pub fn definition() -> $crate::servo::ServoDefinition {
+                    DEFINITION
+                }
             }
         }
 
@@ -206,6 +219,14 @@ macro_rules! generate_servo {
         pub fn register(name: &str) -> Option<$crate::servo::RegisterInfo> {
             REGISTERS.iter().copied().find(|r| r.name == name)
         }
+
+        /// This servo's definition as a value, see [`ServoDefinition`](crate::servo::ServoDefinition).
+        pub const DEFINITION: $crate::servo::ServoDefinition = $crate::servo::ServoDefinition {
+            name: stringify!($servo_name),
+            protocol: $crate::protocol_version!($protocol),
+            info: INFO,
+            registers: REGISTERS,
+        };
 
         $crate::generate_protocol_constructor!($servo_name, $protocol);
         $crate::generate_special_instructions!($servo_name);
@@ -677,12 +698,78 @@ macro_rules! generate_register_access {
                     })
                 }
 
-                /// Read register `name` as an integer, decoded from the servo's word
-                /// order and the register's sign encoding.
+                /// The definition motor `id` is addressed through by name: the one given
+                /// to [`set_definition`](Self::set_definition), or this controller's own.
+                pub fn definition_of(&self, id: u8) -> $crate::servo::ServoDefinition {
+                    self.definitions.get(&id).copied().unwrap_or(DEFINITION)
+                }
+
+                /// Address motor `id` through `definition` in the by-name access, for a
+                /// bus that mixes servos of several definitions on one port.
+                ///
+                /// Its registers are then looked up, laid out and signed as `definition`
+                /// states. The typed accessors, the raw address API and `scan` keep this
+                /// controller's own definition. `definition` must speak the same protocol.
+                pub fn set_definition(
+                    &mut self,
+                    id: u8,
+                    definition: $crate::servo::ServoDefinition,
+                ) -> $crate::Result<()> {
+                    if definition.protocol != DEFINITION.protocol {
+                        return Err(format!(
+                            "{} speaks protocol v{}, this controller speaks v{}",
+                            definition.name, definition.protocol, DEFINITION.protocol
+                        )
+                        .into());
+                    }
+                    self.definitions.insert(id, definition);
+                    Ok(())
+                }
+
+                /// Register `name` of motor `id`, with the word order it is laid out in.
+                fn named_for(
+                    &self,
+                    id: u8,
+                    name: &str,
+                ) -> $crate::Result<($crate::servo::RegisterInfo, $crate::servo::WordOrder)> {
+                    let definition = self.definition_of(id);
+                    let reg = definition
+                        .register(name)
+                        .ok_or_else(|| $crate::servo::RegisterError::Unknown(name.to_string()))?;
+                    Ok((reg, definition.info.word_order))
+                }
+
+                /// Register `name` of each of `ids`. One Sync Read or Sync Write carries a
+                /// single address and length, so it must sit at the same place on all.
+                fn named_for_all(
+                    &self,
+                    ids: &[u8],
+                    name: &str,
+                ) -> $crate::Result<Vec<($crate::servo::RegisterInfo, $crate::servo::WordOrder)>> {
+                    let regs = ids
+                        .iter()
+                        .map(|&id| self.named_for(id, name))
+                        .collect::<$crate::Result<Vec<_>>>()?;
+                    if regs
+                        .windows(2)
+                        .any(|pair| (pair[0].0.addr, pair[0].0.size) != (pair[1].0.addr, pair[1].0.size))
+                    {
+                        return Err($crate::servo::RegisterError::Layout(name.to_string()).into());
+                    }
+                    Ok(regs)
+                }
+
+                /// Whether the firmware of every one of `ids` answers Sync Read.
+                fn answers_sync_read(&self, ids: &[u8]) -> bool {
+                    ids.iter().all(|&id| self.definition_of(id).info.supports_sync_read)
+                }
+
+                /// Read register `name` as an integer, decoded from the word order and
+                /// sign encoding of the motor's definition.
                 pub fn read_register(&mut self, id: u8, name: &str) -> $crate::Result<i64> {
-                    let reg = Self::named(name)?;
+                    let (reg, order) = self.named_for(id, name)?;
                     let bytes = self.read_raw_data(id, reg.addr, reg.size)?;
-                    Ok(reg.decode(INFO.word_order, &bytes)?)
+                    Ok(reg.decode(order, &bytes)?)
                 }
 
                 /// Same as [`read_register`](Self::read_register), plus the status
@@ -692,17 +779,17 @@ macro_rules! generate_register_access {
                     id: u8,
                     name: &str,
                 ) -> $crate::Result<(i64, $crate::StatusError)> {
-                    let reg = Self::named(name)?;
+                    let (reg, order) = self.named_for(id, name)?;
                     let (bytes, error) = self.read_raw_data_with_error(id, reg.addr, reg.size)?;
-                    Ok((reg.decode(INFO.word_order, &bytes)?, error))
+                    Ok((reg.decode(order, &bytes)?, error))
                 }
 
-                /// Write `value` to register `name`, laid out in the servo's word order
-                /// and the register's sign encoding. A value that does not fit the
+                /// Write `value` to register `name`, laid out in the word order and sign
+                /// encoding of the motor's definition. A value that does not fit the
                 /// register fails before anything reaches the bus.
                 pub fn write_register(&mut self, id: u8, name: &str, value: i64) -> $crate::Result<()> {
-                    let reg = Self::named(name)?;
-                    self.write_raw_data(id, reg.addr, reg.encode(INFO.word_order, value)?)
+                    let (reg, order) = self.named_for(id, name)?;
+                    self.write_raw_data(id, reg.addr, reg.encode(order, value)?)
                 }
 
                 /// Same as [`write_register`](Self::write_register), plus the status
@@ -713,27 +800,32 @@ macro_rules! generate_register_access {
                     name: &str,
                     value: i64,
                 ) -> $crate::Result<$crate::StatusError> {
-                    let reg = Self::named(name)?;
-                    self.write_raw_data_with_error(id, reg.addr, reg.encode(INFO.word_order, value)?)
+                    let (reg, order) = self.named_for(id, name)?;
+                    self.write_raw_data_with_error(id, reg.addr, reg.encode(order, value)?)
                 }
 
                 /// Sync read register `name` from `ids`, each value decoded like
                 /// [`read_register`](Self::read_register).
                 ///
-                /// A servo whose firmware has no Sync Read (`INFO.supports_sync_read`,
-                /// false on the Feetech SCS series) is read one id at a time instead, in
-                /// the order asked. The values come back the same way, but from one
-                /// transaction per id rather than one for the whole bus.
+                /// When the firmware of one of `ids` has no Sync Read (`supports_sync_read`
+                /// false in its definition: the Feetech SCS series), they are read one id
+                /// at a time instead, in the order asked. The values come back the same
+                /// way, but from one transaction per id rather than one for the whole bus.
+                /// Otherwise the register must sit at the same address and size in every
+                /// motor's definition (`RegisterError::Layout`).
                 pub fn sync_read_register(&mut self, ids: &[u8], name: &str) -> $crate::Result<Vec<i64>> {
-                    if !INFO.supports_sync_read {
+                    if !self.answers_sync_read(ids) {
                         return ids.iter().map(|&id| self.read_register(id, name)).collect();
                     }
-                    let reg = Self::named(name)?;
-                    let mut values = Vec::with_capacity(ids.len());
-                    for bytes in self.sync_read_raw_data(ids, reg.addr, reg.size)? {
-                        values.push(reg.decode(INFO.word_order, &bytes)?);
-                    }
-                    Ok(values)
+                    let regs = self.named_for_all(ids, name)?;
+                    let Some(&(first, _)) = regs.first() else {
+                        return Ok(Vec::new());
+                    };
+                    let answers = self.sync_read_raw_data(ids, first.addr, first.size)?;
+                    regs.iter()
+                        .zip(answers)
+                        .map(|(&(reg, order), bytes)| Ok(reg.decode(order, &bytes)?))
+                        .collect()
                 }
 
                 /// Same as [`sync_read_register`](Self::sync_read_register), plus each
@@ -743,34 +835,43 @@ macro_rules! generate_register_access {
                     ids: &[u8],
                     name: &str,
                 ) -> $crate::Result<Vec<(i64, $crate::StatusError)>> {
-                    if !INFO.supports_sync_read {
+                    if !self.answers_sync_read(ids) {
                         return ids
                             .iter()
                             .map(|&id| self.read_register_with_error(id, name))
                             .collect();
                     }
-                    let reg = Self::named(name)?;
-                    let mut values = Vec::with_capacity(ids.len());
-                    for (bytes, error) in self.sync_read_raw_data_with_error(ids, reg.addr, reg.size)? {
-                        values.push((reg.decode(INFO.word_order, &bytes)?, error));
-                    }
-                    Ok(values)
+                    let regs = self.named_for_all(ids, name)?;
+                    let Some(&(first, _)) = regs.first() else {
+                        return Ok(Vec::new());
+                    };
+                    let answers = self.sync_read_raw_data_with_error(ids, first.addr, first.size)?;
+                    regs.iter()
+                        .zip(answers)
+                        .map(|(&(reg, order), (bytes, error))| Ok((reg.decode(order, &bytes)?, error)))
+                        .collect()
                 }
 
                 /// Sync write `values` to register `name` of `ids`, one value per id,
-                /// each encoded like [`write_register`](Self::write_register).
+                /// each encoded like [`write_register`](Self::write_register). The
+                /// register must sit at the same address and size in every motor's
+                /// definition (`RegisterError::Layout`).
                 pub fn sync_write_register(
                     &mut self,
                     ids: &[u8],
                     name: &str,
                     values: &[i64],
                 ) -> $crate::Result<()> {
-                    let reg = Self::named(name)?;
-                    let mut data = Vec::with_capacity(values.len());
-                    for &value in values {
-                        data.push(reg.encode(INFO.word_order, value)?);
-                    }
-                    self.sync_write_raw_data(ids, reg.addr, &data)
+                    let regs = self.named_for_all(ids, name)?;
+                    let Some(&(first, _)) = regs.first() else {
+                        return Ok(());
+                    };
+                    let data = regs
+                        .iter()
+                        .zip(values)
+                        .map(|(&(reg, order), &value)| reg.encode(order, value))
+                        .collect::<Result<Vec<_>, _>>()?;
+                    self.sync_write_raw_data(ids, first.addr, &data)
                 }
 
                 /// Run `op`, and run it again up to `retries` more times while it fails
@@ -828,8 +929,21 @@ macro_rules! generate_register_access {
             #[gen_stub_pymethods]
             #[pymethods]
             impl [<$servo_name:camel PyController>] {
-                /// Read register `name` as an integer, decoded from the servo's word
-                /// order and the register's sign encoding. A bus failure is tried again
+                /// Address motor `id` through `definition` in the by-name methods, for a
+                /// bus mixing servos of several definitions: on an XL430 controller,
+                /// `set_definition(2, Xl330PyController.definition())`. The typed
+                /// methods, the raw address ones and `scan` keep this controller's own
+                /// definition. A definition of another protocol raises `ValueError`.
+                pub fn set_definition(&self, id: u8, definition: $crate::servo::ServoDefinition) -> PyResult<()> {
+                    let mut guard = self.0.lock().unwrap();
+                    Self::borrow(&mut guard)
+                        .map_err(pyo3::exceptions::PyRuntimeError::new_err)?
+                        .set_definition(id, definition)
+                        .map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))
+                }
+
+                /// Read register `name` as an integer, decoded from the word order and
+                /// sign encoding of the motor's definition. A bus failure is tried again
                 /// up to `retries` more times; a bad name never is.
                 #[pyo3(signature = (id, name, retries = 0))]
                 pub fn read_register(&self, py: Python, id: u8, name: String, retries: u32) -> PyResult<i64> {
@@ -1050,6 +1164,17 @@ macro_rules! servo_word_order {
     };
     (big) => {
         $crate::servo::WordOrder::Big
+    };
+}
+
+#[doc(hidden)]
+#[macro_export]
+macro_rules! protocol_version {
+    (v1) => {
+        1
+    };
+    (v2) => {
+        2
     };
 }
 

@@ -80,6 +80,7 @@ fn rustypot(m: &Bound<'_, PyModule>) -> PyResult<()> {
     servo::register_class(m)?;
     m.add_class::<servo::RegisterInfo>()?;
     m.add_class::<servo::RegisterAccess>()?;
+    m.add_class::<servo::ServoDefinition>()?;
 
     Ok(())
 }

@@ -6,7 +6,9 @@ pub mod feetech;
 pub mod orbita;
 pub(crate) mod servo_macro;
 
-pub use info::{encoding_for, Encoding, RegisterError, RegisterType, ServoInfo, WordOrder};
+pub use info::{
+    encoding_for, Encoding, RegisterError, RegisterType, ServoDefinition, ServoInfo, WordOrder,
+};
 
 /// The read timeout of an ID sweep at `baudrate`.
 ///
@@ -320,6 +322,70 @@ mod tests {
             "no register named 'current_limit'"
         );
         assert!(written.lock().unwrap().is_empty());
+    }
+
+    #[test]
+    fn one_controller_addresses_motors_of_two_definitions() {
+        use crate::fake_port::FakePort;
+
+        // Present position 2048 from the STS3215 (little-endian), 16 from the SCS0009
+        // (big-endian), then the SCS0009 acknowledging a write.
+        let port = FakePort::new(vec![
+            vec![0xFF, 0xFF, 0x01, 0x04, 0x00, 0x00, 0x08, 0xF2],
+            vec![0xFF, 0xFF, 0x02, 0x04, 0x00, 0x00, 0x10, 0xE9],
+            vec![0xFF, 0xFF, 0x02, 0x02, 0x00, 0xFB],
+        ]);
+        let written = port.written();
+        let mut c = sts3215::Sts3215Controller::new()
+            .with_serial_port(Box::new(port))
+            .with_protocol_v1();
+        c.set_definition(2, scs0009::DEFINITION).unwrap();
+
+        assert_eq!(c.definition_of(1), sts3215::DEFINITION);
+        assert_eq!(c.read_register(1, "present_position").unwrap(), 2048);
+        assert_eq!(c.read_register(2, "present_position").unwrap(), 16);
+
+        // Goal position 0x1234 goes out high byte first, at address 42.
+        c.write_register(2, "goal_position", 0x1234).unwrap();
+        assert_eq!(written.lock().unwrap()[2][5..8], [0x2A, 0x12, 0x34]);
+    }
+
+    #[test]
+    fn a_sync_write_lays_each_value_out_through_its_motor_definition() {
+        use crate::fake_port::FakePort;
+
+        let port = FakePort::new(vec![]);
+        let written = port.written();
+        let mut c = sts3215::Sts3215Controller::new()
+            .with_serial_port(Box::new(port))
+            .with_protocol_v1();
+        c.set_definition(2, scs0009::DEFINITION).unwrap();
+
+        // One Sync Write at address 42, two bytes each: -100 sign-magnitude and
+        // little-endian for the STS3215, 0x1234 big-endian for the SCS0009.
+        c.sync_write_register(&[1, 2], "goal_position", &[-100, 0x1234])
+            .unwrap();
+        assert_eq!(
+            written.lock().unwrap()[0][5..13],
+            [0x2A, 0x02, 0x01, 0x64, 0x80, 0x02, 0x12, 0x34]
+        );
+
+        // The lock register is at 55 on the STS3215 and 48 on the SCS0009: no single
+        // instruction reaches both, and nothing is sent.
+        let err = c.sync_write_register(&[1, 2], "lock", &[0, 0]).unwrap_err();
+        assert!(matches!(
+            err.downcast_ref::<super::RegisterError>(),
+            Some(super::RegisterError::Layout(_))
+        ));
+        assert_eq!(written.lock().unwrap().len(), 1);
+    }
+
+    #[test]
+    fn a_definition_of_another_protocol_is_refused() {
+        let mut c = sts3215::Sts3215Controller::new().with_protocol_v1();
+
+        assert!(c.set_definition(1, xl330::DEFINITION).is_err());
+        assert_eq!(c.definition_of(1), sts3215::DEFINITION);
     }
 
     #[test]
