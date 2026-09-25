@@ -6,7 +6,7 @@ pub mod feetech;
 pub mod orbita;
 pub(crate) mod servo_macro;
 
-pub use info::{encoding_for, Encoding, RegisterType, ServoInfo, WordOrder};
+pub use info::{encoding_for, Encoding, RegisterError, RegisterType, ServoInfo, WordOrder};
 
 /// Where a register exists in a servo's control table.
 ///
@@ -246,6 +246,71 @@ mod tests {
         let settings = settings.lock().unwrap();
         assert_eq!(settings.baud_rate, 57_600);
         assert_eq!(settings.timeouts.last(), Some(&Duration::from_millis(20)));
+    }
+
+    #[test]
+    fn registers_are_read_and_written_by_name() {
+        use crate::fake_port::FakePort;
+
+        // The answers: homing_offset of motor 1 as 0x0AC5, then the status of the write.
+        let port = FakePort::new(vec![
+            vec![0xFF, 0xFF, 0x01, 0x04, 0x00, 0xC5, 0x0A, 0x2B],
+            vec![0xFF, 0xFF, 0x01, 0x02, 0x00, 0xFC],
+        ]);
+        let written = port.written();
+        let mut c = sts3215::Sts3215Controller::new()
+            .with_serial_port(Box::new(port))
+            .with_protocol_v1();
+
+        // Sign-magnitude on bit 11: 0x0AC5 is -709.
+        assert_eq!(c.read_register(1, "homing_offset").unwrap(), -709);
+
+        // Sign-magnitude on bit 15: -100 is 0x8064, little-endian at address 42.
+        c.write_register(1, "goal_position", -100).unwrap();
+        assert_eq!(
+            written.lock().unwrap()[1],
+            [0xFF, 0xFF, 0x01, 0x05, 0x03, 0x2A, 0x64, 0x80, 0xE8]
+        );
+    }
+
+    #[test]
+    fn big_endian_servos_write_each_word_high_byte_first() {
+        use crate::fake_port::FakePort;
+
+        let port = FakePort::new(vec![vec![0xFF, 0xFF, 0x01, 0x02, 0x00, 0xFC]]);
+        let written = port.written();
+        let mut c = scs0009::Scs0009Controller::new()
+            .with_serial_port(Box::new(port))
+            .with_protocol_v1();
+
+        c.write_register(1, "goal_position", 0x1234).unwrap();
+        assert_eq!(
+            written.lock().unwrap()[0],
+            [0xFF, 0xFF, 0x01, 0x05, 0x03, 0x2A, 0x12, 0x34, 0x86]
+        );
+    }
+
+    #[test]
+    fn a_bad_name_or_value_never_reaches_the_bus() {
+        use crate::fake_port::FakePort;
+
+        let port = FakePort::new(vec![]);
+        let written = port.written();
+        let mut c = sts3215::Sts3215Controller::new()
+            .with_serial_port(Box::new(port))
+            .with_protocol_v1();
+
+        assert_eq!(
+            c.write_register(1, "torque_enable", 256)
+                .unwrap_err()
+                .to_string(),
+            "256 does not fit register 'torque_enable'"
+        );
+        assert_eq!(
+            c.read_register(1, "current_limit").unwrap_err().to_string(),
+            "no register named 'current_limit'"
+        );
+        assert!(written.lock().unwrap().is_empty());
     }
 
     #[test]

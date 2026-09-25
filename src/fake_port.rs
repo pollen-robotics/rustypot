@@ -16,7 +16,7 @@ pub(crate) struct Settings {
     pub timeouts: Vec<Duration>,
 }
 
-/// A serial port that replays canned status packets and throws away what is written.
+/// A serial port that replays canned status packets and records what is written.
 ///
 /// Each instruction written loads the next scripted answer. An empty answer, or a
 /// script that has run out, reads as nothing on the wire: the timeout case, without the
@@ -26,6 +26,7 @@ pub(crate) struct FakePort {
     answers: VecDeque<Vec<u8>>,
     to_read: io::Cursor<Vec<u8>>,
     settings: Arc<Mutex<Settings>>,
+    written: Arc<Mutex<Vec<Vec<u8>>>>,
 }
 
 impl FakePort {
@@ -37,11 +38,17 @@ impl FakePort {
                 baud_rate: 1_000_000,
                 timeouts: vec![Duration::from_millis(10)],
             })),
+            written: Arc::new(Mutex::new(Vec::new())),
         }
     }
 
     pub(crate) fn settings(&self) -> Arc<Mutex<Settings>> {
         Arc::clone(&self.settings)
+    }
+
+    /// Every instruction packet written so far, oldest first.
+    pub(crate) fn written(&self) -> Arc<Mutex<Vec<Vec<u8>>>> {
+        Arc::clone(&self.written)
     }
 }
 
@@ -53,6 +60,7 @@ impl io::Read for FakePort {
 
 impl io::Write for FakePort {
     fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
+        self.written.lock().unwrap().push(buf.to_vec());
         self.to_read = io::Cursor::new(self.answers.pop_front().unwrap_or_default());
         Ok(buf.len())
     }
