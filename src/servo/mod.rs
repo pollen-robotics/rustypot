@@ -323,6 +323,59 @@ mod tests {
     }
 
     #[test]
+    fn a_bus_failure_is_tried_again_until_the_retries_run_out() {
+        use crate::fake_port::FakePort;
+
+        // Present position 2048 from motor 1, little-endian.
+        let answer = vec![0xFF, 0xFF, 0x01, 0x04, 0x00, 0x00, 0x08, 0xF2];
+
+        // The first read times out, the second is answered.
+        let port = FakePort::new(vec![vec![], answer.clone()]);
+        let written = port.written();
+        let mut c = sts3215::Sts3215Controller::new()
+            .with_serial_port(Box::new(port))
+            .with_protocol_v1();
+        assert_eq!(
+            c.with_retries(1, |c| c.read_register(1, "present_position"))
+                .unwrap(),
+            2048
+        );
+        assert_eq!(written.lock().unwrap().len(), 2);
+
+        // Without a retry left, the timeout is the answer.
+        let port = FakePort::new(vec![vec![], answer]);
+        let written = port.written();
+        let mut c = sts3215::Sts3215Controller::new()
+            .with_serial_port(Box::new(port))
+            .with_protocol_v1();
+        assert!(c
+            .with_retries(0, |c| c.read_register(1, "present_position"))
+            .is_err());
+        assert_eq!(written.lock().unwrap().len(), 1);
+    }
+
+    #[test]
+    fn a_bad_name_or_value_is_not_tried_again() {
+        use crate::fake_port::FakePort;
+
+        let port = FakePort::new(vec![]);
+        let written = port.written();
+        let mut c = sts3215::Sts3215Controller::new()
+            .with_serial_port(Box::new(port))
+            .with_protocol_v1();
+
+        let mut attempts = 0;
+        let result = c.with_retries(3, |c| {
+            attempts += 1;
+            c.write_register(1, "torque_enable", 256)
+        });
+
+        assert!(result.unwrap_err().is::<super::RegisterError>());
+        assert_eq!(attempts, 1);
+        assert!(written.lock().unwrap().is_empty());
+    }
+
+    #[test]
     fn a_scan_reports_the_ids_that_answer_and_puts_the_timeout_back() {
         use crate::fake_port::FakePort;
         use std::time::Duration;
