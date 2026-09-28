@@ -11,7 +11,7 @@ use std::time::Duration;
 
 use serialport::SerialPort;
 
-use crate::servo::definition::{self, retrying, ServoDefinition};
+use crate::servo::definition::{self, retrying, ServoDefinition, SyncWrite};
 use crate::servo::RegisterError;
 use crate::{DynamixelProtocolHandler, Result, StatusError};
 
@@ -150,6 +150,10 @@ impl Bus {
 
     /// Sync write `values` to register `name` of `ids`, one value per id, with one Sync
     /// Write per group as in [`sync_read_register`](Self::sync_read_register).
+    ///
+    /// Every group is checked and encoded before the first one is sent, so a value that
+    /// does not fit its register fails the call with nothing written. A bus failure on a
+    /// later group leaves the earlier ones written; `with_retries` sends them all again.
     pub fn sync_write_register(&mut self, ids: &[u8], name: &str, values: &[i64]) -> Result<()> {
         if values.len() != ids.len() {
             return Err(RegisterError::ValueCount {
@@ -158,6 +162,7 @@ impl Bus {
             }
             .into());
         }
+        let mut writes = Vec::new();
         for (protocol, members) in self.groups(ids, name)? {
             let motors: Vec<_> = members.iter().map(|&(_, motor)| motor).collect();
             let group_values: Vec<_> = members
@@ -165,13 +170,12 @@ impl Bus {
                 .map(|&(position, _)| values[position])
                 .collect();
             let dph = &self.handlers[protocol as usize - 1];
-            definition::sync_write_register(
-                dph,
-                self.serial_port.as_mut(),
-                &motors,
-                name,
-                &group_values,
-            )?;
+            if let Some(write) = SyncWrite::encode(dph, &motors, name, &group_values)? {
+                writes.push((dph, write));
+            }
+        }
+        for (dph, write) in writes {
+            write.send(dph, self.serial_port.as_mut())?;
         }
         Ok(())
     }
@@ -466,6 +470,32 @@ mod tests {
             Some(RegisterError::UnknownMotor(9))
         ));
         assert_eq!(written.lock().unwrap().len(), 4);
+    }
+
+    #[test]
+    fn a_value_that_does_not_fit_leaves_the_whole_bus_unwritten() {
+        let port = FakePort::new(vec![]);
+        let written = port.written();
+        let mut bus = Bus::new(
+            Box::new(port),
+            BTreeMap::from([
+                (1, xl330::DEFINITION),
+                (2, xl330::DEFINITION),
+                (11, sts3215::DEFINITION),
+            ]),
+        );
+
+        // The v2 group (1, 2) comes first and its values fit; 70000 does not fit the
+        // STS3215's sign-magnitude goal position, in the second group.
+        let err = bus
+            .sync_write_register(&[1, 2, 11], "goal_position", &[100, 200, 70000])
+            .unwrap_err();
+
+        assert!(matches!(
+            err.downcast_ref::<RegisterError>(),
+            Some(RegisterError::OutOfRange { .. })
+        ));
+        assert!(written.lock().unwrap().is_empty());
     }
 
     #[test]

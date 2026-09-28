@@ -297,23 +297,59 @@ pub fn sync_write_register(
     name: &str,
     values: &[i64],
 ) -> Result<()> {
-    if values.len() != motors.len() {
-        return Err(RegisterError::ValueCount {
-            ids: motors.len(),
-            values: values.len(),
-        }
-        .into());
+    match SyncWrite::encode(dph, motors, name, values)? {
+        Some(write) => write.send(dph, port),
+        None => Ok(()),
     }
-    let regs = resolve(dph, motors, name)?;
-    let Some(&(first, _)) = regs.first() else {
-        return Ok(());
-    };
-    let data = regs
-        .iter()
-        .zip(values)
-        .map(|(&(reg, order), &value)| reg.encode(order, value))
-        .collect::<std::result::Result<Vec<_>, _>>()?;
-    dph.sync_write(port, &ids(motors), first.addr, &data)
+}
+
+/// A Sync Write ready to go: every check done and every value encoded, so sending it
+/// can only fail on the bus.
+pub(crate) struct SyncWrite {
+    ids: Vec<u8>,
+    addr: u8,
+    data: Vec<Vec<u8>>,
+}
+
+impl SyncWrite {
+    /// The Sync Write that puts `values` in register `name` of `motors`, or `None` when
+    /// there is no motor. Fails with a [`RegisterError`], and sends nothing.
+    pub(crate) fn encode(
+        dph: &DynamixelProtocolHandler,
+        motors: &[(u8, ServoDefinition)],
+        name: &str,
+        values: &[i64],
+    ) -> Result<Option<SyncWrite>> {
+        if values.len() != motors.len() {
+            return Err(RegisterError::ValueCount {
+                ids: motors.len(),
+                values: values.len(),
+            }
+            .into());
+        }
+        let regs = resolve(dph, motors, name)?;
+        let Some(&(first, _)) = regs.first() else {
+            return Ok(None);
+        };
+        let data = regs
+            .iter()
+            .zip(values)
+            .map(|(&(reg, order), &value)| reg.encode(order, value))
+            .collect::<std::result::Result<Vec<_>, _>>()?;
+        Ok(Some(SyncWrite {
+            ids: ids(motors),
+            addr: first.addr,
+            data,
+        }))
+    }
+
+    pub(crate) fn send(
+        &self,
+        dph: &DynamixelProtocolHandler,
+        port: &mut dyn SerialPort,
+    ) -> Result<()> {
+        dph.sync_write(port, &self.ids, self.addr, &self.data)
+    }
 }
 
 /// Run `op`, and run it again up to `retries` more times while it fails on the bus.

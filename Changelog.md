@@ -76,7 +76,7 @@
   definitions sharing a protocol and the register's address and size in one instruction,
   each value laid out through its motor's definition. `bus::Bus` holds a port, a handler
   per protocol and the definition of each motor, and sends one instruction per such
-  group. On Python: `Bus(serial_port, baudrate, timeout, {id: definition})` with the same
+  group, every group encoded before the first is sent. On Python: `Bus(serial_port, baudrate, timeout, {id: definition})` with the same
   methods as a controller's by-name ones, `retries` included, `scan(definition, ids=None)`,
   and the static `definition()` of each controller class. `RegisterError` gains `Layout`,
   `Protocol`, `UnknownMotor` and `ValueCount`, all found before anything is sent.
