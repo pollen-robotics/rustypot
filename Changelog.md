@@ -29,6 +29,42 @@
 - Python: `resolution()`, `word_order()`, `supports_sync_read()`, `baudrates()` and
   `models()` on every controller class, static like `registers()`, and `encoding` /
   `sign_bit` on `RegisterInfo`.
+- `set_baudrate(baudrate)` and `set_timeout(duration)` on every controller, and on the
+  Python classes with the timeout in seconds like the constructor's (a negative, NaN or
+  infinite one raises `ValueError`). Both change the
+  open port in place. A caller probing a bus at each rate a motor might be at, or
+  shortening the timeout for an ID sweep, no longer has to close the controller and
+  build a new one, which on Python could fail on a port still held by a traceback.
+- Integer access to registers chosen by name: `read_register(id, name)`,
+  `write_register(id, name, value)`, `sync_read_register(ids, name)` and
+  `sync_write_register(ids, name, values)` on every controller, plus `_with_error`
+  variants of the first three carrying the status packet's error field. They apply
+  what the definition states about the register: the bytes go in the servo's word
+  order (a big-endian servo swaps the two bytes of each 16-bit word, low word first)
+  and the sign follows the register's encoding, so a Feetech sign-magnitude offset
+  reads as `-709` and writes back as `0x0AC5`. A value that does not fit the register,
+  or a name the servo does not define, fails before anything reaches the bus
+  (`RegisterError`, a `ValueError` on Python). The same eight methods exist on the
+  Python classes and release the GIL like the raw ones. `WordOrder::to_bytes` / `from_bytes`, `Encoding::encode` /
+  `decode` and `RegisterInfo::encode` / `decode` are public for callers holding their
+  own bytes.
+- `scan(ids)` on every controller: which of `ids` answer, with their model number, as
+  one Model Number read per id. The sweep runs under a read timeout sized to the baud
+  rate (`servo::scan_timeout`: 320 bits of wire time, 5 ms at least) so that absent ids
+  do not each cost the port's timeout, and puts the timeout back afterwards. On Python
+  it returns `{id: model number}` and releases the GIL for the whole sweep. `scan_all()`,
+  and `scan()` without ids on Python, sweep every id the protocol allows: 0 to 253 on v1,
+  0 to 252 on v2, now given by `DynamixelProtocolHandler::max_id()`.
+- `with_retries(retries, op)` on every controller runs a register access again, up to
+  `retries` more times, while it fails on the bus: a timeout or a corrupted status packet.
+  A bad name or value fails at once, and a motor answering with a fault is not retried,
+  since the `_with_error` variants carry its error field. The Python by-name methods take
+  it as a `retries=0` keyword, so a caller retrying a read no longer crosses back into
+  Python between attempts.
+- `sync_read_register` and its `_with_error` variant read a servo whose firmware has no
+  Sync Read (the Feetech SCS series, `supports_sync_read` false) one id at a time, in the
+  order asked, instead of sending an instruction that is never answered. The raw and
+  typed sync reads still send Sync Read as asked.
 
 ## Version 1.9.0
 

@@ -134,6 +134,10 @@ from rustypot import Sts3215PyController
 c = Sts3215PyController(serial_port='/dev/ttyUSB0', baudrate=1_000_000, timeout=0.1)
 ```
 
+Both port settings can be changed later without closing it, with `c.set_baudrate(500_000)` and `c.set_timeout(0.01)` (seconds).
+
+To find out what is on the bus, `c.scan(list(range(254)))` returns `{id: model number}` for every id that answers, under a read timeout sized to the baud rate so that the absent ones go by quickly.
+
 
 Then, you can directly read/write any register of the motor. For instance, to read the present position of the motor with id 1, you can do:
 
@@ -182,6 +186,17 @@ raw = c.read_raw_data(1, pos.addr, pos.size)
 ```
 
 `register()` returns `None` for a name the servo does not define.
+
+For an integer, the name is enough: `read_register`, `write_register`, `sync_read_register` and `sync_write_register` (and `read_register_with_error`, `write_register_with_error`, `sync_read_register_with_error`, which also hand back the status error byte) take the register's name and apply its byte order and sign encoding, so a Feetech homing offset comes back as `-709` rather than as the bytes of `0x0AC5`:
+
+```python
+offset = c.read_register(1, "homing_offset")
+c.write_register(1, "goal_position", -100)
+positions = c.sync_read_register([1, 2], "present_position")
+c.sync_write_register([1, 2], "goal_position", [0, 2047])
+```
+
+A value that does not fit the register, or a name the servo does not define, raises before anything reaches the bus.
 
 A raw read hands back bytes, and what they mean is on the class too: `word_order()` gives the byte order (`"little"` or `"big"`), each register's `encoding` says whether the value is `"unsigned"`, `"twos_complement"` or `"sign_magnitude"` (with `sign_bit` for the last), `resolution()` is the number of steps per turn, `baudrates()` maps a baud rate to the value of the baud rate register, `supports_sync_read()` tells whether the firmware answers Sync Read, and `models()` lists the model numbers the definition covers:
 

@@ -32,6 +32,21 @@ macro_rules! generate_servo {
                         ..self
                     }
                 }
+
+                /// Switch the open serial port to `baudrate`.
+                ///
+                /// Motors set to another rate stop answering until they are switched
+                /// too; this is how a bus is probed at each rate a motor might be at.
+                pub fn set_baudrate(&mut self, baudrate: u32) -> $crate::Result<()> {
+                    Ok(self.serial_port.as_mut().unwrap().set_baud_rate(baudrate)?)
+                }
+
+                /// Give the open serial port a new read timeout.
+                ///
+                /// This bounds every transaction with a motor that does not answer.
+                pub fn set_timeout(&mut self, timeout: std::time::Duration) -> $crate::Result<()> {
+                    Ok(self.serial_port.as_mut().unwrap().set_timeout(timeout)?)
+                }
             }
 
             #[cfg(feature = "python")]
@@ -76,6 +91,33 @@ macro_rules! generate_servo {
                 /// Whether the controller still holds its serial port.
                 pub fn is_open(&self) -> bool {
                     self.0.lock().unwrap().is_some()
+                }
+
+                /// Switch the open serial port to `baudrate`.
+                ///
+                /// Motors set to another rate stop answering until they are switched
+                /// too; this is how a bus is probed at each rate a motor might be at.
+                pub fn set_baudrate(&self, baudrate: u32) -> PyResult<()> {
+                    let mut guard = self.0.lock().unwrap();
+                    Self::borrow(&mut guard)
+                        .map_err(pyo3::exceptions::PyRuntimeError::new_err)?
+                        .set_baudrate(baudrate)
+                        .map_err(|e| pyo3::exceptions::PyIOError::new_err(e.to_string()))
+                }
+
+                /// Give the open serial port a new read timeout, in seconds like the
+                /// constructor's.
+                ///
+                /// This bounds every transaction with a motor that does not answer. A
+                /// negative, NaN or infinite timeout raises `ValueError`.
+                pub fn set_timeout(&self, timeout: f32) -> PyResult<()> {
+                    let timeout = std::time::Duration::try_from_secs_f32(timeout)
+                        .map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?;
+                    let mut guard = self.0.lock().unwrap();
+                    Self::borrow(&mut guard)
+                        .map_err(pyo3::exceptions::PyRuntimeError::new_err)?
+                        .set_timeout(timeout)
+                        .map_err(|e| pyo3::exceptions::PyIOError::new_err(e.to_string()))
                 }
 
                 /// Every register of this servo, in declaration order.
@@ -185,6 +227,8 @@ macro_rules! generate_servo {
         $crate::generate_protocol_constructor!($servo_name, $protocol);
         $crate::generate_special_instructions!($servo_name);
         $crate::generate_addr_read_write!($servo_name);
+        $crate::generate_register_access!($servo_name);
+        $crate::generate_scan!($servo_name);
 
         $(
             $crate::generate_reg_access!($servo_name, $reg_name, $reg_access, $reg_addr, $reg_type, $conv);
@@ -626,6 +670,345 @@ macro_rules! generate_addr_read_write {
                                 .map_err(|e| e.to_string())
                         })
                         .map_err(pyo3::exceptions::PyRuntimeError::new_err)
+                }
+            }
+        }
+    };
+}
+
+/// Integer access to registers chosen by name, for code that picks them at runtime.
+///
+/// The raw address API hands back bytes; these methods apply what the definition
+/// states about them -- the servo's word order and each register's sign encoding --
+/// so a Feetech sign-magnitude position or a Dynamixel two's complement offset
+/// comes and goes as the value it stands for. The generated `read_<name>` methods
+/// remain the typed way for a register known in source.
+#[macro_export]
+macro_rules! generate_register_access {
+    ($servo_name:ident) => {
+        paste::paste! {
+            impl [<$servo_name:camel Controller>] {
+                fn named(name: &str) -> $crate::Result<$crate::servo::RegisterInfo> {
+                    register(name).ok_or_else(|| {
+                        $crate::servo::RegisterError::Unknown(name.to_string()).into()
+                    })
+                }
+
+                /// Read register `name` as an integer, decoded from the servo's word
+                /// order and the register's sign encoding.
+                pub fn read_register(&mut self, id: u8, name: &str) -> $crate::Result<i64> {
+                    let reg = Self::named(name)?;
+                    let bytes = self.read_raw_data(id, reg.addr, reg.size)?;
+                    Ok(reg.decode(INFO.word_order, &bytes)?)
+                }
+
+                /// Same as [`read_register`](Self::read_register), plus the status
+                /// packet's error field.
+                pub fn read_register_with_error(
+                    &mut self,
+                    id: u8,
+                    name: &str,
+                ) -> $crate::Result<(i64, $crate::StatusError)> {
+                    let reg = Self::named(name)?;
+                    let (bytes, error) = self.read_raw_data_with_error(id, reg.addr, reg.size)?;
+                    Ok((reg.decode(INFO.word_order, &bytes)?, error))
+                }
+
+                /// Write `value` to register `name`, laid out in the servo's word order
+                /// and the register's sign encoding. A value that does not fit the
+                /// register fails before anything reaches the bus.
+                pub fn write_register(&mut self, id: u8, name: &str, value: i64) -> $crate::Result<()> {
+                    let reg = Self::named(name)?;
+                    self.write_raw_data(id, reg.addr, reg.encode(INFO.word_order, value)?)
+                }
+
+                /// Same as [`write_register`](Self::write_register), plus the status
+                /// packet's error field.
+                pub fn write_register_with_error(
+                    &mut self,
+                    id: u8,
+                    name: &str,
+                    value: i64,
+                ) -> $crate::Result<$crate::StatusError> {
+                    let reg = Self::named(name)?;
+                    self.write_raw_data_with_error(id, reg.addr, reg.encode(INFO.word_order, value)?)
+                }
+
+                /// Sync read register `name` from `ids`, each value decoded like
+                /// [`read_register`](Self::read_register).
+                ///
+                /// A servo whose firmware has no Sync Read (`INFO.supports_sync_read`,
+                /// false on the Feetech SCS series) is read one id at a time instead, in
+                /// the order asked. The values come back the same way, but from one
+                /// transaction per id rather than one for the whole bus.
+                pub fn sync_read_register(&mut self, ids: &[u8], name: &str) -> $crate::Result<Vec<i64>> {
+                    if !INFO.supports_sync_read {
+                        return ids.iter().map(|&id| self.read_register(id, name)).collect();
+                    }
+                    let reg = Self::named(name)?;
+                    let mut values = Vec::with_capacity(ids.len());
+                    for bytes in self.sync_read_raw_data(ids, reg.addr, reg.size)? {
+                        values.push(reg.decode(INFO.word_order, &bytes)?);
+                    }
+                    Ok(values)
+                }
+
+                /// Same as [`sync_read_register`](Self::sync_read_register), plus each
+                /// motor's error field, with the same fallback to one read per id.
+                pub fn sync_read_register_with_error(
+                    &mut self,
+                    ids: &[u8],
+                    name: &str,
+                ) -> $crate::Result<Vec<(i64, $crate::StatusError)>> {
+                    if !INFO.supports_sync_read {
+                        return ids
+                            .iter()
+                            .map(|&id| self.read_register_with_error(id, name))
+                            .collect();
+                    }
+                    let reg = Self::named(name)?;
+                    let mut values = Vec::with_capacity(ids.len());
+                    for (bytes, error) in self.sync_read_raw_data_with_error(ids, reg.addr, reg.size)? {
+                        values.push((reg.decode(INFO.word_order, &bytes)?, error));
+                    }
+                    Ok(values)
+                }
+
+                /// Sync write `values` to register `name` of `ids`, one value per id,
+                /// each encoded like [`write_register`](Self::write_register).
+                pub fn sync_write_register(
+                    &mut self,
+                    ids: &[u8],
+                    name: &str,
+                    values: &[i64],
+                ) -> $crate::Result<()> {
+                    let reg = Self::named(name)?;
+                    let mut data = Vec::with_capacity(values.len());
+                    for &value in values {
+                        data.push(reg.encode(INFO.word_order, value)?);
+                    }
+                    self.sync_write_raw_data(ids, reg.addr, &data)
+                }
+
+                /// Run `op`, and run it again up to `retries` more times while it fails
+                /// on the bus.
+                ///
+                /// A timeout or a corrupted status packet is worth another try, and each
+                /// attempt starts with the pre-send flush. A bad name or value is not: it
+                /// fails at once, before anything reaches the bus. A motor that answers
+                /// with a fault did answer, so the `_with_error` variants hand its error
+                /// field back rather than retry. For instance,
+                /// `c.with_retries(3, |c| c.read_register(1, "present_position"))`.
+                pub fn with_retries<T>(
+                    &mut self,
+                    retries: u32,
+                    mut op: impl FnMut(&mut Self) -> $crate::Result<T>,
+                ) -> $crate::Result<T> {
+                    let mut attempt = 0;
+                    loop {
+                        match op(self) {
+                            Err(e) if attempt < retries && !e.is::<$crate::servo::RegisterError>() => {
+                                attempt += 1
+                            }
+                            result => return result,
+                        }
+                    }
+                }
+            }
+
+            #[cfg(feature = "python")]
+            impl [<$servo_name:camel PyController>] {
+                /// Run a name-based access with the GIL released, telling a bad name or
+                /// value (`ValueError`) apart from a bus failure (`RuntimeError`).
+                fn by_name<T: Send>(
+                    &self,
+                    py: Python,
+                    op: impl FnOnce(&mut [<$servo_name:camel Controller>]) -> $crate::Result<T> + Send,
+                ) -> PyResult<T> {
+                    py.detach(|| {
+                        let mut guard = self.0.lock().unwrap();
+                        let controller = Self::borrow(&mut guard).map_err(|e| (false, e))?;
+                        op(controller)
+                            .map_err(|e| (e.is::<$crate::servo::RegisterError>(), e.to_string()))
+                    })
+                    .map_err(|(bad_argument, message)| {
+                        if bad_argument {
+                            pyo3::exceptions::PyValueError::new_err(message)
+                        } else {
+                            pyo3::exceptions::PyRuntimeError::new_err(message)
+                        }
+                    })
+                }
+            }
+
+            #[cfg(feature = "python")]
+            #[gen_stub_pymethods]
+            #[pymethods]
+            impl [<$servo_name:camel PyController>] {
+                /// Read register `name` as an integer, decoded from the servo's word
+                /// order and the register's sign encoding. A bus failure is tried again
+                /// up to `retries` more times; a bad name never is.
+                #[pyo3(signature = (id, name, retries = 0))]
+                pub fn read_register(&self, py: Python, id: u8, name: String, retries: u32) -> PyResult<i64> {
+                    self.by_name(py, |c| c.with_retries(retries, |c| c.read_register(id, &name)))
+                }
+
+                /// Same as `read_register`, plus the status packet's error field. See
+                /// `read_raw_data_with_error` for how to read the byte. A motor that
+                /// answers with a fault is not tried again.
+                #[pyo3(signature = (id, name, retries = 0))]
+                pub fn read_register_with_error(
+                    &self,
+                    py: Python,
+                    id: u8,
+                    name: String,
+                    retries: u32,
+                ) -> PyResult<(i64, u8)> {
+                    self.by_name(py, |c| c.with_retries(retries, |c| c.read_register_with_error(id, &name)))
+                        .map(|(value, error)| (value, error.byte()))
+                }
+
+                /// Write `value` to register `name`, laid out in the servo's word order
+                /// and the register's sign encoding. A value that does not fit the
+                /// register, or a name the servo does not define, raises `ValueError`
+                /// before anything reaches the bus. A bus failure is tried again up to
+                /// `retries` more times.
+                #[pyo3(signature = (id, name, value, retries = 0))]
+                pub fn write_register(
+                    &self,
+                    py: Python,
+                    id: u8,
+                    name: String,
+                    value: i64,
+                    retries: u32,
+                ) -> PyResult<()> {
+                    self.by_name(py, |c| c.with_retries(retries, |c| c.write_register(id, &name, value)))
+                }
+
+                /// Same as `write_register`, and return the status packet's error field.
+                #[pyo3(signature = (id, name, value, retries = 0))]
+                pub fn write_register_with_error(
+                    &self,
+                    py: Python,
+                    id: u8,
+                    name: String,
+                    value: i64,
+                    retries: u32,
+                ) -> PyResult<u8> {
+                    self.by_name(py, |c| {
+                        c.with_retries(retries, |c| c.write_register_with_error(id, &name, value))
+                    })
+                    .map(|error| error.byte())
+                }
+
+                /// Sync read register `name` from `ids`, each value decoded like
+                /// `read_register`, with the same `retries`. A servo without Sync Read
+                /// (`supports_sync_read()`) is read one id at a time instead.
+                #[pyo3(signature = (ids, name, retries = 0))]
+                pub fn sync_read_register(
+                    &self,
+                    py: Python,
+                    ids: Vec<u8>,
+                    name: String,
+                    retries: u32,
+                ) -> PyResult<Vec<i64>> {
+                    self.by_name(py, |c| c.with_retries(retries, |c| c.sync_read_register(&ids, &name)))
+                }
+
+                /// Same as `sync_read_register`, plus each motor's error field, as one
+                /// (value, error) pair per id in the order they were asked for.
+                #[pyo3(signature = (ids, name, retries = 0))]
+                pub fn sync_read_register_with_error(
+                    &self,
+                    py: Python,
+                    ids: Vec<u8>,
+                    name: String,
+                    retries: u32,
+                ) -> PyResult<Vec<(i64, u8)>> {
+                    self.by_name(py, |c| {
+                        c.with_retries(retries, |c| c.sync_read_register_with_error(&ids, &name))
+                    })
+                    .map(|values| values.into_iter().map(|(v, e)| (v, e.byte())).collect())
+                }
+
+                /// Sync write `values` to register `name` of `ids`, one value per id,
+                /// each encoded like `write_register`, with the same `retries`.
+                #[pyo3(signature = (ids, name, values, retries = 0))]
+                pub fn sync_write_register(
+                    &self,
+                    py: Python,
+                    ids: Vec<u8>,
+                    name: String,
+                    values: Vec<i64>,
+                    retries: u32,
+                ) -> PyResult<()> {
+                    self.by_name(py, |c| {
+                        c.with_retries(retries, |c| c.sync_write_register(&ids, &name, &values))
+                    })
+                }
+            }
+        }
+    };
+}
+
+/// A sweep of the bus: which ids answer, and what they are.
+#[macro_export]
+macro_rules! generate_scan {
+    ($servo_name:ident) => {
+        paste::paste! {
+            impl [<$servo_name:camel Controller>] {
+                /// Which of `ids` answer, with their model number.
+                ///
+                /// One Model Number read per id, so presence and identity cost a single
+                /// round trip. An absent id costs a timeout, so the sweep runs under one
+                /// sized to the baud rate, see [`scan_timeout`](crate::servo::scan_timeout),
+                /// and puts the port's timeout back afterwards. An id that answers with
+                /// anything the protocol cannot parse counts as absent.
+                pub fn scan(&mut self, ids: &[u8]) -> $crate::Result<std::collections::BTreeMap<u8, u16>> {
+                    let reg = Self::named("model_number")?;
+                    let port = self.serial_port.as_mut().unwrap();
+                    let timeout = port.timeout();
+                    port.set_timeout($crate::servo::scan_timeout(port.baud_rate()?))?;
+                    let found = ids
+                        .iter()
+                        .filter_map(|&id| {
+                            let bytes = self.read_raw_data(id, reg.addr, reg.size).ok()?;
+                            let model = reg.decode(INFO.word_order, &bytes).ok()?;
+                            Some((id, model as u16))
+                        })
+                        .collect();
+                    self.serial_port.as_mut().unwrap().set_timeout(timeout)?;
+                    Ok(found)
+                }
+
+                /// [`scan`](Self::scan) every id the protocol allows, from 0 to
+                /// [`max_id`](crate::DynamixelProtocolHandler::max_id).
+                pub fn scan_all(&mut self) -> $crate::Result<std::collections::BTreeMap<u8, u16>> {
+                    let ids: Vec<u8> = (0..=self.dph.as_ref().unwrap().max_id()).collect();
+                    self.scan(&ids)
+                }
+            }
+
+            #[cfg(feature = "python")]
+            #[gen_stub_pymethods]
+            #[pymethods]
+            impl [<$servo_name:camel PyController>] {
+                /// Which of `ids` answer, as {id: model number}; every id the protocol
+                /// allows when `ids` is left out (0 to 253 on v1, 0 to 252 on v2).
+                ///
+                /// One Model Number read per id, under a timeout sized to the baud rate
+                /// so that absent ids do not each cost the port's timeout; the port's
+                /// timeout is put back afterwards.
+                #[pyo3(signature = (ids = None))]
+                pub fn scan(
+                    &self,
+                    py: Python,
+                    ids: Option<Vec<u8>>,
+                ) -> PyResult<std::collections::BTreeMap<u8, u16>> {
+                    self.by_name(py, |c| match &ids {
+                        Some(ids) => c.scan(ids),
+                        None => c.scan_all(),
+                    })
                 }
             }
         }
