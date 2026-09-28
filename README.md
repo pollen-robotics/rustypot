@@ -136,7 +136,7 @@ c = Sts3215PyController(serial_port='/dev/ttyUSB0', baudrate=1_000_000, timeout=
 
 Both port settings can be changed later without closing it, with `c.set_baudrate(500_000)` and `c.set_timeout(0.01)` (seconds).
 
-To find out what is on the bus, `c.scan(list(range(254)))` returns `{id: model number}` for every id that answers, under a read timeout sized to the baud rate so that the absent ones go by quickly.
+To find out what is on the bus, `c.scan()` returns `{id: model number}` for every id that answers among those the protocol allows (`c.scan(ids)` for a few), under a read timeout sized to the baud rate so that the absent ones go by quickly.
 
 
 Then, you can directly read/write any register of the motor. For instance, to read the present position of the motor with id 1, you can do:
@@ -206,6 +206,27 @@ info.models()                      # {'STS3215': 777, 'STS3250': 2825, 'SM8512BL
 info.resolution(), info.word_order()  # (4096, 'little')
 info.register("present_position").sign_bit  # 15
 ```
+
+### Mixed buses
+
+A controller speaks one servo definition. When a port carries motors of several definitions, or of both protocols (Reachy Mini has STS3215 motors on protocol v1 and XL330 motors on v2 on one port), open a `Bus` with the definition of each motor:
+
+```python
+from rustypot import Bus, Sts3215PyController, Xl330PyController
+
+bus = Bus("/dev/ttyUSB0", 1_000_000, 0.1, {
+    11: Sts3215PyController.definition(),
+    1: Xl330PyController.definition(),
+    2: Xl330PyController.definition(),
+})
+positions = bus.sync_read_register([11, 1, 2], "present_position", retries=1)
+bus.sync_write_register([1, 2], "goal_position", [0, 2047])
+found = bus.scan(Xl330PyController.definition())  # the v2 motors, as {id: model number}
+```
+
+Each motor is read and written through its own definition and protocol. A sync read or write sends one instruction per group of motors sharing a protocol and the register's address and size, and hands the values back in the order asked: here, one Sync Read for motor 11 and one for motors 1 and 2. A group with a motor that has no Sync Read is read one id at a time.
+
+In Rust the same access is on each definition, taking the protocol handler and the port like the typed module functions: `sts3215::DEFINITION.read_register(&dph_v1, port, 11, "present_position")`. `servo::definition::sync_read_register` and `sync_write_register` reach motors of several definitions sharing a protocol and a layout in one instruction, and `bus::Bus` groups them for a whole bus.
 
 ### Threading and the GIL
 
