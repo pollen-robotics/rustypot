@@ -1,4 +1,4 @@
-## Unreleased
+## Version 1.10.0
 
 - Register the model numbers of the X-series servos that share an existing definition:
   XC330-T181 and XC330-T288 under XL330; XC430-W150, XM430-W350, XM540-W270 and
