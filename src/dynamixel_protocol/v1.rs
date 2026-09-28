@@ -6,6 +6,8 @@ use super::{
 };
 
 const BROADCAST_ID: u8 = 254;
+/// The highest id a motor can take: everything below the broadcast id.
+pub(crate) const MAX_ID: u8 = 253;
 
 #[derive(Debug)]
 pub(crate) struct PacketV1;

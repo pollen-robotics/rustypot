@@ -6,6 +6,7 @@ use crate::generate_servo;
 
 generate_servo!(
     XL320, v2,
+    resolution: 1024,
     reg: (model_number, r, 0, u16, None),
     reg: (firmware_version, r, 2, u8, None),
     reg: (id, rw, 3, u8, None),

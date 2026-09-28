@@ -3,13 +3,36 @@ use crate::servo::conversion::Conversion;
 
 generate_servo!(
     SCS0009, v1,
+    resolution: 1024,
+    word_order: big,
+    supports_sync_read: false,
+    baudrates: [
+        (1_000_000, 0), (500_000, 1), (250_000, 2), (128_000, 3),
+        (115_200, 4), (57_600, 5), (38_400, 6), (19_200, 7),
+    ],
+    // Positions and limits are plain steps on the SCS. Speeds carry their sign on bit 15
+    // and the load on bit 10, as the Velocity and BigEndian_i16 conversions read them.
+    encoding: [
+        (min_angle_limit, unsigned), (min_position_limit, unsigned),
+        (max_angle_limit, unsigned), (max_position_limit, unsigned),
+        (goal_position, unsigned), (present_position, unsigned),
+        (goal_speed, sign_magnitude(15)), (goal_velocity, sign_magnitude(15)),
+        (present_speed, sign_magnitude(15)), (present_velocity, sign_magnitude(15)),
+        (present_load, sign_magnitude(10)),
+    ],
+    reg: (firmware_major_version, r, 0, u8, None),
+    reg: (firmware_minor_version, r, 1, u8, None),
     reg: (model, r, 3, u16, None),
+    reg: (model_number, r, 3, u16, None),
     reg: (id, rw, 5, u8, None),
     reg: (baudrate, rw, 6, u8, None),
+    reg: (baud_rate, rw, 6, u8, None),
     reg: (return_delay_time, rw, 7, u8, None), //RESERVED?
     reg: (response_status_level, rw, 8, u8, None),
     reg: (min_angle_limit, rw, 9, i16, AnglePosition),
+    reg: (min_position_limit, rw, 9, i16, AnglePosition),
     reg: (max_angle_limit, rw, 11, i16, AnglePosition),
+    reg: (max_position_limit, rw, 11, i16, AnglePosition),
     reg: (max_temperature_limit, rw, 13, u8, None),
     reg: (max_voltage_limit, rw, 14, u8, None),
     reg: (min_voltage_limit, rw, 15, u8, None),
@@ -30,23 +53,33 @@ generate_servo!(
     reg: (overload_torque, rw, 39, u8, None),
 
     reg: (torque_enable, rw, 40, u8, None),
+    reg: (acceleration, rw, 41, u8, None),
 
     reg: (goal_position, rw, 42, i16, AnglePosition),
     reg: (goal_time, rw, 44, u16, BigEndian_u16),
     reg: (goal_speed, rw, 46, u16, Velocity),
+    reg: (goal_velocity, rw, 46, u16, Velocity),
 
     reg: (lock, rw, 48, u8, bool),
     reg: (present_position, r, 56, i16, AnglePosition),
     reg: (present_speed, r, 58, u16, Velocity),
+    reg: (present_velocity, r, 58, u16, Velocity),
     reg: (present_load, r, 60, u16, BigEndian_i16),
 
     reg: (present_voltage, r, 62, u8, None),
     reg: (present_temperature, r, 63, u8, None),
+    reg: (sync_write_flag, r, 64, u8, None),
 
     reg: (status, r, 65, u8, None),
 
     reg: (moving, r, 66, u8, bool),
 
+    // Factory block; the velocity entries are in units of 50 steps/s.
+    reg: (pwm_maximum_step, rw, 78, u8, None),
+    reg: (moving_velocity_threshold, rw, 79, u8, None),
+    reg: (dts, rw, 80, u8, None),
+    reg: (minimum_velocity_limit, rw, 81, u8, None),
+    reg: (maximum_velocity_limit, rw, 82, u8, None),
 );
 
 pub struct Velocity;

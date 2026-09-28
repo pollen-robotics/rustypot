@@ -59,6 +59,8 @@
 pub mod servo;
 
 mod dynamixel_protocol;
+#[cfg(test)]
+mod fake_port;
 pub use dynamixel_protocol::{
     CommunicationErrorKind, DynamixelErrorV1, DynamixelProtocolHandler, StatusError,
 };
