@@ -131,7 +131,8 @@ impl Encoding {
     }
 }
 
-/// Why a register could not be read or written by name.
+/// Why a register could not be read or written by name. Each of these is found before
+/// anything reaches the bus, and trying again cannot help.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum RegisterError {
     /// The servo definition has no register of that name.
@@ -140,6 +141,19 @@ pub enum RegisterError {
     NotAnInteger { name: &'static str, size: u8 },
     /// The value does not fit the register's width and encoding.
     OutOfRange { name: &'static str, value: i64 },
+    /// One Sync Read or Sync Write carries a single address and length, and the motors
+    /// asked do not all have the register there.
+    Layout(String),
+    /// The protocol handler given does not speak the protocol of the servo definition.
+    Protocol {
+        servo: &'static str,
+        servo_protocol: u8,
+        handler_protocol: u8,
+    },
+    /// No motor with this id on the bus.
+    UnknownMotor(u8),
+    /// A sync write needs one value per id.
+    ValueCount { ids: usize, values: usize },
 }
 
 impl fmt::Display for RegisterError {
@@ -151,6 +165,22 @@ impl fmt::Display for RegisterError {
             }
             RegisterError::OutOfRange { name, value } => {
                 write!(f, "{value} does not fit register '{name}'")
+            }
+            RegisterError::Layout(name) => write!(
+                f,
+                "register '{name}' is not at the same address and size on every motor asked"
+            ),
+            RegisterError::Protocol {
+                servo,
+                servo_protocol,
+                handler_protocol,
+            } => write!(
+                f,
+                "{servo} speaks protocol v{servo_protocol}, the handler given speaks v{handler_protocol}"
+            ),
+            RegisterError::UnknownMotor(id) => write!(f, "no motor with id {id} on this bus"),
+            RegisterError::ValueCount { ids, values } => {
+                write!(f, "{values} values for {ids} ids")
             }
         }
     }
@@ -194,7 +224,7 @@ impl RegisterInfo {
 /// Every field has a default, so a definition only states what applies to it: a servo
 /// without an encoder has no resolution, and one that does not say otherwise is
 /// little-endian and answers Sync Read.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub struct ServoInfo {
     /// Encoder steps per turn, when the servo reports positions in steps.

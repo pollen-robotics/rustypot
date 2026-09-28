@@ -161,6 +161,12 @@ macro_rules! generate_servo {
                 pub fn baudrates() -> std::collections::HashMap<u32, u8> {
                     INFO.baudrates.iter().copied().collect()
                 }
+
+                /// This servo's definition, to give a `Bus` for each motor of this kind.
+                #[staticmethod]
+                pub fn definition() -> $crate::servo::ServoDefinition {
+                    DEFINITION
+                }
             }
         }
 
@@ -223,6 +229,14 @@ macro_rules! generate_servo {
         pub fn register(name: &str) -> Option<$crate::servo::RegisterInfo> {
             REGISTERS.iter().copied().find(|r| r.name == name)
         }
+
+        /// This servo's definition as a value, see [`ServoDefinition`](crate::servo::ServoDefinition).
+        pub const DEFINITION: $crate::servo::ServoDefinition = $crate::servo::ServoDefinition {
+            name: stringify!($servo_name),
+            protocol: $crate::protocol_version!($protocol),
+            info: INFO,
+            registers: REGISTERS,
+        };
 
         $crate::generate_protocol_constructor!($servo_name, $protocol);
         $crate::generate_special_instructions!($servo_name);
@@ -688,18 +702,17 @@ macro_rules! generate_register_access {
     ($servo_name:ident) => {
         paste::paste! {
             impl [<$servo_name:camel Controller>] {
-                fn named(name: &str) -> $crate::Result<$crate::servo::RegisterInfo> {
-                    register(name).ok_or_else(|| {
-                        $crate::servo::RegisterError::Unknown(name.to_string()).into()
-                    })
+                /// The protocol handler and the port, for [`DEFINITION`]'s functions.
+                fn wire(&mut self) -> (&$crate::DynamixelProtocolHandler, &mut dyn serialport::SerialPort) {
+                    (self.dph.as_ref().unwrap(), self.serial_port.as_mut().unwrap().as_mut())
                 }
 
                 /// Read register `name` as an integer, decoded from the servo's word
-                /// order and the register's sign encoding.
+                /// order and the register's sign encoding. See
+                /// [`ServoDefinition::read_register`](crate::servo::ServoDefinition::read_register).
                 pub fn read_register(&mut self, id: u8, name: &str) -> $crate::Result<i64> {
-                    let reg = Self::named(name)?;
-                    let bytes = self.read_raw_data(id, reg.addr, reg.size)?;
-                    Ok(reg.decode(INFO.word_order, &bytes)?)
+                    let (dph, port) = self.wire();
+                    DEFINITION.read_register(dph, port, id, name)
                 }
 
                 /// Same as [`read_register`](Self::read_register), plus the status
@@ -709,17 +722,16 @@ macro_rules! generate_register_access {
                     id: u8,
                     name: &str,
                 ) -> $crate::Result<(i64, $crate::StatusError)> {
-                    let reg = Self::named(name)?;
-                    let (bytes, error) = self.read_raw_data_with_error(id, reg.addr, reg.size)?;
-                    Ok((reg.decode(INFO.word_order, &bytes)?, error))
+                    let (dph, port) = self.wire();
+                    DEFINITION.read_register_with_error(dph, port, id, name)
                 }
 
                 /// Write `value` to register `name`, laid out in the servo's word order
                 /// and the register's sign encoding. A value that does not fit the
                 /// register fails before anything reaches the bus.
                 pub fn write_register(&mut self, id: u8, name: &str, value: i64) -> $crate::Result<()> {
-                    let reg = Self::named(name)?;
-                    self.write_raw_data(id, reg.addr, reg.encode(INFO.word_order, value)?)
+                    let (dph, port) = self.wire();
+                    DEFINITION.write_register(dph, port, id, name, value)
                 }
 
                 /// Same as [`write_register`](Self::write_register), plus the status
@@ -730,8 +742,8 @@ macro_rules! generate_register_access {
                     name: &str,
                     value: i64,
                 ) -> $crate::Result<$crate::StatusError> {
-                    let reg = Self::named(name)?;
-                    self.write_raw_data_with_error(id, reg.addr, reg.encode(INFO.word_order, value)?)
+                    let (dph, port) = self.wire();
+                    DEFINITION.write_register_with_error(dph, port, id, name, value)
                 }
 
                 /// Sync read register `name` from `ids`, each value decoded like
@@ -742,15 +754,8 @@ macro_rules! generate_register_access {
                 /// the order asked. The values come back the same way, but from one
                 /// transaction per id rather than one for the whole bus.
                 pub fn sync_read_register(&mut self, ids: &[u8], name: &str) -> $crate::Result<Vec<i64>> {
-                    if !INFO.supports_sync_read {
-                        return ids.iter().map(|&id| self.read_register(id, name)).collect();
-                    }
-                    let reg = Self::named(name)?;
-                    let mut values = Vec::with_capacity(ids.len());
-                    for bytes in self.sync_read_raw_data(ids, reg.addr, reg.size)? {
-                        values.push(reg.decode(INFO.word_order, &bytes)?);
-                    }
-                    Ok(values)
+                    let (dph, port) = self.wire();
+                    DEFINITION.sync_read_register(dph, port, ids, name)
                 }
 
                 /// Same as [`sync_read_register`](Self::sync_read_register), plus each
@@ -760,18 +765,8 @@ macro_rules! generate_register_access {
                     ids: &[u8],
                     name: &str,
                 ) -> $crate::Result<Vec<(i64, $crate::StatusError)>> {
-                    if !INFO.supports_sync_read {
-                        return ids
-                            .iter()
-                            .map(|&id| self.read_register_with_error(id, name))
-                            .collect();
-                    }
-                    let reg = Self::named(name)?;
-                    let mut values = Vec::with_capacity(ids.len());
-                    for (bytes, error) in self.sync_read_raw_data_with_error(ids, reg.addr, reg.size)? {
-                        values.push((reg.decode(INFO.word_order, &bytes)?, error));
-                    }
-                    Ok(values)
+                    let (dph, port) = self.wire();
+                    DEFINITION.sync_read_register_with_error(dph, port, ids, name)
                 }
 
                 /// Sync write `values` to register `name` of `ids`, one value per id,
@@ -782,12 +777,8 @@ macro_rules! generate_register_access {
                     name: &str,
                     values: &[i64],
                 ) -> $crate::Result<()> {
-                    let reg = Self::named(name)?;
-                    let mut data = Vec::with_capacity(values.len());
-                    for &value in values {
-                        data.push(reg.encode(INFO.word_order, value)?);
-                    }
-                    self.sync_write_raw_data(ids, reg.addr, &data)
+                    let (dph, port) = self.wire();
+                    DEFINITION.sync_write_register(dph, port, ids, name, values)
                 }
 
                 /// Run `op`, and run it again up to `retries` more times while it fails
@@ -804,15 +795,7 @@ macro_rules! generate_register_access {
                     retries: u32,
                     mut op: impl FnMut(&mut Self) -> $crate::Result<T>,
                 ) -> $crate::Result<T> {
-                    let mut attempt = 0;
-                    loop {
-                        match op(self) {
-                            Err(e) if attempt < retries && !e.is::<$crate::servo::RegisterError>() => {
-                                attempt += 1
-                            }
-                            result => return result,
-                        }
-                    }
+                    $crate::servo::definition::retrying(retries, || op(self))
                 }
             }
 
@@ -965,20 +948,8 @@ macro_rules! generate_scan {
                 /// and puts the port's timeout back afterwards. An id that answers with
                 /// anything the protocol cannot parse counts as absent.
                 pub fn scan(&mut self, ids: &[u8]) -> $crate::Result<std::collections::BTreeMap<u8, u16>> {
-                    let reg = Self::named("model_number")?;
-                    let port = self.serial_port.as_mut().unwrap();
-                    let timeout = port.timeout();
-                    port.set_timeout($crate::servo::scan_timeout(port.baud_rate()?))?;
-                    let found = ids
-                        .iter()
-                        .filter_map(|&id| {
-                            let bytes = self.read_raw_data(id, reg.addr, reg.size).ok()?;
-                            let model = reg.decode(INFO.word_order, &bytes).ok()?;
-                            Some((id, model as u16))
-                        })
-                        .collect();
-                    self.serial_port.as_mut().unwrap().set_timeout(timeout)?;
-                    Ok(found)
+                    let (dph, port) = self.wire();
+                    DEFINITION.scan(dph, port, ids)
                 }
 
                 /// [`scan`](Self::scan) every id the protocol allows, from 0 to
@@ -1067,6 +1038,17 @@ macro_rules! servo_word_order {
     };
     (big) => {
         $crate::servo::WordOrder::Big
+    };
+}
+
+#[doc(hidden)]
+#[macro_export]
+macro_rules! protocol_version {
+    (v1) => {
+        1
+    };
+    (v2) => {
+        2
     };
 }
 

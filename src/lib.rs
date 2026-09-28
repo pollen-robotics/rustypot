@@ -56,6 +56,7 @@
 //! c.sync_write_goal_position(&vec![1, 2], &vec![0.0, 90.0_f64.to_radians()]).unwrap();
 //! ```
 
+pub mod bus;
 pub mod servo;
 
 mod dynamixel_protocol;
@@ -80,6 +81,8 @@ fn rustypot(m: &Bound<'_, PyModule>) -> PyResult<()> {
     servo::register_class(m)?;
     m.add_class::<servo::RegisterInfo>()?;
     m.add_class::<servo::RegisterAccess>()?;
+    m.add_class::<servo::ServoDefinition>()?;
+    m.add_class::<bus::PyBus>()?;
 
     Ok(())
 }

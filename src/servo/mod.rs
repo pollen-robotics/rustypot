@@ -1,4 +1,5 @@
 pub mod conversion;
+pub mod definition;
 pub mod info;
 
 pub mod dynamixel;
@@ -6,6 +7,7 @@ pub mod feetech;
 pub mod orbita;
 pub(crate) mod servo_macro;
 
+pub use definition::ServoDefinition;
 pub use info::{encoding_for, Encoding, RegisterError, RegisterType, ServoInfo, WordOrder};
 
 /// The read timeout of an ID sweep at `baudrate`.

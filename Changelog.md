@@ -65,6 +65,21 @@
   Sync Read (the Feetech SCS series, `supports_sync_read` false) one id at a time, in the
   order asked, instead of sending an instruction that is never answered. The raw and
   typed sync reads still send Sync Read as asked.
+- Register access by name for buses that mix servo definitions, or protocols (Reachy
+  Mini has STS3215 on v1 and XL330 on v2 on one port). Each servo module has its
+  definition as `DEFINITION`, a `ServoDefinition` value (name, protocol, `ServoInfo`,
+  registers; `Hash`, so ids group by it), and the by-name access and `scan` are on it,
+  taking the protocol handler and the port like the typed module functions; the
+  definition checks that the handler speaks its protocol. The controllers' by-name
+  methods now call their own `DEFINITION`, with no change to their API.
+  `servo::definition::sync_read_register` / `sync_write_register` reach motors of several
+  definitions sharing a protocol and the register's address and size in one instruction,
+  each value laid out through its motor's definition. `bus::Bus` holds a port, a handler
+  per protocol and the definition of each motor, and sends one instruction per such
+  group. On Python: `Bus(serial_port, baudrate, timeout, {id: definition})` with the same
+  methods as a controller's by-name ones, `retries` included, `scan(definition, ids=None)`,
+  and the static `definition()` of each controller class. `RegisterError` gains `Layout`,
+  `Protocol`, `UnknownMotor` and `ValueCount`, all found before anything is sent.
 
 ## Version 1.9.0
 
