@@ -10,11 +10,15 @@ generate_servo!(
         (1_000_000, 0), (500_000, 1), (250_000, 2), (128_000, 3),
         (115_200, 4), (57_600, 5), (38_400, 6), (19_200, 7),
     ],
-    // Positions and limits are plain steps on the SCS.
+    // Positions and limits are plain steps on the SCS. Speeds carry their sign on bit 15
+    // and the load on bit 10, as the Velocity and BigEndian_i16 conversions read them.
     encoding: [
         (min_angle_limit, unsigned), (min_position_limit, unsigned),
         (max_angle_limit, unsigned), (max_position_limit, unsigned),
         (goal_position, unsigned), (present_position, unsigned),
+        (goal_speed, sign_magnitude(15)), (goal_velocity, sign_magnitude(15)),
+        (present_speed, sign_magnitude(15)), (present_velocity, sign_magnitude(15)),
+        (present_load, sign_magnitude(10)),
     ],
     reg: (firmware_major_version, r, 0, u8, None),
     reg: (firmware_minor_version, r, 1, u8, None),

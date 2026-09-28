@@ -24,8 +24,8 @@
   integer type unless the definition says otherwise; an `encoding:` entry that names no
   register of the servo fails the build. Each servo module also gets
   `MODELS`, the (name, model number) pairs its registry entry lists. Filled in for the
-  Feetech STS3215 and SCS0009 (big-endian, no Sync Read) and the Dynamixel XL330 and
-  XL430, resolution alone for MX, AX and XL320.
+  Feetech STS3215 and SCS0009 (big-endian, no Sync Read; speeds and load sign-magnitude
+  on both) and the Dynamixel XL330 and XL430, resolution alone for MX, AX and XL320.
 - Python: `resolution()`, `word_order()`, `supports_sync_read()`, `baudrates()` and
   `models()` on every controller class, static like `registers()`, and `encoding` /
   `sign_bit` on `RegisterInfo`.

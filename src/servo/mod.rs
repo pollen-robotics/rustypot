@@ -218,6 +218,11 @@ mod tests {
             encoding(scs0009::register("goal_position")),
             Encoding::Unsigned
         );
+        // Declared u16, overridden to match the conversion the SCS0009 reads it with.
+        assert_eq!(
+            encoding(scs0009::register("present_load")),
+            Encoding::SignMagnitude { sign_bit: 10 }
+        );
         // Declared i32, nothing to override.
         assert_eq!(
             encoding(xl330::register("goal_position")),
