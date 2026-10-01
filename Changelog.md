@@ -10,6 +10,12 @@
   number of the motors that answered only, under the port's own timeout. The other
   servos keep the one-read-per-id sweep. `ServoInfo::supports_broadcast_ping`, and
   `supports_broadcast_ping()` on the Python controller classes.
+- `change_id(definition, id, new_id)` and `change_baudrate(definition, id, baudrate)` on
+  `ServoDefinition` and `Bus` (and the Python `Bus`): torque off and, on servos with a
+  lock register, lock open, then the write. The baud rate is given in bauds and written
+  as the value the definition's `baudrates` lists for it; a rate it does not list is a
+  `RegisterError::Baudrate` (`ValueError` on Python) and nothing is sent. Like `scan`,
+  both reach motors the bus does not have.
 
 ## Version 1.10.0
 

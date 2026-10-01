@@ -207,6 +207,63 @@ impl ServoDefinition {
         Ok(found)
     }
 
+    /// Give motor `id` the id `new_id`.
+    ///
+    /// The id is kept in EEPROM, which a motor only writes with its torque off, and a
+    /// Feetech motor only with its lock open: both are done first, and left that way.
+    /// The motor answers the write from its old id.
+    pub fn change_id(
+        &self,
+        dph: &DynamixelProtocolHandler,
+        port: &mut dyn SerialPort,
+        id: u8,
+        new_id: u8,
+    ) -> Result<()> {
+        self.open_eeprom(dph, port, id)?;
+        self.write_register(dph, port, id, "id", new_id.into())
+    }
+
+    /// Set motor `id` to talk at `baudrate`, one of the rates in this definition's
+    /// `baudrates`, written as the value its baud rate register takes for it.
+    ///
+    /// The EEPROM is opened first, as for [`change_id`](Self::change_id). The motor
+    /// answers the write at its old rate, then switches.
+    pub fn change_baudrate(
+        &self,
+        dph: &DynamixelProtocolHandler,
+        port: &mut dyn SerialPort,
+        id: u8,
+        baudrate: u32,
+    ) -> Result<()> {
+        let &(_, value) = self
+            .info
+            .baudrates
+            .iter()
+            .find(|&&(rate, _)| rate == baudrate)
+            .ok_or(RegisterError::Baudrate {
+                servo: self.name,
+                baudrate,
+            })?;
+        self.open_eeprom(dph, port, id)?;
+        self.write_register(dph, port, id, "baud_rate", value.into())
+    }
+
+    /// Turn the torque off, and open the lock of a servo that has one. A Feetech lock
+    /// opens with 0; the lock of an AX or MX only clears at power-up, and writing it 0
+    /// changes nothing.
+    fn open_eeprom(
+        &self,
+        dph: &DynamixelProtocolHandler,
+        port: &mut dyn SerialPort,
+        id: u8,
+    ) -> Result<()> {
+        self.write_register(dph, port, id, "torque_enable", 0)?;
+        if self.register("lock").is_some() {
+            self.write_register(dph, port, id, "lock", 0)?;
+        }
+        Ok(())
+    }
+
     fn motors(&self, ids: &[u8]) -> Vec<(u8, ServoDefinition)> {
         ids.iter().map(|&id| (id, *self)).collect()
     }
@@ -402,7 +459,65 @@ impl ServoDefinition {
 mod tests {
     use super::*;
     use crate::fake_port::FakePort;
+    use crate::servo::dynamixel::xl330;
     use crate::servo::feetech::{scs0009, sts3215};
+
+    #[test]
+    fn changing_an_id_opens_the_eeprom_first() {
+        // The STS3215 at id 9 answers each of the three writes.
+        let status = vec![0xFF, 0xFF, 0x09, 0x02, 0x00, 0xF4];
+        let mut port = FakePort::new(vec![status.clone(), status.clone(), status]);
+        let written = port.written();
+
+        sts3215::DEFINITION
+            .change_id(&DynamixelProtocolHandler::v1(), &mut port, 9, 3)
+            .unwrap();
+
+        // Torque off (address 40), lock open (55), then the id (5), all at id 9.
+        let writes: Vec<_> = written
+            .lock()
+            .unwrap()
+            .iter()
+            .map(|packet| (packet[2], packet[5], packet[6]))
+            .collect();
+        assert_eq!(writes, [(9, 40, 0), (9, 55, 0), (9, 5, 3)]);
+    }
+
+    #[test]
+    fn a_baud_rate_is_written_as_its_register_value() {
+        // The XL330 has no lock: torque off (address 64), then 3 for 1 Mbps (address 8).
+        let status = vec![
+            0xFF, 0xFF, 0xFD, 0x00, 0x01, 0x04, 0x00, 0x55, 0x00, 0xA1, 0x0C,
+        ];
+        let mut port = FakePort::new(vec![status.clone(), status]);
+        let written = port.written();
+        let v2 = DynamixelProtocolHandler::v2();
+
+        xl330::DEFINITION
+            .change_baudrate(&v2, &mut port, 1, 1_000_000)
+            .unwrap();
+
+        let writes: Vec<_> = written
+            .lock()
+            .unwrap()
+            .iter()
+            .map(|packet| (packet[8], packet[10]))
+            .collect();
+        assert_eq!(writes, [(64, 0), (8, 3)]);
+
+        // A rate the servo cannot take is refused before anything is sent.
+        let err = xl330::DEFINITION
+            .change_baudrate(&v2, &mut port, 1, 250_000)
+            .unwrap_err();
+        assert!(matches!(
+            err.downcast_ref::<RegisterError>(),
+            Some(RegisterError::Baudrate {
+                servo: "XL330",
+                baudrate: 250_000
+            })
+        ));
+        assert_eq!(written.lock().unwrap().len(), 2);
+    }
 
     #[test]
     fn a_definition_reads_through_the_handler_and_port_it_is_given() {
