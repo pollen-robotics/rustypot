@@ -156,6 +156,8 @@ pub enum RegisterError {
     ValueCount { ids: usize, values: usize },
     /// The servo does not answer a ping sent to the broadcast id.
     BroadcastPing(&'static str),
+    /// The servo cannot be set to this baud rate.
+    Baudrate { servo: &'static str, baudrate: u32 },
 }
 
 impl fmt::Display for RegisterError {
@@ -186,6 +188,9 @@ impl fmt::Display for RegisterError {
             }
             RegisterError::BroadcastPing(servo) => {
                 write!(f, "{servo} does not answer a broadcast ping")
+            }
+            RegisterError::Baudrate { servo, baudrate } => {
+                write!(f, "{servo} cannot be set to {baudrate} baud")
             }
         }
     }

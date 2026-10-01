@@ -37,6 +37,13 @@
   `supports_broadcast_ping: true` (STS3215, XL320, XL330, XL430) on `ServoInfo`, the
   Python controller classes and `ServoDefinition`; on any other, `broadcast_scan` is a
   `RegisterError::BroadcastPing` (`ValueError` on Python) and nothing is sent.
+- `change_id(definition, id, new_id)` and `change_baudrate(definition, id, baudrate)` on
+  `ServoDefinition` and `Bus` (and the Python `Bus`): torque off and, on servos with a
+  lock register, lock open, then the write. The baud rate is given in bauds and written
+  as the value the definition's `baudrates` lists for it; a rate it does not list is a
+  `RegisterError::Baudrate` (`ValueError` on Python) and nothing is sent; the port stays
+  at its rate, for the caller to switch with `set_baudrate`. Like `scan`, both reach
+  motors the bus does not have.
 
 ## Version 1.10.0
 
