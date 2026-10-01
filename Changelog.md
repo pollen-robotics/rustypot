@@ -15,6 +15,12 @@
   pwm, step), the SCS0009 (1 Mbps) and the XL330 and XL430 (57.6 kbps, +1; the X-series
   modes, of which the XL430-W250 refuses the current ones). On `ServoInfo`, and on Python
   as `ServoDefinition` getters.
+- `Bus::set_torque(ids, enabled, retries)` turns the torque of every motor asked on or off,
+  trying each one even after another fails, and returns the motors that failed with
+  their error (`{id: message}` on Python, empty when all went through). On servos whose
+  definition says `eeprom_lock: true` (STS3215, SCS0009), the lock follows the torque:
+  closed with it on, open with it off. The new fact is on `ServoInfo` and the Python
+  `ServoDefinition`; it fails the build on a servo without a `lock` register.
 
 ## Version 1.10.0
 

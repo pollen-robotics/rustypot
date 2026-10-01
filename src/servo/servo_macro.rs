@@ -8,6 +8,7 @@ macro_rules! generate_servo {
      $(factory_baudrate: $factory_baudrate:expr,)?
      $(homing_offset_sign: $homing_offset_sign:expr,)?
      $(operating_modes: [$(($mode_name:ident, $mode_value:expr)),* $(,)?],)?
+     $(eeprom_lock: $eeprom_lock:expr,)?
      $(encoding: [$(($enc_reg:ident, $enc_kind:ident $(($enc_arg:expr))?)),* $(,)?],)?
      $(reg: ($reg_name:ident, $reg_access:ident, $reg_addr:expr, $reg_type:ty, $conv:ident),)+
     ) => {
@@ -187,6 +188,7 @@ macro_rules! generate_servo {
             factory_baudrate: $crate::servo_option!($($factory_baudrate)?),
             homing_offset_sign: $crate::servo_option!($($homing_offset_sign)?),
             operating_modes: &[$($((stringify!($mode_name), $mode_value)),*)?],
+            eeprom_lock: $crate::servo_eeprom_lock!($($eeprom_lock)?),
         };
 
         const ENCODING_OVERRIDES: &[(&str, $crate::servo::Encoding)] = &[
@@ -206,6 +208,10 @@ macro_rules! generate_servo {
                 INFO.operating_modes.is_empty()
                     || $crate::servo::info::names_contain(NAMES, "operating_mode"),
                 "`operating_modes:` on a servo without an operating_mode register"
+            );
+            assert!(
+                !INFO.eeprom_lock || $crate::servo::info::names_contain(NAMES, "lock"),
+                "`eeprom_lock:` on a servo without a lock register"
             );
             let mut i = 0;
             while i < ENCODING_OVERRIDES.len() {
@@ -1068,6 +1074,17 @@ macro_rules! protocol_version {
     };
     (v2) => {
         2
+    };
+}
+
+#[doc(hidden)]
+#[macro_export]
+macro_rules! servo_eeprom_lock {
+    () => {
+        false
+    };
+    ($eeprom_lock:expr) => {
+        $eeprom_lock
     };
 }
 

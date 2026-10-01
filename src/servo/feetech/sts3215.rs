@@ -14,6 +14,7 @@ generate_servo!(
     factory_baudrate: 1_000_000,
     homing_offset_sign: -1,
     operating_modes: [(position, 0), (velocity, 1), (pwm, 2), (step, 3)],
+    eeprom_lock: true,
     // Positions, speeds and the offset are sign-magnitude; the limits are plain steps.
     encoding: [
         (min_angle_limit, unsigned), (min_position_limit, unsigned),

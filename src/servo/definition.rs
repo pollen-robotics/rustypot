@@ -437,6 +437,13 @@ impl ServoDefinition {
         self.info.operating_modes.iter().copied().collect()
     }
 
+    /// Whether the `lock` register guards the EEPROM and opens and closes at will, as on
+    /// Feetech servos; `Bus.set_torque` then moves it with the torque.
+    #[getter]
+    fn eeprom_lock(&self) -> bool {
+        self.info.eeprom_lock
+    }
+
     /// Every register of this servo, in declaration order.
     #[pyo3(name = "registers")]
     fn py_registers(&self) -> Vec<RegisterInfo> {

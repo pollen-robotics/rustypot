@@ -242,6 +242,9 @@ pub struct ServoInfo {
     /// The values of the operating mode register, as (name, value). A name means the same
     /// mode on every servo that has it (`position`, `velocity`, `pwm`), whatever its value.
     pub operating_modes: &'static [(&'static str, u8)],
+    /// Whether the `lock` register guards the EEPROM and opens and closes at will, as on
+    /// Feetech servos. The lock of a Dynamixel AX or MX only clears at power-up.
+    pub eeprom_lock: bool,
 }
 
 /// Default encoding of a register type, when the servo definition says nothing about

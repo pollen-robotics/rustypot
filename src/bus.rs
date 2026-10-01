@@ -193,6 +193,37 @@ impl Bus {
         self.scan(definition, &ids)
     }
 
+    /// Turn the torque of `ids` on or off. Every motor is tried, even after one fails,
+    /// and a failure on the bus is tried again up to `retries` more times; the motors
+    /// that still failed come back with their error.
+    ///
+    /// On a servo whose lock guards its EEPROM (`eeprom_lock`: the Feetech ones), the lock
+    /// follows the torque, closed when it goes on and open when it goes off, so the EEPROM
+    /// takes writes (a calibration, an id) as soon as the torque is off.
+    pub fn set_torque(
+        &mut self,
+        ids: &[u8],
+        enabled: bool,
+        retries: u32,
+    ) -> BTreeMap<u8, Box<dyn std::error::Error>> {
+        let value = i64::from(enabled);
+        let mut failed = BTreeMap::new();
+        for &id in ids {
+            let result = retrying(retries, || {
+                let definition = self.definition(id)?;
+                self.write_register(id, "torque_enable", value)?;
+                if definition.info.eeprom_lock {
+                    self.write_register(id, "lock", value)?;
+                }
+                Ok(())
+            });
+            if let Err(e) = result {
+                failed.insert(id, e);
+            }
+        }
+        failed
+    }
+
     /// Switch the open serial port to `baudrate`.
     pub fn set_baudrate(&mut self, baudrate: u32) -> Result<()> {
         Ok(self.serial_port.set_baud_rate(baudrate)?)
@@ -413,6 +444,27 @@ mod python {
             })
         }
 
+        /// Turn the torque of `ids` on or off, every motor tried even after one fails, and
+        /// return {id: error} for those that failed (empty when all went through). A bus
+        /// failure is tried again up to `retries` more times per motor. On Feetech servos
+        /// the lock follows the torque (`ServoDefinition.eeprom_lock`).
+        #[pyo3(signature = (ids, enabled, retries = 0))]
+        pub fn set_torque(
+            &self,
+            py: Python,
+            ids: Vec<u8>,
+            enabled: bool,
+            retries: u32,
+        ) -> PyResult<BTreeMap<u8, String>> {
+            self.run(py, |bus| {
+                Ok(bus
+                    .set_torque(&ids, enabled, retries)
+                    .into_iter()
+                    .map(|(id, e)| (id, e.to_string()))
+                    .collect())
+            })
+        }
+
         /// Which of `ids` answer, as {id: model number} read as `definition` lays it out,
         /// over its protocol; every id that protocol allows when `ids` is left out.
         #[pyo3(signature = (definition, ids = None))]
@@ -470,6 +522,52 @@ mod tests {
             Some(RegisterError::UnknownMotor(9))
         ));
         assert_eq!(written.lock().unwrap().len(), 4);
+    }
+
+    #[test]
+    fn torque_goes_off_on_every_motor_even_when_one_fails() {
+        // Motor 1 (STS3215) answers both its writes, motor 2 does not answer, motor 3
+        // (XL330) answers; 9 is not on the bus.
+        let sts = vec![0xFF, 0xFF, 0x01, 0x02, 0x00, 0xFC];
+        let xl = vec![
+            0xFF, 0xFF, 0xFD, 0x00, 0x03, 0x04, 0x00, 0x55, 0x00, 0x52, 0x8C,
+        ];
+        let port = FakePort::new(vec![sts.clone(), sts, vec![], xl]);
+        let written = port.written();
+        let mut bus = Bus::new(
+            Box::new(port),
+            BTreeMap::from([
+                (1, sts3215::DEFINITION),
+                (2, sts3215::DEFINITION),
+                (3, xl330::DEFINITION),
+            ]),
+        );
+
+        let failed = bus.set_torque(&[1, 2, 3, 9], false, 0);
+
+        assert_eq!(failed.keys().copied().collect::<Vec<_>>(), [2, 9]);
+        // The STS3215 gets its torque (address 40) then its lock (55) opened; motor 2 is
+        // tried; the XL330, which has no such lock, gets its torque (64) only.
+        let written = written.lock().unwrap();
+        assert_eq!(written.len(), 4);
+        assert_eq!([written[0][5], written[0][6]], [40, 0]);
+        assert_eq!([written[1][5], written[1][6]], [55, 0]);
+        assert_eq!(written[2][2], 2);
+        assert_eq!([written[3][8], written[3][10]], [64, 0]);
+    }
+
+    #[test]
+    fn torque_on_closes_a_feetech_lock() {
+        let sts = vec![0xFF, 0xFF, 0x01, 0x02, 0x00, 0xFC];
+        let port = FakePort::new(vec![sts.clone(), sts]);
+        let written = port.written();
+        let mut bus = Bus::new(Box::new(port), BTreeMap::from([(1, sts3215::DEFINITION)]));
+
+        assert!(bus.set_torque(&[1], true, 0).is_empty());
+
+        let written = written.lock().unwrap();
+        assert_eq!([written[0][5], written[0][6]], [40, 1]);
+        assert_eq!([written[1][5], written[1][6]], [55, 1]);
     }
 
     #[test]
