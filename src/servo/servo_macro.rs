@@ -5,6 +5,9 @@ macro_rules! generate_servo {
      $(word_order: $word_order:ident,)?
      $(supports_sync_read: $supports_sync_read:expr,)?
      $(baudrates: [$(($baud:expr, $baud_code:expr)),* $(,)?],)?
+     $(factory_baudrate: $factory_baudrate:expr,)?
+     $(homing_offset_sign: $homing_offset_sign:expr,)?
+     $(operating_modes: [$(($mode_name:ident, $mode_value:expr)),* $(,)?],)?
      $(encoding: [$(($enc_reg:ident, $enc_kind:ident $(($enc_arg:expr))?)),* $(,)?],)?
      $(reg: ($reg_name:ident, $reg_access:ident, $reg_addr:expr, $reg_type:ty, $conv:ident),)+
     ) => {
@@ -177,10 +180,13 @@ macro_rules! generate_servo {
 
         /// What this servo states about itself beyond its registers.
         pub const INFO: $crate::servo::ServoInfo = $crate::servo::ServoInfo {
-            resolution: $crate::servo_resolution!($($resolution)?),
+            resolution: $crate::servo_option!($($resolution)?),
             word_order: $crate::servo_word_order!($($word_order)?),
             supports_sync_read: $crate::servo_supports_sync_read!($($supports_sync_read)?),
             baudrates: &[$($(($baud, $baud_code)),*)?],
+            factory_baudrate: $crate::servo_option!($($factory_baudrate)?),
+            homing_offset_sign: $crate::servo_option!($($homing_offset_sign)?),
+            operating_modes: &[$($((stringify!($mode_name), $mode_value)),*)?],
         };
 
         const ENCODING_OVERRIDES: &[(&str, $crate::servo::Encoding)] = &[
@@ -191,6 +197,16 @@ macro_rules! generate_servo {
         // would otherwise fall back to the type's default encoding without a word.
         const _: () = {
             const NAMES: &[&str] = &[$(stringify!($reg_name)),+];
+            assert!(
+                INFO.homing_offset_sign.is_none()
+                    || $crate::servo::info::names_contain(NAMES, "homing_offset"),
+                "`homing_offset_sign:` on a servo without a homing_offset register"
+            );
+            assert!(
+                INFO.operating_modes.is_empty()
+                    || $crate::servo::info::names_contain(NAMES, "operating_mode"),
+                "`operating_modes:` on a servo without an operating_mode register"
+            );
             let mut i = 0;
             while i < ENCODING_OVERRIDES.len() {
                 assert!(
@@ -1021,12 +1037,12 @@ macro_rules! register_encoding {
 
 #[doc(hidden)]
 #[macro_export]
-macro_rules! servo_resolution {
+macro_rules! servo_option {
     () => {
         None
     };
-    ($resolution:expr) => {
-        Some($resolution)
+    ($value:expr) => {
+        Some($value)
     };
 }
 

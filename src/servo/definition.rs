@@ -416,6 +416,27 @@ impl ServoDefinition {
         self.info.baudrates.iter().copied().collect()
     }
 
+    /// The baud rate a new servo answers at, or `None` when the definition does not say.
+    #[getter]
+    fn factory_baudrate(&self) -> Option<u32> {
+        self.info.factory_baudrate
+    }
+
+    /// How the homing offset moves the position the servo reports,
+    /// `present = actual + sign * homing_offset`: -1 on Feetech, 1 on Dynamixel, `None`
+    /// without a homing offset.
+    #[getter]
+    fn homing_offset_sign(&self) -> Option<i8> {
+        self.info.homing_offset_sign
+    }
+
+    /// The values of the operating mode register, as {name: value}. A name means the
+    /// same mode on every servo that has it (`position`, `velocity`, `pwm`).
+    #[getter]
+    fn operating_modes(&self) -> BTreeMap<&'static str, u8> {
+        self.info.operating_modes.iter().copied().collect()
+    }
+
     /// Every register of this servo, in declaration order.
     #[pyo3(name = "registers")]
     fn py_registers(&self) -> Vec<RegisterInfo> {

@@ -7,6 +7,14 @@
   Python `find_model` plus `models`, `resolution`, `word_order`, `supports_sync_read`,
   `baudrates`, `registers()` and `register(name)` on `ServoDefinition`, so code holding a
   definition (what a `Bus` takes) needs no controller class.
+- Three more facts a definition can state, ahead of `encoding:`: `factory_baudrate:`,
+  `homing_offset_sign:` (`present = actual + sign * homing_offset`) and
+  `operating_modes: [(position, 0), ...]`, the values of the operating mode register by
+  name. A sign without a `homing_offset` register, or modes without an `operating_mode`
+  register, fail the build. Filled in for the STS3215 (1 Mbps, -1; position, velocity,
+  pwm, step), the SCS0009 (1 Mbps) and the XL330 and XL430 (57.6 kbps, +1; the X-series
+  modes, of which the XL430-W250 refuses the current ones). On `ServoInfo`, and on Python
+  as `ServoDefinition` getters.
 
 ## Version 1.10.0
 

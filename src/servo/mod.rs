@@ -219,6 +219,18 @@ mod tests {
         assert_eq!(scs0009::INFO.word_order, WordOrder::Big);
         assert!(!scs0009::INFO.supports_sync_read);
 
+        // Feetech: present = actual - offset; Dynamixel: present = actual + offset.
+        assert_eq!(sts3215::INFO.homing_offset_sign, Some(-1));
+        assert_eq!(xl330::INFO.homing_offset_sign, Some(1));
+        assert_eq!(scs0009::INFO.homing_offset_sign, None);
+        // The same mode under one name, at a different value per family.
+        assert!(sts3215::INFO.operating_modes.contains(&("position", 0)));
+        assert!(xl430::INFO.operating_modes.contains(&("position", 3)));
+        assert!(scs0009::INFO.operating_modes.is_empty());
+        assert_eq!(sts3215::INFO.factory_baudrate, Some(1_000_000));
+        assert_eq!(xl330::INFO.factory_baudrate, Some(57_600));
+        assert_eq!(mx::INFO.factory_baudrate, None);
+
         assert_eq!(mx::INFO.resolution, Some(4096));
         assert!(mx::INFO.baudrates.is_empty());
     }
