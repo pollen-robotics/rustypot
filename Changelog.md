@@ -1,3 +1,11 @@
+## Unreleased
+
+- `DynamixelProtocolHandler::broadcast_ping` pings every motor at once and returns the ids
+  that answer, listening for `broadcast_ping_window(baudrate)`: the status packets of
+  every possible id, 3 ms of turn per id and 16 ms for a USB adapter's latency timer, the
+  window the vendor SDKs use (about 0.8 s at 1 Mbps). Protocol v2 Dynamixel and Feetech
+  STS answer it; protocol v1 Dynamixel and Feetech SCS do not.
+
 ## Version 1.10.0
 
 - Register the model numbers of the X-series servos that share an existing definition:

@@ -13,6 +13,8 @@ pub(crate) const MAX_ID: u8 = 253;
 pub(crate) struct PacketV1;
 impl Packet for PacketV1 {
     const HEADER_SIZE: usize = 4;
+    const BROADCAST_ID: u8 = BROADCAST_ID;
+    const ID_POSITION: usize = 2;
 
     type ErrorKind = DynamixelErrorV1;
     type InstructionKind = InstructionKindV1;
