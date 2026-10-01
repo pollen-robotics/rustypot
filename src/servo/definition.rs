@@ -30,6 +30,8 @@ pub struct ServoDefinition {
     pub protocol: u8,
     pub info: ServoInfo,
     pub registers: &'static [RegisterInfo],
+    /// The servo models this definition covers, as (name, model number).
+    pub models: &'static [(&'static str, u16)],
 }
 
 impl ServoDefinition {
@@ -381,6 +383,78 @@ impl ServoDefinition {
     #[getter]
     fn protocol(&self) -> u8 {
         self.protocol
+    }
+
+    /// Model numbers of the servos this definition covers, as {name: number}, by name.
+    #[getter]
+    fn models(&self) -> BTreeMap<&'static str, u16> {
+        self.models.iter().copied().collect()
+    }
+
+    /// Encoder steps per turn, or `None` when the servo does not count steps.
+    #[getter]
+    fn resolution(&self) -> Option<u32> {
+        self.info.resolution
+    }
+
+    /// Byte order of multi-byte registers on the wire: "little" or "big".
+    #[getter]
+    fn word_order(&self) -> &'static str {
+        self.info.word_order.as_str()
+    }
+
+    /// Whether the firmware answers the Sync Read instruction.
+    #[getter]
+    fn supports_sync_read(&self) -> bool {
+        self.info.supports_sync_read
+    }
+
+    /// Serial rates the servo can be set to, as {baud rate: register value}, slowest
+    /// first.
+    #[getter]
+    fn baudrates(&self) -> BTreeMap<u32, u8> {
+        self.info.baudrates.iter().copied().collect()
+    }
+
+    /// The baud rate a new servo answers at, or `None` when the definition does not say.
+    #[getter]
+    fn factory_baudrate(&self) -> Option<u32> {
+        self.info.factory_baudrate
+    }
+
+    /// How the homing offset moves the position the servo reports,
+    /// `present = actual + sign * homing_offset`: -1 on Feetech, 1 on Dynamixel, `None`
+    /// without a homing offset.
+    #[getter]
+    fn homing_offset_sign(&self) -> Option<i8> {
+        self.info.homing_offset_sign
+    }
+
+    /// The values of the operating mode register, as {name: value}. A name means the
+    /// same mode on every servo that has it (`position`, `velocity`, `pwm`).
+    #[getter]
+    fn operating_modes(&self) -> BTreeMap<&'static str, u8> {
+        self.info.operating_modes.iter().copied().collect()
+    }
+
+    /// Whether the `lock` register guards the EEPROM and opens and closes at will, as on
+    /// Feetech servos; `Bus.set_torque` then moves it with the torque.
+    #[getter]
+    fn eeprom_lock(&self) -> bool {
+        self.info.eeprom_lock
+    }
+
+    /// Every register of this servo, in declaration order.
+    #[pyo3(name = "registers")]
+    fn py_registers(&self) -> Vec<RegisterInfo> {
+        self.registers.to_vec()
+    }
+
+    /// Look up a register by name, as spelled in `registers()`; `None` when this servo
+    /// has no such register.
+    #[pyo3(name = "register")]
+    fn py_register(&self, name: &str) -> Option<RegisterInfo> {
+        self.register(name)
     }
 
     fn __repr__(&self) -> String {

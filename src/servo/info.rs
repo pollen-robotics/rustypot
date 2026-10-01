@@ -234,6 +234,17 @@ pub struct ServoInfo {
     pub supports_sync_read: bool,
     /// Serial rates the servo can be set to, as (baud rate, baud rate register value).
     pub baudrates: &'static [(u32, u8)],
+    /// The baud rate a new servo answers at.
+    pub factory_baudrate: Option<u32>,
+    /// How the homing offset moves the position the servo reports:
+    /// `present = actual + sign * homing_offset`. -1 on Feetech, +1 on Dynamixel.
+    pub homing_offset_sign: Option<i8>,
+    /// The values of the operating mode register, as (name, value). A name means the same
+    /// mode on every servo that has it (`position`, `velocity`, `pwm`), whatever its value.
+    pub operating_modes: &'static [(&'static str, u8)],
+    /// Whether the `lock` register guards the EEPROM and opens and closes at will, as on
+    /// Feetech servos. The lock of a Dynamixel AX or MX only clears at power-up.
+    pub eeprom_lock: bool,
 }
 
 /// Default encoding of a register type, when the servo definition says nothing about

@@ -186,6 +186,29 @@ mod tests {
     };
 
     #[test]
+    fn a_model_is_found_by_name_with_its_number_and_definition() {
+        assert_eq!(
+            super::find_model("STS3215"),
+            Some((777, sts3215::DEFINITION))
+        );
+        assert_eq!(
+            super::find_model("sm8512bl"),
+            Some((11272, sts3215::DEFINITION))
+        );
+        // LeRobot spells the X series with a hyphen.
+        assert_eq!(
+            super::find_model("xl330-m288"),
+            Some((1200, xl330::DEFINITION))
+        );
+        assert_eq!(super::find_model("sts3216"), None);
+
+        assert_eq!(
+            sts3215::DEFINITION.models,
+            [("STS3215", 777), ("STS3250", 2825), ("SM8512BL", 11272)]
+        );
+    }
+
+    #[test]
     fn definitions_state_their_facts() {
         assert_eq!(sts3215::INFO.resolution, Some(4096));
         assert_eq!(sts3215::INFO.word_order, WordOrder::Little);
@@ -195,6 +218,18 @@ mod tests {
         assert_eq!(scs0009::INFO.resolution, Some(1024));
         assert_eq!(scs0009::INFO.word_order, WordOrder::Big);
         assert!(!scs0009::INFO.supports_sync_read);
+
+        // Feetech: present = actual - offset; Dynamixel: present = actual + offset.
+        assert_eq!(sts3215::INFO.homing_offset_sign, Some(-1));
+        assert_eq!(xl330::INFO.homing_offset_sign, Some(1));
+        assert_eq!(scs0009::INFO.homing_offset_sign, None);
+        // The same mode under one name, at a different value per family.
+        assert!(sts3215::INFO.operating_modes.contains(&("position", 0)));
+        assert!(xl430::INFO.operating_modes.contains(&("position", 3)));
+        assert!(scs0009::INFO.operating_modes.is_empty());
+        assert_eq!(sts3215::INFO.factory_baudrate, Some(1_000_000));
+        assert_eq!(xl330::INFO.factory_baudrate, Some(57_600));
+        assert_eq!(mx::INFO.factory_baudrate, None);
 
         assert_eq!(mx::INFO.resolution, Some(4096));
         assert!(mx::INFO.baudrates.is_empty());
