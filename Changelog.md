@@ -16,6 +16,10 @@
   as the value the definition's `baudrates` lists for it; a rate it does not list is a
   `RegisterError::Baudrate` (`ValueError` on Python) and nothing is sent. Like `scan`,
   both reach motors the bus does not have.
+- Python: `baudrates()` (slowest first) and `models()` (by name) on the controller classes
+  return their dict in a fixed order. They came from a `HashMap`, so the order changed
+  from one process to the next, and so did the order in which a caller trying each baud
+  rate found a motor.
 
 ## Version 1.10.0
 
