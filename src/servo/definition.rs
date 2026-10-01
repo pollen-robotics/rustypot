@@ -169,12 +169,13 @@ impl ServoDefinition {
     }
 
     /// Which of `ids` answer, with their model number read as this definition lays it
-    /// out.
+    /// out. An id that answers with anything the protocol cannot parse counts as absent.
     ///
-    /// One Model Number read per id, so presence and identity cost a single round trip.
-    /// An absent id costs a timeout, so the sweep runs under one sized to the baud rate,
-    /// see [`scan_timeout`], and puts the port's timeout back afterwards. An id that
-    /// answers with anything the protocol cannot parse counts as absent.
+    /// A servo that answers a broadcast ping (`supports_broadcast_ping`) is found with
+    /// one, then only the ids that answered are read, under the port's timeout. Any other
+    /// gets one Model Number read per id: an absent id costs a timeout, so that sweep
+    /// runs under one sized to the baud rate, see [`scan_timeout`], and puts the port's
+    /// timeout back afterwards.
     pub fn scan(
         &self,
         dph: &DynamixelProtocolHandler,
@@ -183,15 +184,24 @@ impl ServoDefinition {
     ) -> Result<BTreeMap<u8, u16>> {
         self.check_protocol(dph)?;
         let reg = self.named("model_number")?;
+        let model_number = |port: &mut dyn SerialPort, id: u8| {
+            let bytes = dph.read(port, id, reg.addr, reg.size).ok()?;
+            let model = reg.decode(self.info.word_order, &bytes).ok()?;
+            Some((id, model as u16))
+        };
+        if self.info.supports_broadcast_ping {
+            let answered = dph.broadcast_ping(port)?;
+            return Ok(ids
+                .iter()
+                .filter(|id| answered.contains(id))
+                .filter_map(|&id| model_number(port, id))
+                .collect());
+        }
         let timeout = port.timeout();
         port.set_timeout(scan_timeout(port.baud_rate()?))?;
         let found = ids
             .iter()
-            .filter_map(|&id| {
-                let bytes = dph.read(port, id, reg.addr, reg.size).ok()?;
-                let model = reg.decode(self.info.word_order, &bytes).ok()?;
-                Some((id, model as u16))
-            })
+            .filter_map(|&id| model_number(port, id))
             .collect();
         port.set_timeout(timeout)?;
         Ok(found)

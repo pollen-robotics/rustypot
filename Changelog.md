@@ -5,6 +5,11 @@
   every possible id, 3 ms of turn per id and 16 ms for a USB adapter's latency timer, the
   window the vendor SDKs use (about 0.8 s at 1 Mbps). Protocol v2 Dynamixel and Feetech
   STS answer it; protocol v1 Dynamixel and Feetech SCS do not.
+- `scan` uses that broadcast ping on servos whose definition says
+  `supports_broadcast_ping: true` (STS3215, XL320, XL330, XL430), then reads the model
+  number of the motors that answered only, under the port's own timeout. The other
+  servos keep the one-read-per-id sweep. `ServoInfo::supports_broadcast_ping`, and
+  `supports_broadcast_ping()` on the Python controller classes.
 
 ## Version 1.10.0
 
