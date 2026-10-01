@@ -7,6 +7,7 @@ use crate::servo::dynamixel::mx::AnglePosition;
 generate_servo!(
     STS3215, v1,
     resolution: 4096,
+    supports_broadcast_ping: true,
     baudrates: [
         (1_000_000, 0), (500_000, 1), (250_000, 2), (128_000, 3),
         (115_200, 4), (57_600, 5), (38_400, 6), (19_200, 7),

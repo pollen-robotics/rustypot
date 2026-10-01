@@ -4,6 +4,7 @@ macro_rules! generate_servo {
      $(resolution: $resolution:expr,)?
      $(word_order: $word_order:ident,)?
      $(supports_sync_read: $supports_sync_read:expr,)?
+     $(supports_broadcast_ping: $supports_broadcast_ping:expr,)?
      $(baudrates: [$(($baud:expr, $baud_code:expr)),* $(,)?],)?
      $(encoding: [$(($enc_reg:ident, $enc_kind:ident $(($enc_arg:expr))?)),* $(,)?],)?
      $(reg: ($reg_name:ident, $reg_access:ident, $reg_addr:expr, $reg_type:ty, $conv:ident),)+
@@ -156,9 +157,17 @@ macro_rules! generate_servo {
                     INFO.supports_sync_read
                 }
 
-                /// Serial rates the servo can be set to, as {baud rate: register value}.
+                /// Whether the firmware answers a ping sent to the broadcast id, which
+                /// `scan` then uses instead of one read per id.
                 #[staticmethod]
-                pub fn baudrates() -> std::collections::HashMap<u32, u8> {
+                pub fn supports_broadcast_ping() -> bool {
+                    INFO.supports_broadcast_ping
+                }
+
+                /// Serial rates the servo can be set to, as {baud rate: register value},
+                /// slowest first.
+                #[staticmethod]
+                pub fn baudrates() -> std::collections::BTreeMap<u32, u8> {
                     INFO.baudrates.iter().copied().collect()
                 }
 
@@ -180,6 +189,7 @@ macro_rules! generate_servo {
             resolution: $crate::servo_resolution!($($resolution)?),
             word_order: $crate::servo_word_order!($($word_order)?),
             supports_sync_read: $crate::servo_supports_sync_read!($($supports_sync_read)?),
+            supports_broadcast_ping: $crate::servo_supports_broadcast_ping!($($supports_broadcast_ping)?),
             baudrates: &[$($(($baud, $baud_code)),*)?],
         };
 
@@ -940,13 +950,10 @@ macro_rules! generate_scan {
     ($servo_name:ident) => {
         paste::paste! {
             impl [<$servo_name:camel Controller>] {
-                /// Which of `ids` answer, with their model number.
-                ///
-                /// One Model Number read per id, so presence and identity cost a single
-                /// round trip. An absent id costs a timeout, so the sweep runs under one
-                /// sized to the baud rate, see [`scan_timeout`](crate::servo::scan_timeout),
-                /// and puts the port's timeout back afterwards. An id that answers with
-                /// anything the protocol cannot parse counts as absent.
+                /// Which of `ids` answer, with their model number: a broadcast ping when
+                /// the servo answers one, else one Model Number read per id under a
+                /// timeout sized to the baud rate. See
+                /// [`ServoDefinition::scan`](crate::servo::ServoDefinition::scan).
                 pub fn scan(&mut self, ids: &[u8]) -> $crate::Result<std::collections::BTreeMap<u8, u16>> {
                     let (dph, port) = self.wire();
                     DEFINITION.scan(dph, port, ids)
@@ -967,9 +974,10 @@ macro_rules! generate_scan {
                 /// Which of `ids` answer, as {id: model number}; every id the protocol
                 /// allows when `ids` is left out (0 to 253 on v1, 0 to 252 on v2).
                 ///
-                /// One Model Number read per id, under a timeout sized to the baud rate
-                /// so that absent ids do not each cost the port's timeout; the port's
-                /// timeout is put back afterwards.
+                /// A broadcast ping when the servo answers one (`supports_broadcast_ping()`),
+                /// then one read per motor found; else one Model Number read per id, under
+                /// a timeout sized to the baud rate so that absent ids do not each cost the
+                /// port's timeout. The port's timeout is put back afterwards.
                 #[pyo3(signature = (ids = None))]
                 pub fn scan(
                     &self,
@@ -1060,6 +1068,17 @@ macro_rules! servo_supports_sync_read {
     };
     ($supports_sync_read:expr) => {
         $supports_sync_read
+    };
+}
+
+#[doc(hidden)]
+#[macro_export]
+macro_rules! servo_supports_broadcast_ping {
+    () => {
+        false
+    };
+    ($supports_broadcast_ping:expr) => {
+        $supports_broadcast_ping
     };
 }
 
@@ -1799,9 +1818,10 @@ macro_rules! register_servo {
                 #[gen_stub_pymethods]
                 #[pymethods]
                 impl $group::[<$servo:lower>]::[<$servo:camel PyController>] {
-                    /// Model numbers of the servos this definition covers, as {name: number}.
+                    /// Model numbers of the servos this definition covers, as {name: number},
+                    /// by name.
                     #[staticmethod]
-                    pub fn models() -> std::collections::HashMap<String, u16> {
+                    pub fn models() -> std::collections::BTreeMap<String, u16> {
                         $group::[<$servo:lower>]::[<$servo:camel Controller>]::MODELS
                             .iter()
                             .map(|&(name, number)| (name.to_string(), number))

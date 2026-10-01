@@ -195,6 +195,10 @@ mod tests {
         assert_eq!(scs0009::INFO.resolution, Some(1024));
         assert_eq!(scs0009::INFO.word_order, WordOrder::Big);
         assert!(!scs0009::INFO.supports_sync_read);
+        assert!(sts3215::INFO.supports_broadcast_ping);
+        assert!(!scs0009::INFO.supports_broadcast_ping);
+        assert!(xl330::INFO.supports_broadcast_ping);
+        assert!(!mx::INFO.supports_broadcast_ping);
 
         assert_eq!(mx::INFO.resolution, Some(4096));
         assert!(mx::INFO.baudrates.is_empty());
@@ -413,20 +417,21 @@ mod tests {
         use crate::fake_port::FakePort;
         use std::time::Duration;
 
-        // Only motor 2 answers, with model number 777: bytes 9, 3 at address 3.
+        // The SCS0009 has no broadcast ping: one Model Number read per id. Only motor 2
+        // answers, with model number 1284: bytes 5, 4 at address 3, big-endian.
         let port = FakePort::new(vec![
             vec![],
-            vec![0xFF, 0xFF, 0x02, 0x04, 0x00, 0x09, 0x03, 0xED],
+            vec![0xFF, 0xFF, 0x02, 0x04, 0x00, 0x05, 0x04, 0xF0],
             vec![],
         ]);
         let settings = port.settings();
-        let mut c = sts3215::Sts3215Controller::new()
+        let mut c = scs0009::Scs0009Controller::new()
             .with_serial_port(Box::new(port))
             .with_protocol_v1();
 
         let found = c.scan(&[1, 2, 3]).unwrap();
 
-        assert_eq!(found, std::collections::BTreeMap::from([(2, 777)]));
+        assert_eq!(found, std::collections::BTreeMap::from([(2, 1284)]));
         assert_eq!(
             settings.lock().unwrap().timeouts,
             [
@@ -444,19 +449,48 @@ mod tests {
         // Nothing answers: the sweep is one instruction per id.
         let port = FakePort::new(vec![]);
         let written = port.written();
-        let mut c = sts3215::Sts3215Controller::new()
+        let mut c = scs0009::Scs0009Controller::new()
             .with_serial_port(Box::new(port))
             .with_protocol_v1();
         assert!(c.scan_all().unwrap().is_empty());
         assert_eq!(written.lock().unwrap().len(), 254);
+    }
 
+    #[test]
+    fn a_servo_that_answers_a_broadcast_ping_is_scanned_with_one() {
+        use crate::fake_port::FakePort;
+
+        // Motors 2 and 5 answer the broadcast ping; 5 was not asked for. Motor 2 then
+        // gives its model number, 777: bytes 9, 3 at address 3.
+        let port = FakePort::new(vec![
+            [
+                [0xFF, 0xFF, 0x02, 0x02, 0x00, 0xFB],
+                [0xFF, 0xFF, 0x05, 0x02, 0x00, 0xF8],
+            ]
+            .concat(),
+            vec![0xFF, 0xFF, 0x02, 0x04, 0x00, 0x09, 0x03, 0xED],
+        ]);
+        let written = port.written();
+        let mut c = sts3215::Sts3215Controller::new()
+            .with_serial_port(Box::new(port))
+            .with_protocol_v1();
+
+        let found = c.scan(&[1, 2, 3]).unwrap();
+
+        assert_eq!(found, std::collections::BTreeMap::from([(2, 777)]));
+        // The ping, to the broadcast id, then one read.
+        let written = written.lock().unwrap();
+        assert_eq!(written.len(), 2);
+        assert_eq!(written[0][2], 0xFE);
+
+        // Nothing answers on protocol v2 either: a single instruction for every id.
         let port = FakePort::new(vec![]);
         let written = port.written();
         let mut c = xl330::Xl330Controller::new()
             .with_serial_port(Box::new(port))
             .with_protocol_v2();
         assert!(c.scan_all().unwrap().is_empty());
-        assert_eq!(written.lock().unwrap().len(), 253);
+        assert_eq!(written.lock().unwrap().len(), 1);
     }
 
     #[test]

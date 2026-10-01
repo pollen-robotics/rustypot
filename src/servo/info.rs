@@ -154,6 +154,8 @@ pub enum RegisterError {
     UnknownMotor(u8),
     /// A sync write needs one value per id.
     ValueCount { ids: usize, values: usize },
+    /// The servo cannot be set to this baud rate.
+    Baudrate { servo: &'static str, baudrate: u32 },
 }
 
 impl fmt::Display for RegisterError {
@@ -181,6 +183,9 @@ impl fmt::Display for RegisterError {
             RegisterError::UnknownMotor(id) => write!(f, "no motor with id {id} on this bus"),
             RegisterError::ValueCount { ids, values } => {
                 write!(f, "{values} values for {ids} ids")
+            }
+            RegisterError::Baudrate { servo, baudrate } => {
+                write!(f, "{servo} cannot be set to {baudrate} baud")
             }
         }
     }
@@ -232,6 +237,8 @@ pub struct ServoInfo {
     pub word_order: WordOrder,
     /// Whether the firmware answers the Sync Read instruction.
     pub supports_sync_read: bool,
+    /// Whether the firmware answers a ping sent to the broadcast id.
+    pub supports_broadcast_ping: bool,
     /// Serial rates the servo can be set to, as (baud rate, baud rate register value).
     pub baudrates: &'static [(u32, u8)],
 }

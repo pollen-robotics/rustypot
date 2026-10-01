@@ -1,3 +1,26 @@
+## Unreleased
+
+- `DynamixelProtocolHandler::broadcast_ping` pings every motor at once and returns the ids
+  that answer, listening for `broadcast_ping_window(baudrate)`: the status packets of
+  every possible id, 3 ms of turn per id and 16 ms for a USB adapter's latency timer, the
+  window the vendor SDKs use (about 0.8 s at 1 Mbps). Protocol v2 Dynamixel and Feetech
+  STS answer it; protocol v1 Dynamixel and Feetech SCS do not.
+- `scan` uses that broadcast ping on servos whose definition says
+  `supports_broadcast_ping: true` (STS3215, XL320, XL330, XL430), then reads the model
+  number of the motors that answered only, under the port's own timeout. The other
+  servos keep the one-read-per-id sweep. `ServoInfo::supports_broadcast_ping`, and
+  `supports_broadcast_ping()` on the Python controller classes.
+- `change_id(definition, id, new_id)` and `change_baudrate(definition, id, baudrate)` on
+  `ServoDefinition` and `Bus` (and the Python `Bus`): torque off and, on servos with a
+  lock register, lock open, then the write. The baud rate is given in bauds and written
+  as the value the definition's `baudrates` lists for it; a rate it does not list is a
+  `RegisterError::Baudrate` (`ValueError` on Python) and nothing is sent. Like `scan`,
+  both reach motors the bus does not have.
+- Python: `baudrates()` (slowest first) and `models()` (by name) on the controller classes
+  return their dict in a fixed order. They came from a `HashMap`, so the order changed
+  from one process to the next, and so did the order in which a caller trying each baud
+  rate found a motor.
+
 ## Version 1.10.0
 
 - Register the model numbers of the X-series servos that share an existing definition:

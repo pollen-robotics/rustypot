@@ -193,6 +193,26 @@ impl Bus {
         self.scan(definition, &ids)
     }
 
+    /// Give motor `id` the id `new_id`, through `definition`. See
+    /// [`ServoDefinition::change_id`]. Like [`scan`](Self::scan), it reaches motors the
+    /// bus does not have: a new motor answers at its factory id.
+    pub fn change_id(&mut self, definition: ServoDefinition, id: u8, new_id: u8) -> Result<()> {
+        let dph = &self.handlers[definition.protocol as usize - 1];
+        definition.change_id(dph, self.serial_port.as_mut(), id, new_id)
+    }
+
+    /// Set motor `id` to talk at `baudrate`, through `definition`. See
+    /// [`ServoDefinition::change_baudrate`].
+    pub fn change_baudrate(
+        &mut self,
+        definition: ServoDefinition,
+        id: u8,
+        baudrate: u32,
+    ) -> Result<()> {
+        let dph = &self.handlers[definition.protocol as usize - 1];
+        definition.change_baudrate(dph, self.serial_port.as_mut(), id, baudrate)
+    }
+
     /// Switch the open serial port to `baudrate`.
     pub fn set_baudrate(&mut self, baudrate: u32) -> Result<()> {
         Ok(self.serial_port.set_baud_rate(baudrate)?)
@@ -413,6 +433,30 @@ mod python {
             })
         }
 
+        /// Give motor `id` the id `new_id`, through `definition`: torque off and, on a
+        /// Feetech motor, lock open first. The motor need not be one of the bus's.
+        pub fn change_id(
+            &self,
+            py: Python,
+            definition: ServoDefinition,
+            id: u8,
+            new_id: u8,
+        ) -> PyResult<()> {
+            self.run(py, |bus| bus.change_id(definition, id, new_id))
+        }
+
+        /// Set motor `id` to talk at `baudrate`, through `definition`, as `change_id`
+        /// does it. A rate the servo cannot take raises `ValueError`.
+        pub fn change_baudrate(
+            &self,
+            py: Python,
+            definition: ServoDefinition,
+            id: u8,
+            baudrate: u32,
+        ) -> PyResult<()> {
+            self.run(py, |bus| bus.change_baudrate(definition, id, baudrate))
+        }
+
         /// Which of `ids` answer, as {id: model number} read as `definition` lays it out,
         /// over its protocol; every id that protocol allows when `ids` is left out.
         #[pyo3(signature = (definition, ids = None))]
@@ -470,6 +514,22 @@ mod tests {
             Some(RegisterError::UnknownMotor(9))
         ));
         assert_eq!(written.lock().unwrap().len(), 4);
+    }
+
+    #[test]
+    fn a_motor_the_bus_does_not_have_can_be_given_its_id() {
+        // A new STS3215 answers at id 1, which the bus gives to an XL330.
+        let status = vec![0xFF, 0xFF, 0x01, 0x02, 0x00, 0xFC];
+        let port = FakePort::new(vec![status.clone(), status.clone(), status]);
+        let written = port.written();
+        let mut bus = Bus::new(Box::new(port), BTreeMap::from([(1, xl330::DEFINITION)]));
+
+        bus.change_id(sts3215::DEFINITION, 1, 11).unwrap();
+
+        // Protocol v1 all the way: three writes, the last one the id.
+        let written = written.lock().unwrap();
+        assert_eq!(written.len(), 3);
+        assert_eq!(written[2][..7], [0xFF, 0xFF, 0x01, 0x04, 0x03, 0x05, 11]);
     }
 
     #[test]

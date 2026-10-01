@@ -148,6 +148,8 @@ fn parse_fast_sync_read_status_with_error(
 pub(crate) struct PacketV2;
 impl Packet for PacketV2 {
     const HEADER_SIZE: usize = 7;
+    const BROADCAST_ID: u8 = BROADCAST_ID;
+    const ID_POSITION: usize = 4;
 
     type ErrorKind = DynamixelErrorV2;
     type InstructionKind = InstructionKindV2;

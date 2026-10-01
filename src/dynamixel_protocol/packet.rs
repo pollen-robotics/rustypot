@@ -4,6 +4,10 @@ use crate::Result;
 
 pub trait Packet {
     const HEADER_SIZE: usize;
+    /// The id every motor listens to.
+    const BROADCAST_ID: u8;
+    /// Where a status packet carries the id of the motor that sent it.
+    const ID_POSITION: usize;
     type ErrorKind: Debug;
     type InstructionKind: Debug;
 

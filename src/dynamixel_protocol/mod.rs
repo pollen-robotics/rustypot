@@ -178,6 +178,43 @@ impl DynamixelProtocolHandler {
         }
     }
 
+    /// Ping every motor at once, and return the ids that answer.
+    ///
+    /// Each motor that hears the broadcast ping answers with its own status packet, in
+    /// turn, so finding all of them takes one listening window
+    /// ([`broadcast_ping_window`](Self::broadcast_ping_window) at the port's baud rate)
+    /// instead of one timeout per absent id. The port's timeout is put back afterwards.
+    ///
+    /// Only some firmwares answer: protocol v2 Dynamixel and Feetech STS do, protocol v1
+    /// Dynamixel and Feetech SCS stay silent, which reads as no motor at all.
+    pub fn broadcast_ping(&self, serial_port: &mut dyn serialport::SerialPort) -> Result<Vec<u8>> {
+        let window = self.broadcast_ping_window(serial_port.baud_rate()?);
+        let timeout = serial_port.timeout();
+        let ids = match &self.protocol {
+            ProtocolKind::V1(p) => p.broadcast_ping(serial_port, window),
+            ProtocolKind::V2(p, _) => p.broadcast_ping(serial_port, window),
+        };
+        serial_port.set_timeout(timeout)?;
+        self.sleep_post_delay();
+        ids
+    }
+
+    /// How long a broadcast ping listens at `baudrate`: the window the vendor SDKs use.
+    ///
+    /// The status packets of every id the protocol allows (6 bytes each on v1, 14 on v2),
+    /// 3 ms of turn per id, and 16 ms for the latency timer of a USB serial adapter, which
+    /// can hold a short answer that long before passing it on.
+    pub fn broadcast_ping_window(&self, baudrate: u32) -> Duration {
+        let (status_size, max_id) = match self.protocol {
+            ProtocolKind::V1(_) => (6, v1::MAX_ID),
+            ProtocolKind::V2(..) => (14, v2::MAX_ID),
+        };
+        let max_id = u64::from(max_id);
+        let bits = status_size * max_id * 10;
+        Duration::from_micros(bits * 1_000_000 / u64::from(baudrate))
+            + Duration::from_millis(3 * max_id + 16)
+    }
+
     /// Send a reboot instruction.
     ///
     /// Reboot the motor with specified `id`.
@@ -562,6 +599,30 @@ trait Protocol<P: Packet> {
         Ok(self.read_status_packet(port, id).is_ok())
     }
 
+    /// Ping the broadcast id and keep the id of every status packet that parses until
+    /// `window` closes. Changes the port's timeout; the caller puts it back.
+    fn broadcast_ping(&self, port: &mut dyn SerialPort, window: Duration) -> Result<Vec<u8>> {
+        self.send_instruction_packet(port, P::ping_packet(P::BROADCAST_ID).as_ref())?;
+        let deadline = Instant::now() + window;
+        let mut ids = Vec::new();
+        loop {
+            let left = deadline.saturating_duration_since(Instant::now());
+            if left.is_zero() {
+                break;
+            }
+            port.set_timeout(left)?;
+            // Silence until the deadline, or bytes that do not frame a packet, end it.
+            let Ok(data) = self.read_status_packet_bytes(port) else {
+                break;
+            };
+            let id = data[P::ID_POSITION];
+            if P::status_packet(&data, id).is_ok() {
+                ids.push(id);
+            }
+        }
+        Ok(ids)
+    }
+
     fn reboot(&self, port: &mut dyn SerialPort, id: u8) -> Result<bool> {
         self.send_instruction_packet(port, P::reboot_packet(id).as_ref())?;
 
@@ -762,7 +823,10 @@ trait Protocol<P: Packet> {
     }
 }
 
-use std::{fmt, time::Duration};
+use std::{
+    fmt,
+    time::{Duration, Instant},
+};
 
 /// The error field of a status packet.
 ///
@@ -949,6 +1013,59 @@ mod tests {
         assert!(
             elapsed >= POST_DELAY,
             "sync_read returned after {elapsed:?}, before the {POST_DELAY:?} post delay"
+        );
+    }
+
+    #[test]
+    fn a_broadcast_ping_lists_every_motor_that_answers() {
+        // Motors 1 and 3 answer; motor 2's status packet arrives with a broken checksum.
+        let answers = [
+            [0xFF, 0xFF, 0x01, 0x02, 0x00, 0xFC],
+            [0xFF, 0xFF, 0x02, 0x02, 0x00, 0x00],
+            [0xFF, 0xFF, 0x03, 0x02, 0x00, 0xFA],
+        ]
+        .concat();
+        let mut port = FakePort::new(vec![answers]);
+        let written = port.written();
+        let settings = port.settings();
+
+        let ids = DynamixelProtocolHandler::v1()
+            .broadcast_ping(&mut port)
+            .unwrap();
+
+        assert_eq!(ids, [1, 3]);
+        // One ping, to the broadcast id.
+        assert_eq!(
+            *written.lock().unwrap(),
+            [vec![0xFF, 0xFF, 0xFE, 0x02, 0x01, 0xFE]]
+        );
+        // The port's own timeout is back once the window closes.
+        let timeouts = &settings.lock().unwrap().timeouts;
+        assert_eq!(timeouts.last(), timeouts.first());
+    }
+
+    #[test]
+    fn a_broadcast_ping_reads_protocol_v2_status_packets() {
+        let answer = vec![
+            0xFF, 0xFF, 0xFD, 0x00, 0x01, 0x08, 0x00, 0x55, 0x00, 0xA6, 0x00, 0x00, 0x00, 0x8C,
+            0xC0,
+        ];
+        let mut port = FakePort::new(vec![answer]);
+
+        let ids = DynamixelProtocolHandler::v2()
+            .broadcast_ping(&mut port)
+            .unwrap();
+
+        assert_eq!(ids, [1]);
+    }
+
+    #[test]
+    fn the_broadcast_ping_window_leaves_every_id_its_turn() {
+        // 253 ids at 3 ms each, the 16 ms of a USB latency timer, and 253 six-byte status
+        // packets at 1 Mbps.
+        assert_eq!(
+            DynamixelProtocolHandler::v1().broadcast_ping_window(1_000_000),
+            Duration::from_micros(253 * 3_000 + 16_000 + 253 * 6 * 10)
         );
     }
 
