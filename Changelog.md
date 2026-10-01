@@ -21,6 +21,8 @@
   definition says `eeprom_lock: true` (STS3215, SCS0009), the lock follows the torque:
   closed with it on, open with it off. The new fact is on `ServoInfo` and the Python
   `ServoDefinition`; it fails the build on a servo without a `lock` register.
+- Python: `Bus.is_open`, and `Bus` as a context manager: `with Bus(...) as bus:` releases
+  the serial port on the way out, an exception raised in the block included.
 
 ## Version 1.10.0
 

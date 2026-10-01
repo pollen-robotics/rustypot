@@ -260,11 +260,12 @@ mod python {
     /// Motors of several definitions, and of both protocols, on one serial port.
     ///
     /// ```python
-    /// bus = Bus("/dev/ttyUSB0", 1_000_000, 0.1, {
+    /// with Bus("/dev/ttyUSB0", 1_000_000, 0.1, {
     ///     1: Xl430PyController.definition(),
     ///     2: Xl330PyController.definition(),
-    /// })
-    /// bus.sync_read_register([1, 2], "present_position")  # one Sync Read
+    /// }) as bus:
+    ///     bus.sync_read_register([1, 2], "present_position")  # one Sync Read
+    /// # the port is released here
     /// ```
     #[gen_stub_pyclass]
     #[pyclass(frozen, name = "Bus")]
@@ -319,6 +320,27 @@ mod python {
         /// Release the serial port. Every later call raises `RuntimeError`.
         pub fn close(&self) {
             *self.0.lock().unwrap() = None;
+        }
+
+        /// Whether the bus still holds its serial port: `False` once `close()` has run.
+        #[getter]
+        pub fn is_open(&self) -> bool {
+            self.0.lock().unwrap().is_some()
+        }
+
+        fn __enter__(slf: Py<Self>) -> Py<Self> {
+            slf
+        }
+
+        /// Release the serial port on the way out of a `with` block, whatever happened in
+        /// it; an exception raised in the block goes on.
+        fn __exit__(
+            &self,
+            _exc_type: &Bound<'_, PyAny>,
+            _exc_value: &Bound<'_, PyAny>,
+            _traceback: &Bound<'_, PyAny>,
+        ) {
+            self.close();
         }
 
         /// Switch the open serial port to `baudrate`.
