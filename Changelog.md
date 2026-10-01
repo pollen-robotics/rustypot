@@ -44,6 +44,10 @@
   `RegisterError::Baudrate` (`ValueError` on Python) and nothing is sent; the port stays
   at its rate, for the caller to switch with `set_baudrate`. Like `scan`, both reach
   motors the bus does not have.
+- Python: `baudrates()` (slowest first) and `models()` (by name) on the controller classes
+  return their dict in a fixed order, like the `ServoDefinition` getters. They came from
+  a `HashMap`, so the order changed from one process to the next, and so did the order in
+  which a caller trying each baud rate found a motor.
 
 ## Version 1.10.0
 

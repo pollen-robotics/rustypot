@@ -168,9 +168,10 @@ macro_rules! generate_servo {
                     INFO.supports_broadcast_ping
                 }
 
-                /// Serial rates the servo can be set to, as {baud rate: register value}.
+                /// Serial rates the servo can be set to, as {baud rate: register value},
+                /// slowest first.
                 #[staticmethod]
-                pub fn baudrates() -> std::collections::HashMap<u32, u8> {
+                pub fn baudrates() -> std::collections::BTreeMap<u32, u8> {
                     INFO.baudrates.iter().copied().collect()
                 }
 
@@ -1924,9 +1925,10 @@ macro_rules! register_servo {
                 #[gen_stub_pymethods]
                 #[pymethods]
                 impl $group::[<$servo:lower>]::[<$servo:camel PyController>] {
-                    /// Model numbers of the servos this definition covers, as {name: number}.
+                    /// Model numbers of the servos this definition covers, as {name: number},
+                    /// by name.
                     #[staticmethod]
-                    pub fn models() -> std::collections::HashMap<String, u16> {
+                    pub fn models() -> std::collections::BTreeMap<String, u16> {
                         $group::[<$servo:lower>]::[<$servo:camel Controller>]::MODELS
                             .iter()
                             .map(|&(name, number)| (name.to_string(), number))
