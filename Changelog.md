@@ -1,3 +1,13 @@
+## Unreleased
+
+- `find_model(name)` returns the model number of a servo model and the definition that
+  covers it, from the registry (`DEFINITIONS` lists every definition). Names compare
+  without case, hyphens or underscores, so LeRobot's `xl330-m288` finds `XL330M288`.
+  `ServoDefinition` gains `models`, the (name, model number) pairs it covers, and on
+  Python `find_model` plus `models`, `resolution`, `word_order`, `supports_sync_read`,
+  `baudrates`, `registers()` and `register(name)` on `ServoDefinition`, so code holding a
+  definition (what a `Bus` takes) needs no controller class.
+
 ## Version 1.10.0
 
 - Register the model numbers of the X-series servos that share an existing definition:

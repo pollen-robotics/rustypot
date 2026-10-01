@@ -30,6 +30,8 @@ pub struct ServoDefinition {
     pub protocol: u8,
     pub info: ServoInfo,
     pub registers: &'static [RegisterInfo],
+    /// The servo models this definition covers, as (name, model number).
+    pub models: &'static [(&'static str, u16)],
 }
 
 impl ServoDefinition {
@@ -381,6 +383,50 @@ impl ServoDefinition {
     #[getter]
     fn protocol(&self) -> u8 {
         self.protocol
+    }
+
+    /// Model numbers of the servos this definition covers, as {name: number}, by name.
+    #[getter]
+    fn models(&self) -> BTreeMap<&'static str, u16> {
+        self.models.iter().copied().collect()
+    }
+
+    /// Encoder steps per turn, or `None` when the servo does not count steps.
+    #[getter]
+    fn resolution(&self) -> Option<u32> {
+        self.info.resolution
+    }
+
+    /// Byte order of multi-byte registers on the wire: "little" or "big".
+    #[getter]
+    fn word_order(&self) -> &'static str {
+        self.info.word_order.as_str()
+    }
+
+    /// Whether the firmware answers the Sync Read instruction.
+    #[getter]
+    fn supports_sync_read(&self) -> bool {
+        self.info.supports_sync_read
+    }
+
+    /// Serial rates the servo can be set to, as {baud rate: register value}, slowest
+    /// first.
+    #[getter]
+    fn baudrates(&self) -> BTreeMap<u32, u8> {
+        self.info.baudrates.iter().copied().collect()
+    }
+
+    /// Every register of this servo, in declaration order.
+    #[pyo3(name = "registers")]
+    fn py_registers(&self) -> Vec<RegisterInfo> {
+        self.registers.to_vec()
+    }
+
+    /// Look up a register by name, as spelled in `registers()`; `None` when this servo
+    /// has no such register.
+    #[pyo3(name = "register")]
+    fn py_register(&self, name: &str) -> Option<RegisterInfo> {
+        self.register(name)
     }
 
     fn __repr__(&self) -> String {

@@ -186,6 +186,29 @@ mod tests {
     };
 
     #[test]
+    fn a_model_is_found_by_name_with_its_number_and_definition() {
+        assert_eq!(
+            super::find_model("STS3215"),
+            Some((777, sts3215::DEFINITION))
+        );
+        assert_eq!(
+            super::find_model("sm8512bl"),
+            Some((11272, sts3215::DEFINITION))
+        );
+        // LeRobot spells the X series with a hyphen.
+        assert_eq!(
+            super::find_model("xl330-m288"),
+            Some((1200, xl330::DEFINITION))
+        );
+        assert_eq!(super::find_model("sts3216"), None);
+
+        assert_eq!(
+            sts3215::DEFINITION.models,
+            [("STS3215", 777), ("STS3250", 2825), ("SM8512BL", 11272)]
+        );
+    }
+
+    #[test]
     fn definitions_state_their_facts() {
         assert_eq!(sts3215::INFO.resolution, Some(4096));
         assert_eq!(sts3215::INFO.word_order, WordOrder::Little);

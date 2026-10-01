@@ -230,13 +230,16 @@ macro_rules! generate_servo {
             REGISTERS.iter().copied().find(|r| r.name == name)
         }
 
-        /// This servo's definition as a value, see [`ServoDefinition`](crate::servo::ServoDefinition).
-        pub const DEFINITION: $crate::servo::ServoDefinition = $crate::servo::ServoDefinition {
-            name: stringify!($servo_name),
-            protocol: $crate::protocol_version!($protocol),
-            info: INFO,
-            registers: REGISTERS,
-        };
+        paste::paste! {
+            /// This servo's definition as a value, see [`ServoDefinition`](crate::servo::ServoDefinition).
+            pub const DEFINITION: $crate::servo::ServoDefinition = $crate::servo::ServoDefinition {
+                name: stringify!($servo_name),
+                protocol: $crate::protocol_version!($protocol),
+                info: INFO,
+                registers: REGISTERS,
+                models: [<$servo_name:camel Controller>]::MODELS,
+            };
+        }
 
         $crate::generate_protocol_constructor!($servo_name, $protocol);
         $crate::generate_special_instructions!($servo_name);
@@ -1789,6 +1792,41 @@ macro_rules! register_servo {
                 }
             )+
 
+            /// Every servo definition in the registry.
+            pub const DEFINITIONS: &[$crate::servo::ServoDefinition] = &[
+                $($group::[<$servo:lower>]::DEFINITION),+
+            ];
+
+            /// The model number of the servo model called `name`, and the definition that
+            /// covers it. Names compare without case, hyphens or underscores, so
+            /// `xl330-m288` finds `XL330M288`.
+            pub fn find_model(name: &str) -> Option<(u16, $crate::servo::ServoDefinition)> {
+                fn key(name: &str) -> String {
+                    name.chars()
+                        .filter(|c| !matches!(c, '-' | '_'))
+                        .map(|c| c.to_ascii_lowercase())
+                        .collect()
+                }
+                let name = key(name);
+                DEFINITIONS.iter().find_map(|definition| {
+                    definition
+                        .models
+                        .iter()
+                        .find(|(model, _)| key(model) == name)
+                        .map(|&(_, number)| (number, *definition))
+                })
+            }
+
+            /// The model number of the servo model called `name`, and the definition that
+            /// covers it, or `None` for a model rustypot does not know. Names compare
+            /// without case, hyphens or underscores, so `xl330-m288` finds `XL330M288`.
+            #[cfg(feature = "python")]
+            #[gen_stub_pyfunction]
+            #[pyfunction(name = "find_model")]
+            fn py_find_model(name: &str) -> Option<(u16, $crate::servo::ServoDefinition)> {
+                find_model(name)
+            }
+
             #[cfg(feature = "python")]
             use pyo3::prelude::*;
             #[cfg(feature = "python")]
@@ -1815,6 +1853,7 @@ macro_rules! register_servo {
                 $(
                     m.add_class::<$group::[<$servo:lower>]::[<$servo:camel PyController>]>()?;
                 )+
+                m.add_function(wrap_pyfunction!(py_find_model, m)?)?;
 
                 Ok(())
             }
