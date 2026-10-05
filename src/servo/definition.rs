@@ -189,14 +189,52 @@ impl ServoDefinition {
         port.set_timeout(scan_timeout(port.baud_rate()?))?;
         let found = ids
             .iter()
-            .filter_map(|&id| {
-                let bytes = dph.read(port, id, reg.addr, reg.size).ok()?;
-                let model = reg.decode(self.info.word_order, &bytes).ok()?;
-                Some((id, model as u16))
-            })
+            .filter_map(|&id| self.model_number(dph, port, reg, id))
             .collect();
         port.set_timeout(timeout)?;
         Ok(found)
+    }
+
+    /// Which of `ids` answer, with their model number read as this definition lays it
+    /// out: one broadcast ping, then a Model Number read of each id asked that answered,
+    /// under the port's own timeout.
+    ///
+    /// The ping listens for its whole window however few ids are asked
+    /// ([`broadcast_ping_window`](DynamixelProtocolHandler::broadcast_ping_window), about
+    /// 0.8 s at 1 Mbps), so this pays off over many ids, where [`scan`](Self::scan) costs a
+    /// timeout per absent id, and behind a USB adapter whose latency timer outlasts the
+    /// short timeout `scan` uses. A servo that does not answer a broadcast ping
+    /// (`supports_broadcast_ping`) is refused before anything is sent.
+    pub fn broadcast_scan(
+        &self,
+        dph: &DynamixelProtocolHandler,
+        port: &mut dyn SerialPort,
+        ids: &[u8],
+    ) -> Result<BTreeMap<u8, u16>> {
+        self.check_protocol(dph)?;
+        let reg = self.named("model_number")?;
+        if !self.info.supports_broadcast_ping {
+            return Err(RegisterError::BroadcastPing(self.name).into());
+        }
+        let answered = dph.broadcast_ping(port)?;
+        Ok(ids
+            .iter()
+            .filter(|id| answered.contains(id))
+            .filter_map(|&id| self.model_number(dph, port, reg, id))
+            .collect())
+    }
+
+    /// The model number of motor `id`, or `None` when it does not answer with one.
+    fn model_number(
+        &self,
+        dph: &DynamixelProtocolHandler,
+        port: &mut dyn SerialPort,
+        reg: RegisterInfo,
+        id: u8,
+    ) -> Option<(u8, u16)> {
+        let bytes = dph.read(port, id, reg.addr, reg.size).ok()?;
+        let model = reg.decode(self.info.word_order, &bytes).ok()?;
+        Some((id, model as u16))
     }
 
     fn motors(&self, ids: &[u8]) -> Vec<(u8, ServoDefinition)> {
@@ -407,6 +445,13 @@ impl ServoDefinition {
     #[getter]
     fn supports_sync_read(&self) -> bool {
         self.info.supports_sync_read
+    }
+
+    /// Whether the firmware answers a ping sent to the broadcast id, which
+    /// `broadcast_scan` relies on.
+    #[getter]
+    fn supports_broadcast_ping(&self) -> bool {
+        self.info.supports_broadcast_ping
     }
 
     /// Serial rates the servo can be set to, as {baud rate: register value}, slowest

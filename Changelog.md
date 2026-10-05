@@ -28,6 +28,15 @@
   every possible id, 3 ms of turn per id and 16 ms for a USB adapter's latency timer, the
   window the vendor SDKs use (about 0.8 s at 1 Mbps). Protocol v2 Dynamixel and Feetech
   STS answer it; protocol v1 Dynamixel and Feetech SCS do not.
+- `broadcast_scan(ids)` / `broadcast_scan_all()` on `ServoDefinition`, the controllers and
+  `Bus` (`broadcast_scan(ids=None)` on Python): which ids answer, found with one broadcast
+  ping, then the model number of each id asked that answered, read under the port's own
+  timeout. The ping's window does not shrink with the number of ids, so `scan` stays the
+  fast way to check a few ids and is unchanged; `broadcast_scan` is for sweeping many,
+  and for USB adapters whose latency timer outlasts `scan`'s short timeout. Servos state
+  `supports_broadcast_ping: true` (STS3215, XL320, XL330, XL430) on `ServoInfo`, the
+  Python controller classes and `ServoDefinition`; on any other, `broadcast_scan` is a
+  `RegisterError::BroadcastPing` (`ValueError` on Python) and nothing is sent.
 
 ## Version 1.10.0
 

@@ -193,6 +193,24 @@ impl Bus {
         self.scan(definition, &ids)
     }
 
+    /// Which of `ids` answer, with their model number read as `definition` lays it out:
+    /// one broadcast ping, then a read of each id asked that answered. See
+    /// [`ServoDefinition::broadcast_scan`].
+    pub fn broadcast_scan(
+        &mut self,
+        definition: ServoDefinition,
+        ids: &[u8],
+    ) -> Result<BTreeMap<u8, u16>> {
+        let dph = &self.handlers[definition.protocol as usize - 1];
+        definition.broadcast_scan(dph, self.serial_port.as_mut(), ids)
+    }
+
+    /// [`broadcast_scan`](Self::broadcast_scan) every id `definition`'s protocol allows.
+    pub fn broadcast_scan_all(&mut self, definition: ServoDefinition) -> Result<BTreeMap<u8, u16>> {
+        let ids: Vec<u8> = (0..=self.handlers[definition.protocol as usize - 1].max_id()).collect();
+        self.broadcast_scan(definition, &ids)
+    }
+
     /// Turn the torque of `ids` on or off. Every motor is tried, even after one fails,
     /// and a failure on the bus is tried again up to `retries` more times; the motors
     /// that still failed come back with their error.
@@ -499,6 +517,26 @@ mod python {
             self.run(py, |bus| match &ids {
                 Some(ids) => bus.scan(definition, ids),
                 None => bus.scan_all(definition),
+            })
+        }
+
+        /// Which of `ids` answer, as {id: model number} read as `definition` lays it out;
+        /// every id its protocol allows when `ids` is left out. One broadcast ping, which
+        /// listens for its whole window (about 0.8 s at 1 Mbps) however few ids are asked,
+        /// then a read of each id asked that answered: faster than `scan` over many ids,
+        /// and safe behind a USB adapter with a long latency timer. A servo that does not
+        /// answer a broadcast ping (`definition.supports_broadcast_ping`) raises
+        /// `ValueError`.
+        #[pyo3(signature = (definition, ids = None))]
+        pub fn broadcast_scan(
+            &self,
+            py: Python,
+            definition: ServoDefinition,
+            ids: Option<Vec<u8>>,
+        ) -> PyResult<BTreeMap<u8, u16>> {
+            self.run(py, |bus| match &ids {
+                Some(ids) => bus.broadcast_scan(definition, ids),
+                None => bus.broadcast_scan_all(definition),
             })
         }
     }

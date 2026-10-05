@@ -9,6 +9,7 @@ use crate::{generate_servo, servo::conversion::Conversion};
 generate_servo!(
     XL330, v2,
     resolution: 4096,
+    supports_broadcast_ping: true,
     baudrates: [
         (9_600, 0), (57_600, 1), (115_200, 2), (1_000_000, 3),
         (2_000_000, 4), (3_000_000, 5), (4_000_000, 6),
