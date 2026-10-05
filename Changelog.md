@@ -27,7 +27,12 @@
   that answer, listening for `broadcast_ping_window(baudrate)`: the status packets of
   every possible id, 3 ms of turn per id and 16 ms for a USB adapter's latency timer, the
   window the vendor SDKs use (about 0.8 s at 1 Mbps). Protocol v2 Dynamixel and Feetech
-  STS answer it; protocol v1 Dynamixel and Feetech SCS do not.
+  STS answer it; protocol v1 Dynamixel and Feetech SCS do not. What arrives in the window
+  is parsed once it closes, resyncing on the next header past anything that does not
+  frame a status packet (a stray byte, a packet cut short), as the Dynamixel SDK does, so
+  it costs that packet and not the motors after it.
+- A protocol v1 status packet with a bad checksum no longer prints to stdout; it is still
+  a `ChecksumError`.
 - `broadcast_scan(ids)` / `broadcast_scan_all()` on `ServoDefinition`, the controllers and
   `Bus` (`broadcast_scan(ids=None)` on Python): which ids answer, found with one broadcast
   ping, then the model number of each id asked that answered, read under the port's own

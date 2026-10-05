@@ -592,6 +592,27 @@ impl DynamixelProtocolHandler {
     }
 }
 
+/// The ids of the status packets in `bytes`. Anything that does not frame one (a stray
+/// byte, a packet cut short, a bad checksum) is skipped a byte at a time until the next
+/// header, so it costs that packet and not the ones after it.
+fn status_packet_ids<P: Packet>(bytes: &[u8]) -> Vec<u8> {
+    let mut ids = Vec::new();
+    let mut start = 0;
+    while start + P::HEADER_SIZE <= bytes.len() {
+        let packet = P::get_payload_size(&bytes[start..start + P::HEADER_SIZE])
+            .ok()
+            .map(|payload| &bytes[start..bytes.len().min(start + P::HEADER_SIZE + payload)]);
+        match packet {
+            Some(packet) if P::status_packet(packet, packet[P::ID_POSITION]).is_ok() => {
+                ids.push(packet[P::ID_POSITION]);
+                start += packet.len();
+            }
+            _ => start += 1,
+        }
+    }
+    ids
+}
+
 trait Protocol<P: Packet> {
     fn ping(&self, port: &mut dyn SerialPort, id: u8) -> Result<bool> {
         self.send_instruction_packet(port, P::ping_packet(id).as_ref())?;
@@ -599,28 +620,28 @@ trait Protocol<P: Packet> {
         Ok(self.read_status_packet(port, id).is_ok())
     }
 
-    /// Ping the broadcast id and keep the id of every status packet that parses until
-    /// `window` closes. Changes the port's timeout; the caller puts it back.
+    /// Ping the broadcast id, collect every byte that arrives until `window` closes, and
+    /// return the ids of the status packets among them. Changes the port's timeout; the
+    /// caller puts it back.
     fn broadcast_ping(&self, port: &mut dyn SerialPort, window: Duration) -> Result<Vec<u8>> {
         self.send_instruction_packet(port, P::ping_packet(P::BROADCAST_ID).as_ref())?;
         let deadline = Instant::now() + window;
-        let mut ids = Vec::new();
+        let mut received = Vec::new();
+        let mut chunk = [0u8; 256];
         loop {
             let left = deadline.saturating_duration_since(Instant::now());
             if left.is_zero() {
                 break;
             }
             port.set_timeout(left)?;
-            // Silence until the deadline, or bytes that do not frame a packet, end it.
-            let Ok(data) = self.read_status_packet_bytes(port) else {
-                break;
-            };
-            let id = data[P::ID_POSITION];
-            if P::status_packet(&data, id).is_ok() {
-                ids.push(id);
+            match port.read(&mut chunk) {
+                Ok(0) => break,
+                Ok(n) => received.extend_from_slice(&chunk[..n]),
+                Err(e) if e.kind() == io::ErrorKind::TimedOut => break,
+                Err(e) => return Err(e.into()),
             }
         }
-        Ok(ids)
+        Ok(status_packet_ids::<P>(&received))
     }
 
     fn reboot(&self, port: &mut dyn SerialPort, id: u8) -> Result<bool> {
@@ -824,7 +845,7 @@ trait Protocol<P: Packet> {
 }
 
 use std::{
-    fmt,
+    fmt, io,
     time::{Duration, Instant},
 };
 
@@ -1042,6 +1063,25 @@ mod tests {
         // The port's own timeout is back once the window closes.
         let timeouts = &settings.lock().unwrap().timeouts;
         assert_eq!(timeouts.last(), timeouts.first());
+    }
+
+    #[test]
+    fn a_broadcast_ping_resyncs_past_bytes_that_do_not_frame_a_packet() {
+        // Motor 1, a stray byte, a packet cut short after its header, then motor 3.
+        let answers = [
+            &[0xFF, 0xFF, 0x01, 0x02, 0x00, 0xFC][..],
+            &[0x00],
+            &[0xFF, 0xFF, 0x02, 0x02],
+            &[0xFF, 0xFF, 0x03, 0x02, 0x00, 0xFA],
+        ]
+        .concat();
+        let mut port = FakePort::new(vec![answers]);
+
+        let ids = DynamixelProtocolHandler::v1()
+            .broadcast_ping(&mut port)
+            .unwrap();
+
+        assert_eq!(ids, [1, 3]);
     }
 
     #[test]
