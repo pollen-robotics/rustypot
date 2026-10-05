@@ -520,6 +520,7 @@ impl ServoDefinition {
     }
 
     /// The baud rate a new servo answers at, or `None` when the definition does not say.
+    /// True of the units made today: some older motors left the factory at another rate.
     #[getter]
     fn factory_baudrate(&self) -> Option<u32> {
         self.info.factory_baudrate

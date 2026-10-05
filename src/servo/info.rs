@@ -246,7 +246,9 @@ pub struct ServoInfo {
     pub supports_broadcast_ping: bool,
     /// Serial rates the servo can be set to, as (baud rate, baud rate register value).
     pub baudrates: &'static [(u32, u8)],
-    /// The baud rate a new servo answers at.
+    /// The baud rate a new servo answers at. A fact about the units made today, not a
+    /// guarantee for every unit: some older motors left the factory at another rate, a
+    /// change that came with the move from protocol v1 to v2.
     pub factory_baudrate: Option<u32>,
     /// How the homing offset moves the position the servo reports:
     /// `present = actual + sign * homing_offset`. -1 on Feetech, +1 on Dynamixel.

@@ -28,9 +28,10 @@ If you want to quickly setup/check motors configuration, you can directly use a 
 
 ## APIs
 
-It exposes two APIs:
+It exposes three APIs, from the wire up:
 * `DynamixelProtocolHandler`: low-level API. It handles the serial communication and the Dynamixel protocol parsing. It can be used for fine-grained control of the shared bus with other communication.
-* `Controller`: high-level API for the Dynamixel protocol. Simpler and cleaner API but it takes full ownership of the io (it can still be shared if wrapped with a mutex for instance).
+* `Controller`: one per servo model, with a typed accessor for each register. Simpler and cleaner API but it takes full ownership of the io (it can still be shared if wrapped with a mutex for instance).
+* `Bus` and `ServoDefinition`: a higher-level, family-agnostic API, designed mostly for the [LeRobot](https://github.com/huggingface/lerobot) library. Motors of several models and of both protocols on one port, registers by name, the facts about each servo, finding and setting up motors, and the torque of a whole bus. Some of its choices are LeRobot conventions rather than vendor rules; the controllers stay the per-servo API underneath.
 
 See the examples below for usage.
 
@@ -207,7 +208,9 @@ info.resolution(), info.word_order()  # (4096, 'little')
 info.register("present_position").sign_bit  # 15
 ```
 
-### Mixed buses
+### Mixed buses, and the LeRobot-oriented API
+
+`Bus` and `ServoDefinition` are the higher-level, family-agnostic API (see [APIs](#apis)), designed mostly for the [LeRobot](https://github.com/huggingface/lerobot) library; the controllers above stay the per-servo API.
 
 A controller speaks one servo definition. When a port carries motors of several definitions, or of both protocols (Reachy Mini has STS3215 motors on protocol v1 and XL330 motors on v2 on one port), open a `Bus` with the definition of each motor:
 
@@ -225,6 +228,15 @@ found = bus.scan(Xl330PyController.definition())  # the v2 motors, as {id: model
 ```
 
 Each motor is read and written through its own definition and protocol. A sync read or write sends one instruction per group of motors sharing a protocol and the register's address and size, and hands the values back in the order asked: here, one Sync Read for motor 11 and one for motors 1 and 2. A group with a motor that has no Sync Read is read one id at a time.
+
+Beyond register access, they carry what a library driving several motor families needs:
+
+- `find_model("xl330-m288")` returns the model number and the definition, whose getters give the servo's facts (`resolution`, `baudrates`, `factory_baudrate`, `homing_offset_sign`, `operating_modes`, ...);
+- `bus.broadcast_scan(definition)` finds the motors on the port with one broadcast ping, and `bus.change_id` / `bus.change_baudrate` set a new motor up;
+- `bus.set_torque(ids, enabled)` turns the torque of every motor on or off, and reports the ones that failed;
+- `with Bus(...) as bus:` releases the port on the way out.
+
+Some of these follow LeRobot's conventions rather than a vendor's: `set_torque` closes the lock of a Feetech servo when the torque goes on and opens it when it goes off.
 
 In Rust the same access is on each definition, taking the protocol handler and the port like the typed module functions: `sts3215::DEFINITION.read_register(&dph_v1, port, 11, "present_position")`. `servo::definition::sync_read_register` and `sync_write_register` reach motors of several definitions sharing a protocol and a layout in one instruction, and `bus::Bus` groups them for a whole bus.
 

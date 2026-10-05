@@ -5,6 +5,12 @@
 //! STS3215 (protocol v1) and XL330 (protocol v2) motors on one port. A [`Bus`] holds the
 //! port, a handler for each protocol and the definition of each motor, and calls the
 //! definition's functions with the handler that matches it.
+//!
+//! With [`ServoDefinition`], it is rustypot's higher-level, family-agnostic API, designed
+//! mostly for the LeRobot library: registers by name, the facts about each servo, finding
+//! and setting up motors, the torque of a whole bus. Some of its choices are LeRobot
+//! conventions rather than vendor rules, such as the Feetech lock following the torque in
+//! [`Bus::set_torque`]. The per-servo controllers stay the API underneath.
 
 use std::collections::BTreeMap;
 use std::time::Duration;
@@ -296,7 +302,10 @@ mod python {
     use super::Bus;
     use crate::servo::{RegisterError, ServoDefinition};
 
-    /// Motors of several definitions, and of both protocols, on one serial port.
+    /// Motors of several definitions, and of both protocols, on one serial port: the
+    /// higher-level, family-agnostic API, designed mostly for the LeRobot library, where
+    /// the controller classes are the per-servo one. Some of its choices are LeRobot
+    /// conventions, such as the Feetech lock following the torque in `set_torque`.
     ///
     /// ```python
     /// with Bus("/dev/ttyUSB0", 1_000_000, 0.1, {
