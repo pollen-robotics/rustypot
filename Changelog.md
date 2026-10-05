@@ -1,4 +1,4 @@
-## Unreleased
+## Version 1.11.0
 
 - `find_model(name)` returns the model number of a servo model and the definition that
   covers it, from the registry (`DEFINITIONS` lists every definition). Names compare
