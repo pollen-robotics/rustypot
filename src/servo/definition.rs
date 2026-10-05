@@ -5,6 +5,10 @@
 //! functions here take the protocol handler and the port for each call, like the typed
 //! functions of each servo module, so the caller picks the definition and the handler
 //! motor by motor. [`crate::bus::Bus`] does that for a whole bus.
+//!
+//! With [`crate::bus::Bus`], this is the higher-level API, designed mostly for the
+//! [LeRobot](https://github.com/huggingface/lerobot) library: see [`crate::bus`] for what
+//! that means.
 
 use std::collections::BTreeMap;
 

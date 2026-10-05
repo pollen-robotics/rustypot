@@ -28,9 +28,10 @@ If you want to quickly setup/check motors configuration, you can directly use a 
 
 ## APIs
 
-It exposes two APIs:
+It exposes three APIs, from the wire up:
 * `DynamixelProtocolHandler`: low-level API. It handles the serial communication and the Dynamixel protocol parsing. It can be used for fine-grained control of the shared bus with other communication.
-* `Controller`: high-level API for the Dynamixel protocol. Simpler and cleaner API but it takes full ownership of the io (it can still be shared if wrapped with a mutex for instance).
+* `Controller` (and the typed functions of each servo module, such as `mx::read_present_position`): the general-purpose API, one servo family at a time. Simpler and cleaner API, with one typed accessor per register, but it takes full ownership of the io (it can still be shared if wrapped with a mutex for instance).
+* `ServoDefinition` and `Bus`: a higher-level API that works across servo families, designed mostly for the [LeRobot](https://github.com/huggingface/lerobot) library. Registers are reached by name, one bus can mix servo families and protocols, and it covers motor setup (scan, `change_id`, `change_baudrate`). Some of its choices are LeRobot's conventions rather than something the servos require: for instance `change_id` turns the torque off and opens the Feetech lock, and leaves them that way. Prefer the controllers when you only drive one servo family and want typed access. See [Mixed buses](#mixed-buses).
 
 See the examples below for usage.
 
@@ -208,6 +209,8 @@ info.register("present_position").sign_bit  # 15
 ```
 
 ### Mixed buses
+
+`Bus` and `ServoDefinition` are the higher-level API described in [APIs](#apis): built mostly for LeRobot, and carrying some of its conventions. The controller classes stay the general-purpose API.
 
 A controller speaks one servo definition. When a port carries motors of several definitions, or of both protocols (Reachy Mini has STS3215 motors on protocol v1 and XL330 motors on v2 on one port), open a `Bus` with the definition of each motor:
 
