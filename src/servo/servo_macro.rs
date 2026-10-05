@@ -5,6 +5,10 @@ macro_rules! generate_servo {
      $(word_order: $word_order:ident,)?
      $(supports_sync_read: $supports_sync_read:expr,)?
      $(baudrates: [$(($baud:expr, $baud_code:expr)),* $(,)?],)?
+     $(factory_baudrate: $factory_baudrate:expr,)?
+     $(homing_offset_sign: $homing_offset_sign:expr,)?
+     $(operating_modes: [$(($mode_name:ident, $mode_value:expr)),* $(,)?],)?
+     $(eeprom_lock: $eeprom_lock:expr,)?
      $(encoding: [$(($enc_reg:ident, $enc_kind:ident $(($enc_arg:expr))?)),* $(,)?],)?
      $(reg: ($reg_name:ident, $reg_access:ident, $reg_addr:expr, $reg_type:ty, $conv:ident),)+
     ) => {
@@ -177,10 +181,14 @@ macro_rules! generate_servo {
 
         /// What this servo states about itself beyond its registers.
         pub const INFO: $crate::servo::ServoInfo = $crate::servo::ServoInfo {
-            resolution: $crate::servo_resolution!($($resolution)?),
+            resolution: $crate::servo_option!($($resolution)?),
             word_order: $crate::servo_word_order!($($word_order)?),
             supports_sync_read: $crate::servo_supports_sync_read!($($supports_sync_read)?),
             baudrates: &[$($(($baud, $baud_code)),*)?],
+            factory_baudrate: $crate::servo_option!($($factory_baudrate)?),
+            homing_offset_sign: $crate::servo_option!($($homing_offset_sign)?),
+            operating_modes: &[$($((stringify!($mode_name), $mode_value)),*)?],
+            eeprom_lock: $crate::servo_eeprom_lock!($($eeprom_lock)?),
         };
 
         const ENCODING_OVERRIDES: &[(&str, $crate::servo::Encoding)] = &[
@@ -191,6 +199,20 @@ macro_rules! generate_servo {
         // would otherwise fall back to the type's default encoding without a word.
         const _: () = {
             const NAMES: &[&str] = &[$(stringify!($reg_name)),+];
+            assert!(
+                INFO.homing_offset_sign.is_none()
+                    || $crate::servo::info::names_contain(NAMES, "homing_offset"),
+                "`homing_offset_sign:` on a servo without a homing_offset register"
+            );
+            assert!(
+                INFO.operating_modes.is_empty()
+                    || $crate::servo::info::names_contain(NAMES, "operating_mode"),
+                "`operating_modes:` on a servo without an operating_mode register"
+            );
+            assert!(
+                !INFO.eeprom_lock || $crate::servo::info::names_contain(NAMES, "lock"),
+                "`eeprom_lock:` on a servo without a lock register"
+            );
             let mut i = 0;
             while i < ENCODING_OVERRIDES.len() {
                 assert!(
@@ -230,13 +252,16 @@ macro_rules! generate_servo {
             REGISTERS.iter().copied().find(|r| r.name == name)
         }
 
-        /// This servo's definition as a value, see [`ServoDefinition`](crate::servo::ServoDefinition).
-        pub const DEFINITION: $crate::servo::ServoDefinition = $crate::servo::ServoDefinition {
-            name: stringify!($servo_name),
-            protocol: $crate::protocol_version!($protocol),
-            info: INFO,
-            registers: REGISTERS,
-        };
+        paste::paste! {
+            /// This servo's definition as a value, see [`ServoDefinition`](crate::servo::ServoDefinition).
+            pub const DEFINITION: $crate::servo::ServoDefinition = $crate::servo::ServoDefinition {
+                name: stringify!($servo_name),
+                protocol: $crate::protocol_version!($protocol),
+                info: INFO,
+                registers: REGISTERS,
+                models: [<$servo_name:camel Controller>]::MODELS,
+            };
+        }
 
         $crate::generate_protocol_constructor!($servo_name, $protocol);
         $crate::generate_special_instructions!($servo_name);
@@ -1018,12 +1043,12 @@ macro_rules! register_encoding {
 
 #[doc(hidden)]
 #[macro_export]
-macro_rules! servo_resolution {
+macro_rules! servo_option {
     () => {
         None
     };
-    ($resolution:expr) => {
-        Some($resolution)
+    ($value:expr) => {
+        Some($value)
     };
 }
 
@@ -1049,6 +1074,17 @@ macro_rules! protocol_version {
     };
     (v2) => {
         2
+    };
+}
+
+#[doc(hidden)]
+#[macro_export]
+macro_rules! servo_eeprom_lock {
+    () => {
+        false
+    };
+    ($eeprom_lock:expr) => {
+        $eeprom_lock
     };
 }
 
@@ -1789,6 +1825,41 @@ macro_rules! register_servo {
                 }
             )+
 
+            /// Every servo definition in the registry.
+            pub const DEFINITIONS: &[$crate::servo::ServoDefinition] = &[
+                $($group::[<$servo:lower>]::DEFINITION),+
+            ];
+
+            /// The model number of the servo model called `name`, and the definition that
+            /// covers it. Names compare without case, hyphens or underscores, so
+            /// `xl330-m288` finds `XL330M288`.
+            pub fn find_model(name: &str) -> Option<(u16, $crate::servo::ServoDefinition)> {
+                fn key(name: &str) -> String {
+                    name.chars()
+                        .filter(|c| !matches!(c, '-' | '_'))
+                        .map(|c| c.to_ascii_lowercase())
+                        .collect()
+                }
+                let name = key(name);
+                DEFINITIONS.iter().find_map(|definition| {
+                    definition
+                        .models
+                        .iter()
+                        .find(|(model, _)| key(model) == name)
+                        .map(|&(_, number)| (number, *definition))
+                })
+            }
+
+            /// The model number of the servo model called `name`, and the definition that
+            /// covers it, or `None` for a model rustypot does not know. Names compare
+            /// without case, hyphens or underscores, so `xl330-m288` finds `XL330M288`.
+            #[cfg(feature = "python")]
+            #[gen_stub_pyfunction]
+            #[pyfunction(name = "find_model")]
+            fn py_find_model(name: &str) -> Option<(u16, $crate::servo::ServoDefinition)> {
+                find_model(name)
+            }
+
             #[cfg(feature = "python")]
             use pyo3::prelude::*;
             #[cfg(feature = "python")]
@@ -1815,6 +1886,7 @@ macro_rules! register_servo {
                 $(
                     m.add_class::<$group::[<$servo:lower>]::[<$servo:camel PyController>]>()?;
                 )+
+                m.add_function(wrap_pyfunction!(py_find_model, m)?)?;
 
                 Ok(())
             }

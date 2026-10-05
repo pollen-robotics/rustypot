@@ -1,3 +1,29 @@
+## Unreleased
+
+- `find_model(name)` returns the model number of a servo model and the definition that
+  covers it, from the registry (`DEFINITIONS` lists every definition). Names compare
+  without case, hyphens or underscores, so LeRobot's `xl330-m288` finds `XL330M288`.
+  `ServoDefinition` gains `models`, the (name, model number) pairs it covers, and on
+  Python `find_model` plus `models`, `resolution`, `word_order`, `supports_sync_read`,
+  `baudrates`, `registers()` and `register(name)` on `ServoDefinition`, so code holding a
+  definition (what a `Bus` takes) needs no controller class.
+- Three more facts a definition can state, ahead of `encoding:`: `factory_baudrate:`,
+  `homing_offset_sign:` (`present = actual + sign * homing_offset`) and
+  `operating_modes: [(position, 0), ...]`, the values of the operating mode register by
+  name. A sign without a `homing_offset` register, or modes without an `operating_mode`
+  register, fail the build. Filled in for the STS3215 (1 Mbps, -1; position, velocity,
+  pwm, step), the SCS0009 (1 Mbps) and the XL330 and XL430 (57.6 kbps, +1; the X-series
+  modes, of which the XL430-W250 refuses the current ones). On `ServoInfo`, and on Python
+  as `ServoDefinition` getters.
+- `Bus::set_torque(ids, enabled, retries)` turns the torque of every motor asked on or off,
+  trying each one even after another fails, and returns the motors that failed with
+  their error (`{id: message}` on Python, empty when all went through). On servos whose
+  definition says `eeprom_lock: true` (STS3215, SCS0009), the lock follows the torque:
+  closed with it on, open with it off. The new fact is on `ServoInfo` and the Python
+  `ServoDefinition`; it fails the build on a servo without a `lock` register.
+- Python: `Bus.is_open`, and `Bus` as a context manager: `with Bus(...) as bus:` releases
+  the serial port on the way out, an exception raised in the block included.
+
 ## Version 1.10.0
 
 - Register the model numbers of the X-series servos that share an existing definition:

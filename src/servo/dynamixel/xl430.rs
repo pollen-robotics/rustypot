@@ -11,6 +11,13 @@ generate_servo!(
         (9_600, 0), (57_600, 1), (115_200, 2), (1_000_000, 3),
         (2_000_000, 4), (3_000_000, 5), (4_000_000, 6),
     ],
+    factory_baudrate: 57_600,
+    homing_offset_sign: 1,
+    // The X-series table; a model may refuse some, the XL430-W250 has no current control.
+    operating_modes: [
+        (current, 0), (velocity, 1), (position, 3), (extended_position, 4),
+        (current_based_position, 5), (pwm, 16),
+    ],
     // Signed on the wire although declared unsigned below, so the raw path can tell.
     encoding: [
         (goal_pwm, twos_complement), (goal_current, twos_complement),
