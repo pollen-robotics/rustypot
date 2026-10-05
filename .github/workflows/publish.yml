@@ -1,9 +1,11 @@
-name: Publish
+name: Publish crate
 
+# Publish to crates.io from a version tag (v1.2.3), as created by a GitHub release.
+# The Python wheels go to PyPI from the same tag, see python.yml.
 on:
   push:
-    branches:
-      - master
+    tags:
+      - 'v*'
 
 env:
   CARGO_TERM_COLOR: always
@@ -11,19 +13,26 @@ env:
 jobs:
   publish:
     runs-on: ubuntu-latest
-  
+
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
+
+    - name: Check the tag matches the crate version
+      run: |
+        version=$(cargo metadata --no-deps --format-version 1 | jq -r '.packages[0].version')
+        if [ "${GITHUB_REF_NAME}" != "v${version}" ]; then
+          echo "Tag ${GITHUB_REF_NAME} does not match Cargo.toml version ${version}"
+          exit 1
+        fi
 
     - name: Deps
       run: |
         sudo apt-get update
         sudo apt install -y libudev-dev
 
-    - uses: actions-rs/toolchain@v1
-      with:
-          toolchain: stable
-          override: true
-    - uses: katyo/publish-crates@v1
-      with:
-          registry-token: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+    - uses: dtolnay/rust-toolchain@stable
+
+    - name: Publish to crates.io
+      run: cargo publish
+      env:
+        CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
