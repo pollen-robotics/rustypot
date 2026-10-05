@@ -154,6 +154,10 @@ pub enum RegisterError {
     UnknownMotor(u8),
     /// A sync write needs one value per id.
     ValueCount { ids: usize, values: usize },
+    /// The servo does not answer a ping sent to the broadcast id.
+    BroadcastPing(&'static str),
+    /// The servo cannot be set to this baud rate.
+    Baudrate { servo: &'static str, baudrate: u32 },
 }
 
 impl fmt::Display for RegisterError {
@@ -181,6 +185,12 @@ impl fmt::Display for RegisterError {
             RegisterError::UnknownMotor(id) => write!(f, "no motor with id {id} on this bus"),
             RegisterError::ValueCount { ids, values } => {
                 write!(f, "{values} values for {ids} ids")
+            }
+            RegisterError::BroadcastPing(servo) => {
+                write!(f, "{servo} does not answer a broadcast ping")
+            }
+            RegisterError::Baudrate { servo, baudrate } => {
+                write!(f, "{servo} cannot be set to {baudrate} baud")
             }
         }
     }
@@ -232,9 +242,13 @@ pub struct ServoInfo {
     pub word_order: WordOrder,
     /// Whether the firmware answers the Sync Read instruction.
     pub supports_sync_read: bool,
+    /// Whether the firmware answers a ping sent to the broadcast id.
+    pub supports_broadcast_ping: bool,
     /// Serial rates the servo can be set to, as (baud rate, baud rate register value).
     pub baudrates: &'static [(u32, u8)],
-    /// The baud rate a new servo answers at.
+    /// The baud rate a new servo answers at. A fact about the units made today, not a
+    /// guarantee for every unit: some older motors left the factory at another rate, a
+    /// change that came with the move from protocol v1 to v2.
     pub factory_baudrate: Option<u32>,
     /// How the homing offset moves the position the servo reports:
     /// `present = actual + sign * homing_offset`. -1 on Feetech, +1 on Dynamixel.

@@ -23,6 +23,31 @@
   `ServoDefinition`; it fails the build on a servo without a `lock` register.
 - Python: `Bus.is_open`, and `Bus` as a context manager: `with Bus(...) as bus:` releases
   the serial port on the way out, an exception raised in the block included.
+- `DynamixelProtocolHandler::broadcast_ping` pings every motor at once and returns the ids
+  that answer, listening for `broadcast_ping_window(baudrate)`: the status packets of
+  every possible id, 3 ms of turn per id and 16 ms for a USB adapter's latency timer, the
+  window the vendor SDKs use (about 0.8 s at 1 Mbps). Protocol v2 Dynamixel and Feetech
+  STS answer it; protocol v1 Dynamixel and Feetech SCS do not.
+- `broadcast_scan(ids)` / `broadcast_scan_all()` on `ServoDefinition`, the controllers and
+  `Bus` (`broadcast_scan(ids=None)` on Python): which ids answer, found with one broadcast
+  ping, then the model number of each id asked that answered, read under the port's own
+  timeout. The ping's window does not shrink with the number of ids, so `scan` stays the
+  fast way to check a few ids and is unchanged; `broadcast_scan` is for sweeping many,
+  and for USB adapters whose latency timer outlasts `scan`'s short timeout. Servos state
+  `supports_broadcast_ping: true` (STS3215, XL320, XL330, XL430) on `ServoInfo`, the
+  Python controller classes and `ServoDefinition`; on any other, `broadcast_scan` is a
+  `RegisterError::BroadcastPing` (`ValueError` on Python) and nothing is sent.
+- `change_id(definition, id, new_id)` and `change_baudrate(definition, id, baudrate)` on
+  `ServoDefinition` and `Bus` (and the Python `Bus`): torque off and, on servos with a
+  lock register, lock open, then the write. The baud rate is given in bauds and written
+  as the value the definition's `baudrates` lists for it; a rate it does not list is a
+  `RegisterError::Baudrate` (`ValueError` on Python) and nothing is sent; the port stays
+  at its rate, for the caller to switch with `set_baudrate`. Like `scan`, both reach
+  motors the bus does not have.
+- Python: `baudrates()` (slowest first) and `models()` (by name) on the controller classes
+  return their dict in a fixed order, like the `ServoDefinition` getters. They came from
+  a `HashMap`, so the order changed from one process to the next, and so did the order in
+  which a caller trying each baud rate found a motor.
 
 ## Version 1.10.0
 

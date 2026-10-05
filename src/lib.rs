@@ -10,9 +10,10 @@
 //!
 //! ## APIs
 //!
-//! It exposes two APIs:
+//! It exposes three APIs, from the wire up:
 //! * `DynamixelProtocolHandler`: low-level API. It handles the serial communication and the Dynamixel protocol parsing. It can be used for fine-grained control of the shared bus with other communication.
-//! * `Controller`: high-level API for the Dynamixel protocol. Simpler and cleaner API but it takes full ownership of the io (it can still be shared if wrapped with a mutex for instance).
+//! * `Controller`: one per servo model, with a typed accessor for each register. Simpler and cleaner API but it takes full ownership of the io (it can still be shared if wrapped with a mutex for instance).
+//! * [`bus::Bus`] and [`servo::ServoDefinition`]: a higher-level, family-agnostic API, designed mostly for the [LeRobot](https://github.com/huggingface/lerobot) library. Motors of several models and of both protocols on one port, registers by name, the facts about each servo, finding and setting up motors, and the torque of a whole bus. Some of its choices are LeRobot conventions rather than vendor rules; the controllers stay the per-servo API underneath.
 //!
 //! See the examples below for usage.
 //!

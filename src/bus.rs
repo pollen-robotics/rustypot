@@ -5,6 +5,12 @@
 //! STS3215 (protocol v1) and XL330 (protocol v2) motors on one port. A [`Bus`] holds the
 //! port, a handler for each protocol and the definition of each motor, and calls the
 //! definition's functions with the handler that matches it.
+//!
+//! With [`ServoDefinition`], it is rustypot's higher-level, family-agnostic API, designed
+//! mostly for the LeRobot library: registers by name, the facts about each servo, finding
+//! and setting up motors, the torque of a whole bus. Some of its choices are LeRobot
+//! conventions rather than vendor rules, such as the Feetech lock following the torque in
+//! [`Bus::set_torque`]. The per-servo controllers stay the API underneath.
 
 use std::collections::BTreeMap;
 use std::time::Duration;
@@ -193,6 +199,24 @@ impl Bus {
         self.scan(definition, &ids)
     }
 
+    /// Which of `ids` answer, with their model number read as `definition` lays it out:
+    /// one broadcast ping, then a read of each id asked that answered. See
+    /// [`ServoDefinition::broadcast_scan`].
+    pub fn broadcast_scan(
+        &mut self,
+        definition: ServoDefinition,
+        ids: &[u8],
+    ) -> Result<BTreeMap<u8, u16>> {
+        let dph = &self.handlers[definition.protocol as usize - 1];
+        definition.broadcast_scan(dph, self.serial_port.as_mut(), ids)
+    }
+
+    /// [`broadcast_scan`](Self::broadcast_scan) every id `definition`'s protocol allows.
+    pub fn broadcast_scan_all(&mut self, definition: ServoDefinition) -> Result<BTreeMap<u8, u16>> {
+        let ids: Vec<u8> = (0..=self.handlers[definition.protocol as usize - 1].max_id()).collect();
+        self.broadcast_scan(definition, &ids)
+    }
+
     /// Turn the torque of `ids` on or off. Every motor is tried, even after one fails,
     /// and a failure on the bus is tried again up to `retries` more times; the motors
     /// that still failed come back with their error.
@@ -222,6 +246,27 @@ impl Bus {
             }
         }
         failed
+    }
+
+    /// Give motor `id` the id `new_id`, through `definition`. See
+    /// [`ServoDefinition::change_id`]. Like [`scan`](Self::scan), it reaches motors the
+    /// bus does not have: a new motor answers at its factory id.
+    pub fn change_id(&mut self, definition: ServoDefinition, id: u8, new_id: u8) -> Result<()> {
+        let dph = &self.handlers[definition.protocol as usize - 1];
+        definition.change_id(dph, self.serial_port.as_mut(), id, new_id)
+    }
+
+    /// Set motor `id` to talk at `baudrate`, through `definition`. See
+    /// [`ServoDefinition::change_baudrate`]. The bus's port stays at the old rate: call
+    /// [`set_baudrate`](Self::set_baudrate) to keep talking to the motor afterwards.
+    pub fn change_baudrate(
+        &mut self,
+        definition: ServoDefinition,
+        id: u8,
+        baudrate: u32,
+    ) -> Result<()> {
+        let dph = &self.handlers[definition.protocol as usize - 1];
+        definition.change_baudrate(dph, self.serial_port.as_mut(), id, baudrate)
     }
 
     /// Switch the open serial port to `baudrate`.
@@ -257,7 +302,10 @@ mod python {
     use super::Bus;
     use crate::servo::{RegisterError, ServoDefinition};
 
-    /// Motors of several definitions, and of both protocols, on one serial port.
+    /// Motors of several definitions, and of both protocols, on one serial port: the
+    /// higher-level, family-agnostic API, designed mostly for the LeRobot library, where
+    /// the controller classes are the per-servo one. Some of its choices are LeRobot
+    /// conventions, such as the Feetech lock following the torque in `set_torque`.
     ///
     /// ```python
     /// with Bus("/dev/ttyUSB0", 1_000_000, 0.1, {
@@ -487,6 +535,32 @@ mod python {
             })
         }
 
+        /// Give motor `id` the id `new_id`, through `definition`: torque off and, on a
+        /// Feetech motor, lock open first. The motor need not be one of the bus's.
+        pub fn change_id(
+            &self,
+            py: Python,
+            definition: ServoDefinition,
+            id: u8,
+            new_id: u8,
+        ) -> PyResult<()> {
+            self.run(py, |bus| bus.change_id(definition, id, new_id))
+        }
+
+        /// Set motor `id` to talk at `baudrate`, through `definition`, as `change_id`
+        /// does it. A rate the servo cannot take raises `ValueError`. The bus's port stays
+        /// at the old rate: call `set_baudrate(baudrate)` to keep talking to the motor
+        /// afterwards.
+        pub fn change_baudrate(
+            &self,
+            py: Python,
+            definition: ServoDefinition,
+            id: u8,
+            baudrate: u32,
+        ) -> PyResult<()> {
+            self.run(py, |bus| bus.change_baudrate(definition, id, baudrate))
+        }
+
         /// Which of `ids` answer, as {id: model number} read as `definition` lays it out,
         /// over its protocol; every id that protocol allows when `ids` is left out.
         #[pyo3(signature = (definition, ids = None))]
@@ -499,6 +573,26 @@ mod python {
             self.run(py, |bus| match &ids {
                 Some(ids) => bus.scan(definition, ids),
                 None => bus.scan_all(definition),
+            })
+        }
+
+        /// Which of `ids` answer, as {id: model number} read as `definition` lays it out;
+        /// every id its protocol allows when `ids` is left out. One broadcast ping, which
+        /// listens for its whole window (about 0.8 s at 1 Mbps) however few ids are asked,
+        /// then a read of each id asked that answered: faster than `scan` over many ids,
+        /// and safe behind a USB adapter with a long latency timer. A servo that does not
+        /// answer a broadcast ping (`definition.supports_broadcast_ping`) raises
+        /// `ValueError`.
+        #[pyo3(signature = (definition, ids = None))]
+        pub fn broadcast_scan(
+            &self,
+            py: Python,
+            definition: ServoDefinition,
+            ids: Option<Vec<u8>>,
+        ) -> PyResult<BTreeMap<u8, u16>> {
+            self.run(py, |bus| match &ids {
+                Some(ids) => bus.broadcast_scan(definition, ids),
+                None => bus.broadcast_scan_all(definition),
             })
         }
     }
@@ -590,6 +684,22 @@ mod tests {
         let written = written.lock().unwrap();
         assert_eq!([written[0][5], written[0][6]], [40, 1]);
         assert_eq!([written[1][5], written[1][6]], [55, 1]);
+    }
+
+    #[test]
+    fn a_motor_the_bus_does_not_have_can_be_given_its_id() {
+        // A new STS3215 answers at id 1, which the bus gives to an XL330.
+        let status = vec![0xFF, 0xFF, 0x01, 0x02, 0x00, 0xFC];
+        let port = FakePort::new(vec![status.clone(), status.clone(), status]);
+        let written = port.written();
+        let mut bus = Bus::new(Box::new(port), BTreeMap::from([(1, xl330::DEFINITION)]));
+
+        bus.change_id(sts3215::DEFINITION, 1, 11).unwrap();
+
+        // Protocol v1 all the way: three writes, the last one the id.
+        let written = written.lock().unwrap();
+        assert_eq!(written.len(), 3);
+        assert_eq!(written[2][..7], [0xFF, 0xFF, 0x01, 0x04, 0x03, 0x05, 11]);
     }
 
     #[test]

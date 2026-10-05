@@ -4,6 +4,7 @@ macro_rules! generate_servo {
      $(resolution: $resolution:expr,)?
      $(word_order: $word_order:ident,)?
      $(supports_sync_read: $supports_sync_read:expr,)?
+     $(supports_broadcast_ping: $supports_broadcast_ping:expr,)?
      $(baudrates: [$(($baud:expr, $baud_code:expr)),* $(,)?],)?
      $(factory_baudrate: $factory_baudrate:expr,)?
      $(homing_offset_sign: $homing_offset_sign:expr,)?
@@ -160,9 +161,17 @@ macro_rules! generate_servo {
                     INFO.supports_sync_read
                 }
 
-                /// Serial rates the servo can be set to, as {baud rate: register value}.
+                /// Whether the firmware answers a ping sent to the broadcast id, which
+                /// `broadcast_scan` relies on.
                 #[staticmethod]
-                pub fn baudrates() -> std::collections::HashMap<u32, u8> {
+                pub fn supports_broadcast_ping() -> bool {
+                    INFO.supports_broadcast_ping
+                }
+
+                /// Serial rates the servo can be set to, as {baud rate: register value},
+                /// slowest first.
+                #[staticmethod]
+                pub fn baudrates() -> std::collections::BTreeMap<u32, u8> {
                     INFO.baudrates.iter().copied().collect()
                 }
 
@@ -184,6 +193,7 @@ macro_rules! generate_servo {
             resolution: $crate::servo_option!($($resolution)?),
             word_order: $crate::servo_word_order!($($word_order)?),
             supports_sync_read: $crate::servo_supports_sync_read!($($supports_sync_read)?),
+            supports_broadcast_ping: $crate::servo_supports_broadcast_ping!($($supports_broadcast_ping)?),
             baudrates: &[$($(($baud, $baud_code)),*)?],
             factory_baudrate: $crate::servo_option!($($factory_baudrate)?),
             homing_offset_sign: $crate::servo_option!($($homing_offset_sign)?),
@@ -983,6 +993,20 @@ macro_rules! generate_scan {
                     let ids: Vec<u8> = (0..=self.dph.as_ref().unwrap().max_id()).collect();
                     self.scan(&ids)
                 }
+
+                /// Which of `ids` answer, with their model number: one broadcast ping,
+                /// then a read of each id asked that answered. See
+                /// [`ServoDefinition::broadcast_scan`](crate::servo::ServoDefinition::broadcast_scan).
+                pub fn broadcast_scan(&mut self, ids: &[u8]) -> $crate::Result<std::collections::BTreeMap<u8, u16>> {
+                    let (dph, port) = self.wire();
+                    DEFINITION.broadcast_scan(dph, port, ids)
+                }
+
+                /// [`broadcast_scan`](Self::broadcast_scan) every id the protocol allows.
+                pub fn broadcast_scan_all(&mut self) -> $crate::Result<std::collections::BTreeMap<u8, u16>> {
+                    let ids: Vec<u8> = (0..=self.dph.as_ref().unwrap().max_id()).collect();
+                    self.broadcast_scan(&ids)
+                }
             }
 
             #[cfg(feature = "python")]
@@ -1004,6 +1028,26 @@ macro_rules! generate_scan {
                     self.by_name(py, |c| match &ids {
                         Some(ids) => c.scan(ids),
                         None => c.scan_all(),
+                    })
+                }
+
+                /// Which of `ids` answer, as {id: model number}; every id the protocol
+                /// allows when `ids` is left out.
+                ///
+                /// One broadcast ping, which listens for its whole window (about 0.8 s at
+                /// 1 Mbps) however few ids are asked, then a read of each id asked that
+                /// answered. Faster than `scan` over many ids, and safe behind a USB
+                /// adapter with a long latency timer. A servo that does not answer a
+                /// broadcast ping (`supports_broadcast_ping()`) raises `ValueError`.
+                #[pyo3(signature = (ids = None))]
+                pub fn broadcast_scan(
+                    &self,
+                    py: Python,
+                    ids: Option<Vec<u8>>,
+                ) -> PyResult<std::collections::BTreeMap<u8, u16>> {
+                    self.by_name(py, |c| match &ids {
+                        Some(ids) => c.broadcast_scan(ids),
+                        None => c.broadcast_scan_all(),
                     })
                 }
             }
@@ -1096,6 +1140,17 @@ macro_rules! servo_supports_sync_read {
     };
     ($supports_sync_read:expr) => {
         $supports_sync_read
+    };
+}
+
+#[doc(hidden)]
+#[macro_export]
+macro_rules! servo_supports_broadcast_ping {
+    () => {
+        false
+    };
+    ($supports_broadcast_ping:expr) => {
+        $supports_broadcast_ping
     };
 }
 
@@ -1870,9 +1925,10 @@ macro_rules! register_servo {
                 #[gen_stub_pymethods]
                 #[pymethods]
                 impl $group::[<$servo:lower>]::[<$servo:camel PyController>] {
-                    /// Model numbers of the servos this definition covers, as {name: number}.
+                    /// Model numbers of the servos this definition covers, as {name: number},
+                    /// by name.
                     #[staticmethod]
-                    pub fn models() -> std::collections::HashMap<String, u16> {
+                    pub fn models() -> std::collections::BTreeMap<String, u16> {
                         $group::[<$servo:lower>]::[<$servo:camel Controller>]::MODELS
                             .iter()
                             .map(|&(name, number)| (name.to_string(), number))
