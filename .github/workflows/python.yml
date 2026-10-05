@@ -5,13 +5,11 @@
 #
 name: python-bindings
 
-# Builds the wheels on every push to master and every pull request. A version tag
-# (v1.2.3), as created by a GitHub release, also publishes them to PyPI; the crate
-# goes to crates.io from the same tag, see publish.yml.
+# Builds the wheels on every pull request. A version tag (v1.2.3), as created by a
+# GitHub release, also publishes them to PyPI; the crate goes to crates.io from the
+# same tag, see publish.yml.
 on:
   push:
-    branches:
-      - master
     tags:
       - 'v*'
   pull_request:
