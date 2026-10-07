@@ -64,7 +64,7 @@ mod dynamixel_protocol;
 #[cfg(test)]
 mod fake_port;
 pub use dynamixel_protocol::{
-    CommunicationErrorKind, DynamixelErrorV1, DynamixelProtocolHandler, StatusError,
+    CommunicationErrorKind, DynamixelErrorV1, DynamixelProtocolHandler, MotorError, StatusError,
 };
 
 type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
