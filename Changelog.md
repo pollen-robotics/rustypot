@@ -1,3 +1,9 @@
+## Unreleased
+
+- Register the Feetech STS3036 (model number 521) under the STS3215 definition: an
+  ST-3036-C001 answers with that number and reads and moves through the STS3215 control
+  table (checked on one servo at 6 V and 1 Mbps).
+
 ## Version 1.11.0
 
 - `find_model(name)` returns the model number of a servo model and the definition that

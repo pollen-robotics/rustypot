@@ -155,7 +155,8 @@ crate::register_servo!(
     servo: (feetech, STS3215,
         (STS3215, 777), // Bytes 9, 3 at address 3, read little-endian (STS byte order), as LeRobot's handshake does.
         (STS3250, 2825),
-        (SM8512BL, 11272) // Same control table as the STS3215.
+        (SM8512BL, 11272), // Same control table as the STS3215.
+        (STS3036, 521) // Same control table as the STS3215, checked on an ST-3036-C001.
     ),
     servo: (feetech, SCS0009,
         (SCS0009, 1284) // Bytes 5, 4 at address 3, read big-endian as the SCS series stores words.
@@ -203,8 +204,17 @@ mod tests {
         assert_eq!(super::find_model("sts3216"), None);
 
         assert_eq!(
+            super::find_model("sts3036"),
+            Some((521, sts3215::DEFINITION))
+        );
+        assert_eq!(
             sts3215::DEFINITION.models,
-            [("STS3215", 777), ("STS3250", 2825), ("SM8512BL", 11272)]
+            [
+                ("STS3215", 777),
+                ("STS3250", 2825),
+                ("SM8512BL", 11272),
+                ("STS3036", 521)
+            ]
         );
     }
 
@@ -577,6 +587,10 @@ mod tests {
         assert!(matches!(
             ServoKind::try_from(11272),
             Ok(ServoKind::feetech_SM8512BL)
+        ));
+        assert!(matches!(
+            ServoKind::try_from(521),
+            Ok(ServoKind::feetech_STS3036)
         ));
         assert!(matches!(
             ServoKind::try_from(1220),
