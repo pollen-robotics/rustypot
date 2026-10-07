@@ -203,7 +203,7 @@ A raw read hands back bytes, and what they mean is on the class too: `word_order
 
 ```python
 info = Sts3215PyController
-info.models()                      # {'STS3215': 777, 'STS3250': 2825, 'SM8512BL': 11272}
+info.models()                      # {'SM8512BL': 11272, 'STS3036': 521, 'STS3215': 777, 'STS3250': 2825}
 info.resolution(), info.word_order()  # (4096, 'little')
 info.register("present_position").sign_bit  # 15
 ```
