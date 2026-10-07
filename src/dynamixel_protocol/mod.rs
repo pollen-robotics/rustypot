@@ -909,6 +909,34 @@ impl fmt::Display for StatusError {
     }
 }
 
+/// A motor answered, and its status packet reported an error: what it was asked to do may
+/// not have happened. The status is kept raw, as in [`StatusError`], since its meaning
+/// depends on the protocol.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct MotorError {
+    pub id: u8,
+    pub status: StatusError,
+}
+
+impl MotorError {
+    /// `Ok` when `status` reports no error, else the error of motor `id`.
+    pub(crate) fn check(id: u8, status: StatusError) -> Result<()> {
+        if status.is_ok() {
+            Ok(())
+        } else {
+            Err(Box::new(MotorError { id, status }))
+        }
+    }
+}
+
+impl fmt::Display for MotorError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "motor {} answered with {}", self.id, self.status)
+    }
+}
+
+impl std::error::Error for MotorError {}
+
 /// Dynamixel Communication Error
 #[derive(Debug, Clone, Copy)]
 pub enum CommunicationErrorKind {

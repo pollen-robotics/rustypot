@@ -11,7 +11,7 @@ use std::collections::BTreeMap;
 use serialport::SerialPort;
 
 use crate::servo::{scan_timeout, RegisterError, RegisterInfo, ServoInfo, WordOrder};
-use crate::{DynamixelProtocolHandler, Result, StatusError};
+use crate::{DynamixelProtocolHandler, MotorError, Result, StatusError};
 
 /// A servo definition as a value: its name, the protocol it speaks, what it states
 /// about itself and its registers.
@@ -241,7 +241,8 @@ impl ServoDefinition {
     ///
     /// The id is kept in EEPROM, which a motor only writes with its torque off, and a
     /// Feetech motor only with its lock open: both are done first, and left that way.
-    /// The motor answers the write from its old id.
+    /// The motor answers the write from its old id; an answer reporting an error fails
+    /// with a [`MotorError`].
     pub fn change_id(
         &self,
         dph: &DynamixelProtocolHandler,
@@ -250,7 +251,7 @@ impl ServoDefinition {
         new_id: u8,
     ) -> Result<()> {
         self.open_eeprom(dph, port, id)?;
-        self.write_register(dph, port, id, "id", new_id.into())
+        self.write_checked(dph, port, id, "id", new_id.into())
     }
 
     /// Set motor `id` to talk at `baudrate`, one of the rates in this definition's
@@ -276,7 +277,7 @@ impl ServoDefinition {
                 baudrate,
             })?;
         self.open_eeprom(dph, port, id)?;
-        self.write_register(dph, port, id, "baud_rate", value.into())
+        self.write_checked(dph, port, id, "baud_rate", value.into())
     }
 
     /// Turn the torque off, and open the lock of a servo that has one. A Feetech lock
@@ -288,11 +289,27 @@ impl ServoDefinition {
         port: &mut dyn SerialPort,
         id: u8,
     ) -> Result<()> {
-        self.write_register(dph, port, id, "torque_enable", 0)?;
+        self.write_checked(dph, port, id, "torque_enable", 0)?;
         if self.register("lock").is_some() {
-            self.write_register(dph, port, id, "lock", 0)?;
+            self.write_checked(dph, port, id, "lock", 0)?;
         }
         Ok(())
+    }
+
+    /// Write like [`write_register`](Self::write_register), and fail with a [`MotorError`]
+    /// when the motor answers with an error: the write may not have taken effect.
+    fn write_checked(
+        &self,
+        dph: &DynamixelProtocolHandler,
+        port: &mut dyn SerialPort,
+        id: u8,
+        name: &str,
+        value: i64,
+    ) -> Result<()> {
+        MotorError::check(
+            id,
+            self.write_register_with_error(dph, port, id, name, value)?,
+        )
     }
 
     fn motors(&self, ids: &[u8]) -> Vec<(u8, ServoDefinition)> {
@@ -454,12 +471,15 @@ impl SyncWrite {
 ///
 /// A timeout or a corrupted status packet is worth another try, and each attempt starts
 /// with the pre-send flush. A [`RegisterError`] is not: it is found before anything
-/// reaches the bus, and fails the same way every time.
+/// reaches the bus, and fails the same way every time. Nor is a [`MotorError`]: the motor
+/// answered, and reports the same condition again.
 pub(crate) fn retrying<T>(retries: u32, mut op: impl FnMut() -> Result<T>) -> Result<T> {
     let mut attempt = 0;
     loop {
         match op() {
-            Err(e) if attempt < retries && !e.is::<RegisterError>() => attempt += 1,
+            Err(e) if attempt < retries && !e.is::<RegisterError>() && !e.is::<MotorError>() => {
+                attempt += 1
+            }
             result => return result,
         }
     }
@@ -592,6 +612,24 @@ mod tests {
             .map(|packet| (packet[2], packet[5], packet[6]))
             .collect();
         assert_eq!(writes, [(9, 40, 0), (9, 55, 0), (9, 5, 3)]);
+    }
+
+    #[test]
+    fn an_id_write_the_motor_refuses_fails() {
+        // The STS3215 at id 9 opens its EEPROM, then answers the id write with error 0x08.
+        let ok = vec![0xFF, 0xFF, 0x09, 0x02, 0x00, 0xF4];
+        let refused = vec![0xFF, 0xFF, 0x09, 0x02, 0x08, 0xEC];
+        let mut port = FakePort::new(vec![ok.clone(), ok, refused]);
+
+        let err = sts3215::DEFINITION
+            .change_id(&DynamixelProtocolHandler::v1(), &mut port, 9, 3)
+            .unwrap_err();
+
+        assert_eq!(
+            err.downcast_ref::<crate::MotorError>()
+                .map(|e| (e.id, e.status.byte())),
+            Some((9, 0x08))
+        );
     }
 
     #[test]

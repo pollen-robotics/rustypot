@@ -1,5 +1,10 @@
 ## Unreleased
 
+- `Bus::set_torque`, `change_id` and `change_baudrate` (and the torque off and lock opening
+  ahead of the last two) check the error field of each answer: a motor that answers with
+  an error has failed, with a new `MotorError` (its id and `StatusError`; `RuntimeError`
+  on Python), where they used to report success. `set_torque` lists it with the motors
+  that failed, and like a `RegisterError` it is not retried.
 - Register the Feetech STS3036 (model number 521) under the STS3215 definition: an
   ST-3036-C001 answers with that number and reads and moves through the STS3215 control
   table (checked on one servo at 6 V and 1 Mbps).
