@@ -1,10 +1,12 @@
+use std::io;
+
 use serialport::SerialPort;
 
 use crate::Result;
 
 use super::{
     packet::{InstructionPacket, Packet, StatusPacket},
-    CommunicationErrorKind, Protocol,
+    CommunicationErrorKind, Protocol, SyncReadError,
 };
 
 #[derive(Debug)]
@@ -32,7 +34,7 @@ impl V2 {
             port,
             PacketV2::fast_sync_read_packet(ids, addr, length).as_ref(),
         )?;
-        let data = self.read_status_packet_bytes(port)?;
+        let data = read_fast_sync_status_bytes(port)?;
         parse_fast_sync_read_status(&data, ids, length)
     }
 
@@ -48,7 +50,7 @@ impl V2 {
             port,
             PacketV2::fast_sync_read_packet(ids, addr, length).as_ref(),
         )?;
-        let data = self.read_status_packet_bytes(port)?;
+        let data = read_fast_sync_status_bytes(port)?;
         parse_fast_sync_read_status_with_error(&data, ids, length)
     }
 }
@@ -110,16 +112,33 @@ fn parse_fast_sync_read_status_with_error(
     const BODY_START: usize = PacketV2::HEADER_SIZE + 1;
     // ERROR + ID + DATA + CRC16
     let block_size = length as usize + 4;
+    let expected = BODY_START + ids.len() * block_size;
 
-    if data.len() != BODY_START + ids.len() * block_size {
+    // Every failure is pinned on the motor at that place in the packet, when there is one.
+    // The header goes out with the first motor's block, so it is the first motor's.
+    let at = |i: usize, kind: CommunicationErrorKind| -> Box<dyn std::error::Error> {
+        match ids.get(i) {
+            Some(&id) => SyncReadError::boxed(id, Box::new(kind)),
+            None => Box::new(kind),
+        }
+    };
+
+    if data.len() > expected {
         return Err(Box::new(CommunicationErrorKind::ParsingError));
     }
-    if data[4] != BROADCAST_ID || data[7] != 0x55 {
-        return Err(Box::new(CommunicationErrorKind::ParsingError));
+    // Something answered, and it was not this packet's header.
+    if data.len() >= 4 && data[..4] != [0xFF, 0xFF, 0xFD, 0x00] {
+        return Err(at(0, CommunicationErrorKind::ParsingError));
+    }
+    if data.len() < BODY_START {
+        return Err(at(0, CommunicationErrorKind::TimeoutError));
     }
     let payload_length = u16::from_le_bytes(data[5..7].try_into().unwrap()) as usize;
-    if payload_length != data.len() - PacketV2::HEADER_SIZE {
-        return Err(Box::new(CommunicationErrorKind::ParsingError));
+    if data[4] != BROADCAST_ID
+        || data[7] != 0x55
+        || payload_length != expected - PacketV2::HEADER_SIZE
+    {
+        return Err(at(0, CommunicationErrorKind::ParsingError));
     }
 
     let mut values = Vec::with_capacity(ids.len());
@@ -127,21 +146,58 @@ fn parse_fast_sync_read_status_with_error(
         let block = BODY_START + i * block_size;
         let crc_at = block + 2 + length as usize;
 
+        // Short only when the read stopped waiting: this motor's block never came whole.
+        if data.len() < crc_at + 2 {
+            return Err(at(i, CommunicationErrorKind::TimeoutError));
+        }
         let read_crc = u16::from_le_bytes(data[crc_at..crc_at + 2].try_into().unwrap());
         if read_crc != crc(&data[..crc_at]) {
-            return Err(Box::new(CommunicationErrorKind::ChecksumError));
+            return Err(at(i, CommunicationErrorKind::ChecksumError));
         }
         if data[block + 1] != id {
-            return Err(Box::new(CommunicationErrorKind::IncorrectId(
-                id,
-                data[block + 1],
-            )));
+            return Err(at(
+                i,
+                CommunicationErrorKind::IncorrectId(id, data[block + 1]),
+            ));
         }
 
         values.push((data[block + 2..crc_at].to_vec(), data[block]));
     }
 
     Ok(values)
+}
+
+/// Read a fast sync read's status packet, keeping what arrived when it stops short.
+///
+/// `read_exact` throws away a partial read, and a partial read is exactly what says which
+/// motor did not answer: the blocks come back in the order asked, so the packet stops at the
+/// first one missing. A timeout here is not an error but the end of the data; the parser
+/// finds where it ended. Any other I/O error is the port's, not a motor's, and is returned.
+fn read_fast_sync_status_bytes(port: &mut dyn SerialPort) -> Result<Vec<u8>> {
+    let mut data = read_until_timeout(port, PacketV2::HEADER_SIZE)?;
+    if data.len() == PacketV2::HEADER_SIZE {
+        if let Ok(payload_size) = PacketV2::get_payload_size(&data) {
+            data.extend(read_until_timeout(port, payload_size)?);
+        }
+    }
+    Ok(data)
+}
+
+/// Up to `len` bytes, fewer if the port times out first.
+fn read_until_timeout(port: &mut dyn SerialPort, len: usize) -> Result<Vec<u8>> {
+    let mut data = vec![0u8; len];
+    let mut filled = 0;
+    while filled < len {
+        match port.read(&mut data[filled..]) {
+            Ok(0) => break,
+            Ok(n) => filled += n,
+            Err(e) if e.kind() == io::ErrorKind::Interrupted => {}
+            Err(e) if e.kind() == io::ErrorKind::TimedOut => break,
+            Err(e) => return Err(Box::new(e)),
+        }
+    }
+    data.truncate(filled);
+    Ok(data)
 }
 
 #[derive(Debug)]
@@ -792,20 +848,76 @@ mod tests {
         }
     }
 
+    /// The motor a failed parse names, and why.
+    fn blamed(data: &[u8], ids: &[u8]) -> (u8, String) {
+        let err = parse_fast_sync_read_status(data, ids, 4).unwrap_err();
+        let err = err
+            .downcast_ref::<SyncReadError>()
+            .unwrap_or_else(|| panic!("not pinned on a motor: {err}"));
+        (err.id, err.cause.to_string())
+    }
+
     #[test]
     fn reject_corrupted_fast_sync_read_status_packet() {
-        // A wrong number of ids for that packet size
-        assert!(parse_fast_sync_read_status(&FAST_SYNC_READ_STATUS, &[3, 7], 4).is_err());
-        // Ids answering in an order we did not ask for
-        assert!(parse_fast_sync_read_status(&FAST_SYNC_READ_STATUS, &[3, 4, 7], 4).is_err());
+        // A wrong number of ids for that packet size: no one motor to name.
+        let err = parse_fast_sync_read_status(&FAST_SYNC_READ_STATUS, &[3, 7], 4).unwrap_err();
+        assert!(err.downcast_ref::<SyncReadError>().is_none());
 
-        // A flipped data byte breaks that block's CRC (and every one after it)
+        // Ids answering in an order we did not ask for: the second block is 7, not 4.
+        assert_eq!(
+            blamed(&FAST_SYNC_READ_STATUS, &[3, 4, 7]),
+            (4, "Incorrect id (7 instead of 4)".to_owned())
+        );
+
+        // A flipped data byte breaks that block's CRC (and every one after it).
         let mut corrupted = FAST_SYNC_READ_STATUS;
         corrupted[10] ^= 0x01;
-        assert!(parse_fast_sync_read_status(&corrupted, &[3, 7, 4], 4).is_err());
+        assert_eq!(
+            blamed(&corrupted, &[3, 7, 4]),
+            (3, "Checksum error".to_owned())
+        );
+    }
 
-        // A missing motor: the packet is one block short of what we asked for
-        assert!(parse_fast_sync_read_status(&FAST_SYNC_READ_STATUS[..24], &[3, 7, 4], 4).is_err());
+    #[test]
+    fn a_fast_sync_read_cut_short_names_the_first_motor_missing() {
+        // Motor 4 never answered: the packet stops after motor 7's block.
+        assert_eq!(
+            blamed(&FAST_SYNC_READ_STATUS[..24], &[3, 7, 4]),
+            (4, "Timeout error".to_owned())
+        );
+        // Cut inside motor 7's block.
+        assert_eq!(
+            blamed(&FAST_SYNC_READ_STATUS[..19], &[3, 7, 4]),
+            (7, "Timeout error".to_owned())
+        );
+        // Nothing at all, or only part of the header: the header is the first motor's.
+        assert_eq!(blamed(&[], &[3, 7, 4]), (3, "Timeout error".to_owned()));
+        assert_eq!(
+            blamed(&FAST_SYNC_READ_STATUS[..5], &[3, 7, 4]),
+            (3, "Timeout error".to_owned())
+        );
+    }
+
+    #[test]
+    fn a_motor_answering_in_a_missing_ones_place_does_not_move_the_blame() {
+        // Motor 7 is missing and motor 4 sends its block straight after motor 3's. Its CRC
+        // covers what it heard on the bus, so it checks out; the id is what gives it away.
+        let mut data = FAST_SYNC_READ_STATUS[..16].to_vec();
+        data.extend(&FAST_SYNC_READ_STATUS[24..30]);
+        let crc_at = data.len();
+        data.extend(crc(&data[..crc_at]).to_le_bytes());
+
+        assert_eq!(
+            blamed(&data, &[3, 7, 4]),
+            (7, "Incorrect id (4 instead of 7)".to_owned())
+        );
+    }
+
+    #[test]
+    fn a_fast_sync_read_answer_that_is_not_a_status_header_names_the_first_motor() {
+        let mut data = FAST_SYNC_READ_STATUS;
+        data[2] = 0x00;
+        assert_eq!(blamed(&data, &[3, 7, 4]), (3, "Parsing error".to_owned()));
     }
 
     #[test]
