@@ -1,4 +1,4 @@
-## Unreleased
+## Version 1.12.0
 
 - A failed sync read names the motor: the error is a `SyncReadError { id, cause }`
   (reached with `downcast_ref`, and printed `motor 12: Timeout error`). A plain sync read
