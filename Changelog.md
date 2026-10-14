@@ -1,3 +1,9 @@
+## Unreleased
+
+- Python: `ServoDefinition.refuses(status)` tells a refusal from an alarm in the error
+  field the `*_with_error` reads and writes return, as `ServoDefinition::refuses` does in
+  Rust, so a Python caller fails an access only when the motor refused it.
+
 ## Version 1.13.0
 
 - `Bus::set_torque`, `change_id` and `change_baudrate` (and the torque off and lock opening

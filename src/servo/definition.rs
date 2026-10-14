@@ -610,6 +610,17 @@ impl ServoDefinition {
         self.info.status_alarms_only
     }
 
+    /// Whether `status`, the error field of an answer as the `*_with_error` reads and
+    /// writes return it, says the servo refused the instruction: an error number on
+    /// protocol v2, an instruction, checksum or range error on protocol v1, never on a servo
+    /// whose status only reports alarms (`status_alarms_only`). The other bits are
+    /// conditions the motor reports while it carries the instruction out, as an overload or
+    /// the v2 alert bit.
+    #[pyo3(name = "refuses")]
+    fn py_refuses(&self, status: u8) -> bool {
+        self.refuses(StatusError::new(status))
+    }
+
     /// Every register of this servo, in declaration order.
     #[pyo3(name = "registers")]
     fn py_registers(&self) -> Vec<RegisterInfo> {
