@@ -11,7 +11,7 @@ use std::collections::BTreeMap;
 use serialport::SerialPort;
 
 use crate::servo::{scan_timeout, RegisterError, RegisterInfo, ServoInfo, WordOrder};
-use crate::{DynamixelProtocolHandler, Result, StatusError};
+use crate::{DynamixelErrorV1, DynamixelProtocolHandler, Result, StatusError, StatusPacketError};
 
 /// A servo definition as a value: its name, the protocol it speaks, what it states
 /// about itself and its registers.
@@ -241,7 +241,8 @@ impl ServoDefinition {
     ///
     /// The id is kept in EEPROM, which a motor only writes with its torque off, and a
     /// Feetech motor only with its lock open: both are done first, and left that way.
-    /// The motor answers the write from its old id.
+    /// The motor answers the write from its old id; an answer refusing it fails with a
+    /// [`StatusPacketError`].
     pub fn change_id(
         &self,
         dph: &DynamixelProtocolHandler,
@@ -250,7 +251,7 @@ impl ServoDefinition {
         new_id: u8,
     ) -> Result<()> {
         self.open_eeprom(dph, port, id)?;
-        self.write_register(dph, port, id, "id", new_id.into())
+        self.write_checked(dph, port, id, "id", new_id.into())
     }
 
     /// Set motor `id` to talk at `baudrate`, one of the rates in this definition's
@@ -276,7 +277,7 @@ impl ServoDefinition {
                 baudrate,
             })?;
         self.open_eeprom(dph, port, id)?;
-        self.write_register(dph, port, id, "baud_rate", value.into())
+        self.write_checked(dph, port, id, "baud_rate", value.into())
     }
 
     /// Turn the torque off, and open the lock of a servo that has one. A Feetech lock
@@ -288,11 +289,58 @@ impl ServoDefinition {
         port: &mut dyn SerialPort,
         id: u8,
     ) -> Result<()> {
-        self.write_register(dph, port, id, "torque_enable", 0)?;
+        self.write_checked(dph, port, id, "torque_enable", 0)?;
         if self.register("lock").is_some() {
-            self.write_register(dph, port, id, "lock", 0)?;
+            self.write_checked(dph, port, id, "lock", 0)?;
         }
         Ok(())
+    }
+
+    /// Write like [`write_register`](Self::write_register), and fail with a
+    /// [`StatusPacketError`] when the motor refuses the write.
+    fn write_checked(
+        &self,
+        dph: &DynamixelProtocolHandler,
+        port: &mut dyn SerialPort,
+        id: u8,
+        name: &str,
+        value: i64,
+    ) -> Result<()> {
+        self.check_status(
+            id,
+            self.write_register_with_error(dph, port, id, name, value)?,
+        )
+    }
+
+    /// Whether `status`, the error field of an answer, says the servo refused the
+    /// instruction: an error number on protocol v2, an instruction, checksum or range error
+    /// on protocol v1, never on a servo whose status only reports alarms. The other bits are
+    /// conditions the motor reports while it carries the instruction out, as an overload or
+    /// the v2 alert bit.
+    pub fn refuses(&self, status: StatusError) -> bool {
+        if self.info.status_alarms_only {
+            false
+        } else if self.protocol == 2 {
+            status.v2_instruction_error() != 0
+        } else {
+            status.v1_conditions().iter().any(|condition| {
+                matches!(
+                    condition,
+                    DynamixelErrorV1::Instruction
+                        | DynamixelErrorV1::Checksum
+                        | DynamixelErrorV1::Range
+                )
+            })
+        }
+    }
+
+    /// `Ok` unless `status`, the answer of motor `id`, refuses the instruction.
+    pub(crate) fn check_status(&self, id: u8, status: StatusError) -> Result<()> {
+        if self.refuses(status) {
+            Err(Box::new(StatusPacketError { id, status }))
+        } else {
+            Ok(())
+        }
     }
 
     fn motors(&self, ids: &[u8]) -> Vec<(u8, ServoDefinition)> {
@@ -454,12 +502,19 @@ impl SyncWrite {
 ///
 /// A timeout or a corrupted status packet is worth another try, and each attempt starts
 /// with the pre-send flush. A [`RegisterError`] is not: it is found before anything
-/// reaches the bus, and fails the same way every time.
+/// reaches the bus, and fails the same way every time. Nor is a [`StatusPacketError`]: the
+/// motor answered, and would refuse again.
 pub(crate) fn retrying<T>(retries: u32, mut op: impl FnMut() -> Result<T>) -> Result<T> {
     let mut attempt = 0;
     loop {
         match op() {
-            Err(e) if attempt < retries && !e.is::<RegisterError>() => attempt += 1,
+            Err(e)
+                if attempt < retries
+                    && !e.is::<RegisterError>()
+                    && !e.is::<StatusPacketError>() =>
+            {
+                attempt += 1
+            }
             result => return result,
         }
     }
@@ -548,6 +603,13 @@ impl ServoDefinition {
         self.info.eeprom_lock
     }
 
+    /// Whether the error field of the servo's answers only reports alarms, never an
+    /// instruction it refused, as on Feetech servos.
+    #[getter]
+    fn status_alarms_only(&self) -> bool {
+        self.info.status_alarms_only
+    }
+
     /// Every register of this servo, in declaration order.
     #[pyo3(name = "registers")]
     fn py_registers(&self) -> Vec<RegisterInfo> {
@@ -570,7 +632,7 @@ impl ServoDefinition {
 mod tests {
     use super::*;
     use crate::fake_port::FakePort;
-    use crate::servo::dynamixel::xl330;
+    use crate::servo::dynamixel::{ax, xl330};
     use crate::servo::feetech::{scs0009, sts3215};
 
     #[test]
@@ -592,6 +654,61 @@ mod tests {
             .map(|packet| (packet[2], packet[5], packet[6]))
             .collect();
         assert_eq!(writes, [(9, 40, 0), (9, 55, 0), (9, 5, 3)]);
+    }
+
+    #[test]
+    fn a_status_refuses_the_instruction_only_where_the_servo_says_so() {
+        let cases = [
+            // A Feetech status only reports alarms: 0x08 is an over-current there.
+            (sts3215::DEFINITION, 0x08, false),
+            (sts3215::DEFINITION, 0x20, false),
+            // Dynamixel v1: instruction, checksum and range errors refuse, conditions do not.
+            (ax::DEFINITION, 0x40, true),
+            (ax::DEFINITION, 0x10, true),
+            (ax::DEFINITION, 0x08, true),
+            (ax::DEFINITION, 0x24, false),
+            // Dynamixel v2: an error number refuses, the alert bit alone does not.
+            (xl330::DEFINITION, 0x07, true),
+            (xl330::DEFINITION, 0x84, true),
+            (xl330::DEFINITION, 0x80, false),
+        ];
+        for (definition, byte, refused) in cases {
+            assert_eq!(
+                definition.refuses(StatusError::new(byte)),
+                refused,
+                "{} 0x{byte:02X}",
+                definition.name
+            );
+        }
+    }
+
+    #[test]
+    fn an_id_write_fails_only_when_the_motor_refuses_it() {
+        // An STS3215 at id 9 in an over-current alarm still takes its new id.
+        let ok = vec![0xFF, 0xFF, 0x09, 0x02, 0x00, 0xF4];
+        let alarm = vec![0xFF, 0xFF, 0x09, 0x02, 0x08, 0xEC];
+        let mut port = FakePort::new(vec![alarm.clone(), ok, alarm]);
+        sts3215::DEFINITION
+            .change_id(&DynamixelProtocolHandler::v1(), &mut port, 9, 3)
+            .unwrap();
+
+        // An XL330 at id 9 refuses the id write with an access error.
+        let ok = vec![
+            0xFF, 0xFF, 0xFD, 0x00, 0x09, 0x04, 0x00, 0x55, 0x00, 0x62, 0x8F,
+        ];
+        let refused = vec![
+            0xFF, 0xFF, 0xFD, 0x00, 0x09, 0x04, 0x00, 0x55, 0x07, 0x73, 0x0F,
+        ];
+        let mut port = FakePort::new(vec![ok, refused]);
+        let err = xl330::DEFINITION
+            .change_id(&DynamixelProtocolHandler::v2(), &mut port, 9, 3)
+            .unwrap_err();
+
+        assert_eq!(
+            err.downcast_ref::<crate::StatusPacketError>()
+                .map(|e| (e.id, e.status.byte())),
+            Some((9, 0x07))
+        );
     }
 
     #[test]

@@ -12,6 +12,7 @@ generate_servo!(
     ],
     factory_baudrate: 1_000_000,
     eeprom_lock: true,
+    status_alarms_only: true,
     // Positions and limits are plain steps on the SCS. Speeds carry their sign on bit 15
     // and the load on bit 10, as the Velocity and BigEndian_i16 conversions read them.
     encoding: [

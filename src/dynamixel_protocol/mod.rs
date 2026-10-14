@@ -913,6 +913,27 @@ impl fmt::Display for StatusError {
     }
 }
 
+/// A motor answered, and its status packet says it refused the instruction (see
+/// [`ServoDefinition::refuses`](crate::servo::ServoDefinition::refuses)): what it was asked
+/// to do did not happen. The status is kept raw, as in [`StatusError`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct StatusPacketError {
+    pub id: u8,
+    pub status: StatusError,
+}
+
+impl fmt::Display for StatusPacketError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(
+            f,
+            "motor {} refused the instruction with {}",
+            self.id, self.status
+        )
+    }
+}
+
+impl std::error::Error for StatusPacketError {}
+
 /// Dynamixel Communication Error
 #[derive(Debug, Clone, Copy)]
 pub enum CommunicationErrorKind {
