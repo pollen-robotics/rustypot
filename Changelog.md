@@ -9,6 +9,18 @@
 - `ServoDefinition::refuses` tells a refusal from an alarm: an error number on protocol
   v2, an instruction, checksum or range error on protocol v1, never on a servo whose new
   `status_alarms_only` says its status byte only reports alarms, as the Feetech servos.
+
+## Version 1.12.0
+
+- A failed sync read names the motor: the error is a `SyncReadError { id, cause }`
+  (reached with `downcast_ref`, and printed `motor 12: Timeout error`). A plain sync read
+  names the motor whose status packet did not come back. A fast sync read names the first
+  motor whose block is not there as asked, read from what arrived before the timeout,
+  which used to be thrown away: missing, cut short, out of order (`Incorrect id`) or
+  failing its CRC. A packet where nothing came back names the first motor, whose block
+  carries the header. A fast sync read that times out now reports `TimeoutError` as that
+  cause, where it used to return the port's `io::Error`; an I/O error other than a
+  timeout is still returned as it is.
 - Register the Feetech STS3036 (model number 521) under the STS3215 definition: an
   ST-3036-C001 answers with that number and reads and moves through the STS3215 control
   table (checked on one servo at 6 V and 1 Mbps).

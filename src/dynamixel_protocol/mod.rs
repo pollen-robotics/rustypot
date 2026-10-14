@@ -718,8 +718,10 @@ trait Protocol<P: Packet> {
     ) -> Result<Vec<Vec<u8>>> {
         self.send_instruction_packet(port, P::sync_read_packet(ids, addr, length).as_ref())?;
         let mut result = Vec::new();
-        for id in ids {
-            let sp = self.read_status_packet(port, *id)?;
+        for &id in ids {
+            let sp = self
+                .read_status_packet(port, id)
+                .map_err(|cause| SyncReadError::boxed(id, cause))?;
             result.push(sp.params().to_vec());
         }
         Ok(result)
@@ -733,8 +735,10 @@ trait Protocol<P: Packet> {
     ) -> Result<Vec<(Vec<u8>, u8)>> {
         self.send_instruction_packet(port, P::sync_read_packet(ids, addr, length).as_ref())?;
         let mut result = Vec::with_capacity(ids.len());
-        for id in ids {
-            let sp = self.read_status_packet(port, *id)?;
+        for &id in ids {
+            let sp = self
+                .read_status_packet(port, id)
+                .map_err(|cause| SyncReadError::boxed(id, cause))?;
             result.push((sp.params().to_vec(), sp.error_byte()));
         }
         Ok(result)
@@ -960,6 +964,48 @@ impl fmt::Display for CommunicationErrorKind {
 }
 impl std::error::Error for CommunicationErrorKind {}
 
+/// A sync read that failed at one motor's answer: which motor, and why.
+///
+/// A sync read asks every motor at once, so a bare error says the bus failed without saying
+/// where. On a bus of fifteen servos that is the difference between reseating one cable and
+/// checking all of them.
+///
+/// With a plain sync read, `id` is the motor whose own status packet did not come back whole.
+/// With a fast sync read, every motor appends to one packet, and `id` is the first motor whose
+/// block is not there as asked: missing (the read timed out before it), cut short, out of
+/// order, or failing its CRC. The motors after it are not known to be fine — a cable that
+/// breaks at that motor silences everything past it too. The packet header goes out with the
+/// first motor's block, so a read where nothing at all came back names the first motor.
+///
+/// Errors are boxed, so callers reach this with `downcast_ref::<SyncReadError>()`.
+#[derive(Debug)]
+pub struct SyncReadError {
+    /// The motor whose answer failed.
+    pub id: u8,
+    /// Why: a [CommunicationErrorKind], or the I/O error of the read.
+    pub cause: Box<dyn std::error::Error>,
+}
+
+impl SyncReadError {
+    /// Boxed as the crate's errors are: as a `Box<Self>`, `?` would box it a second time and
+    /// `downcast_ref` would no longer find it.
+    pub(crate) fn boxed(id: u8, cause: Box<dyn std::error::Error>) -> Box<dyn std::error::Error> {
+        Box::new(SyncReadError { id, cause })
+    }
+}
+
+impl fmt::Display for SyncReadError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "motor {}: {}", self.id, self.cause)
+    }
+}
+
+impl std::error::Error for SyncReadError {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        Some(self.cause.as_ref())
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1128,6 +1174,36 @@ mod tests {
             DynamixelProtocolHandler::v1().broadcast_ping_window(1_000_000),
             Duration::from_micros(253 * 3_000 + 16_000 + 253 * 6 * 10)
         );
+    }
+
+    #[test]
+    fn a_sync_read_names_the_motor_that_did_not_answer() {
+        // Motors 10 and 11 answer, 12 does not.
+        let dph = DynamixelProtocolHandler::v1();
+        let mut port = FakePort::new(vec![SYNC_READ_RESPONSE[..14].to_vec()]);
+
+        let err = dph.sync_read(&mut port, &[10, 11, 12], 43, 1).unwrap_err();
+
+        assert_eq!(err.downcast_ref::<SyncReadError>().unwrap().id, 12);
+        assert!(err.to_string().starts_with("motor 12: "), "{err}");
+    }
+
+    #[test]
+    fn a_fast_sync_read_names_the_motor_that_did_not_answer() {
+        // The e-manual's answer from motors 3, 7 and 4, with motor 4's block missing.
+        let answer = [
+            0xFF, 0xFF, 0xFD, 0x00, 0xFE, 0x19, 0x00, 0x55, //
+            0x00, 0x03, 0xA6, 0x00, 0x00, 0x00, 0x84, 0x08, //
+            0x00, 0x07, 0x1F, 0x08, 0x00, 0x00, 0x16, 0xCA,
+        ];
+        let dph = DynamixelProtocolHandler::v2().with_fast_sync_read();
+        let mut port = FakePort::new(vec![answer.to_vec()]);
+
+        let err = dph.sync_read(&mut port, &[3, 7, 4], 132, 4).unwrap_err();
+
+        let err = err.downcast_ref::<SyncReadError>().unwrap();
+        assert_eq!(err.id, 4);
+        assert_eq!(err.to_string(), "motor 4: Timeout error");
     }
 
     #[test]
