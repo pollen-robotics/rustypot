@@ -1,4 +1,4 @@
-## Unreleased
+## Version 1.13.0
 
 - `Bus::set_torque`, `change_id` and `change_baudrate` (and the torque off and lock opening
   ahead of the last two) check the error field of each answer: a motor that refuses the
