@@ -10,6 +10,7 @@ macro_rules! generate_servo {
      $(homing_offset_sign: $homing_offset_sign:expr,)?
      $(operating_modes: [$(($mode_name:ident, $mode_value:expr)),* $(,)?],)?
      $(eeprom_lock: $eeprom_lock:expr,)?
+     $(status_alarms_only: $status_alarms_only:expr,)?
      $(encoding: [$(($enc_reg:ident, $enc_kind:ident $(($enc_arg:expr))?)),* $(,)?],)?
      $(reg: ($reg_name:ident, $reg_access:ident, $reg_addr:expr, $reg_type:ty, $conv:ident),)+
     ) => {
@@ -199,6 +200,7 @@ macro_rules! generate_servo {
             homing_offset_sign: $crate::servo_option!($($homing_offset_sign)?),
             operating_modes: &[$($((stringify!($mode_name), $mode_value)),*)?],
             eeprom_lock: $crate::servo_eeprom_lock!($($eeprom_lock)?),
+            status_alarms_only: $crate::servo_status_alarms_only!($($status_alarms_only)?),
         };
 
         const ENCODING_OVERRIDES: &[(&str, $crate::servo::Encoding)] = &[
@@ -1129,6 +1131,17 @@ macro_rules! servo_eeprom_lock {
     };
     ($eeprom_lock:expr) => {
         $eeprom_lock
+    };
+}
+
+#[doc(hidden)]
+#[macro_export]
+macro_rules! servo_status_alarms_only {
+    () => {
+        false
+    };
+    ($status_alarms_only:expr) => {
+        $status_alarms_only
     };
 }
 

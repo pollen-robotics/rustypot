@@ -259,6 +259,10 @@ pub struct ServoInfo {
     /// Whether the `lock` register guards the EEPROM and opens and closes at will, as on
     /// Feetech servos. The lock of a Dynamixel AX or MX only clears at power-up.
     pub eeprom_lock: bool,
+    /// Whether the error byte of the servo's status packets only reports alarms (input
+    /// voltage, temperature, current, load), never an instruction it refused, as on Feetech
+    /// servos.
+    pub status_alarms_only: bool,
 }
 
 /// Default encoding of a register type, when the servo definition says nothing about

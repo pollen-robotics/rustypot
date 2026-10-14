@@ -19,7 +19,7 @@ use serialport::SerialPort;
 
 use crate::servo::definition::{self, retrying, ServoDefinition, SyncWrite};
 use crate::servo::RegisterError;
-use crate::{DynamixelProtocolHandler, MotorError, Result, StatusError};
+use crate::{DynamixelProtocolHandler, Result, StatusError};
 
 /// The motors of `ids` sharing a protocol and the address and size of one register, which
 /// is what one Sync Read or Sync Write can reach: each as its position in `ids`, its id
@@ -219,8 +219,9 @@ impl Bus {
 
     /// Turn the torque of `ids` on or off. Every motor is tried, even after one fails,
     /// and a failure on the bus is tried again up to `retries` more times; the motors
-    /// that still failed come back with their error. A motor that answers with an error
-    /// in its status packet has failed, with a [`MotorError`], and is not tried again.
+    /// that still failed come back with their error. A motor that refuses a write has
+    /// failed, with a [`StatusPacketError`](crate::StatusPacketError), and is not tried
+    /// again; an alarm in its answer, as an overload, does not fail it.
     ///
     /// On a servo whose lock guards its EEPROM (`eeprom_lock`: the Feetech ones), the lock
     /// follows the torque, closed when it goes on and open when it goes off, so the EEPROM
@@ -236,12 +237,13 @@ impl Bus {
         for &id in ids {
             let result = retrying(retries, || {
                 let definition = self.definition(id)?;
-                MotorError::check(
+                definition.check_status(
                     id,
                     self.write_register_with_error(id, "torque_enable", value)?,
                 )?;
                 if definition.info.eeprom_lock {
-                    MotorError::check(id, self.write_register_with_error(id, "lock", value)?)?;
+                    definition
+                        .check_status(id, self.write_register_with_error(id, "lock", value)?)?;
                 }
                 Ok(())
             });
@@ -520,9 +522,9 @@ mod python {
 
         /// Turn the torque of `ids` on or off, every motor tried even after one fails, and
         /// return {id: error} for those that failed (empty when all went through), a motor
-        /// answering with an error status included. A bus failure is tried again up to
-        /// `retries` more times per motor. On Feetech servos the lock follows the torque
-        /// (`ServoDefinition.eeprom_lock`).
+        /// refusing the write included; an alarm in an answer does not fail it. A bus
+        /// failure is tried again up to `retries` more times per motor. On Feetech servos the
+        /// lock follows the torque (`ServoDefinition.eeprom_lock`).
         #[pyo3(signature = (ids, enabled, retries = 0))]
         pub fn set_torque(
             &self,
@@ -542,7 +544,7 @@ mod python {
 
         /// Give motor `id` the id `new_id`, through `definition`: torque off and, on a
         /// Feetech motor, lock open first. The motor need not be one of the bus's. A motor
-        /// that answers with an error status raises `RuntimeError`.
+        /// that refuses a write raises `RuntimeError`; an alarm in its answer does not.
         pub fn change_id(
             &self,
             py: Python,
@@ -613,6 +615,7 @@ mod tests {
     use crate::fake_port::FakePort;
     use crate::servo::dynamixel::{xl330, xl430};
     use crate::servo::feetech::{scs0009, sts3215};
+    use crate::StatusPacketError;
 
     #[test]
     fn a_bus_reads_each_motor_through_its_definition() {
@@ -679,29 +682,57 @@ mod tests {
     }
 
     #[test]
-    fn a_motor_answering_with_an_error_counts_as_failed_and_is_not_retried() {
-        // Motor 1 answers its torque write with error 0x20 (overload); motor 2 answers both
-        // of its writes cleanly.
-        let refused = vec![0xFF, 0xFF, 0x01, 0x02, 0x20, 0xDC];
+    fn an_alarm_does_not_fail_the_torque_and_the_lock_follows_it() {
+        // Motor 1 answers both its writes with 0x20, an overload alarm: they went through.
+        let alarm = vec![0xFF, 0xFF, 0x01, 0x02, 0x20, 0xDC];
         let ok = vec![0xFF, 0xFF, 0x02, 0x02, 0x00, 0xFB];
-        let port = FakePort::new(vec![refused, ok.clone(), ok]);
+        let port = FakePort::new(vec![alarm.clone(), alarm, ok.clone(), ok]);
         let written = port.written();
         let mut bus = Bus::new(
             Box::new(port),
             BTreeMap::from([(1, sts3215::DEFINITION), (2, sts3215::DEFINITION)]),
         );
 
+        assert!(bus.set_torque(&[1, 2], false, 0).is_empty());
+
+        // The torque (address 40), then the lock (address 55), of each motor.
+        let written = written.lock().unwrap();
+        let writes: Vec<_> = written
+            .iter()
+            .map(|packet| (packet[2], packet[5]))
+            .collect();
+        assert_eq!(writes, [(1, 40), (1, 55), (2, 40), (2, 55)]);
+    }
+
+    #[test]
+    fn a_motor_refusing_the_torque_write_fails_and_is_not_retried() {
+        // XL330 1 refuses its torque write with an access error; XL330 2 takes it.
+        let refused = vec![
+            0xFF, 0xFF, 0xFD, 0x00, 0x01, 0x04, 0x00, 0x55, 0x07, 0xB0, 0x8C,
+        ];
+        let ok = vec![
+            0xFF, 0xFF, 0xFD, 0x00, 0x02, 0x04, 0x00, 0x55, 0x00, 0x29, 0x0C,
+        ];
+        let port = FakePort::new(vec![refused, ok]);
+        let written = port.written();
+        let mut bus = Bus::new(
+            Box::new(port),
+            BTreeMap::from([(1, xl330::DEFINITION), (2, xl330::DEFINITION)]),
+        );
+
         let failed = bus.set_torque(&[1, 2], false, 2);
 
         assert_eq!(failed.keys().copied().collect::<Vec<_>>(), [1]);
         assert!(matches!(
-            failed[&1].downcast_ref::<MotorError>(),
-            Some(MotorError { id: 1, .. })
+            failed[&1].downcast_ref::<StatusPacketError>(),
+            Some(StatusPacketError { id: 1, .. })
         ));
-        // One torque write to motor 1, not retried and its lock left alone, then motor 2's two.
+        // One torque write to motor 1, not retried, then motor 2's.
         let written = written.lock().unwrap();
-        assert_eq!(written.len(), 3);
-        assert_eq!(written[1][2], 2);
+        assert_eq!(
+            written.iter().map(|packet| packet[4]).collect::<Vec<_>>(),
+            [1, 2]
+        );
     }
 
     #[test]

@@ -3,6 +3,7 @@ use crate::servo::conversion::Conversion;
 
 generate_servo!(
     SCS0043, v1,
+    status_alarms_only: true,
     reg: (model, r, 3, u16, None),
     reg: (id, rw, 5, u8, None),
     reg: (baudrate, rw, 6, u8, None),
