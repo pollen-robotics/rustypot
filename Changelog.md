@@ -1,4 +1,4 @@
-## Unreleased
+## Version 1.13.1
 
 - Python: `ServoDefinition.refuses(status)` tells a refusal from an alarm in the error
   field the `*_with_error` reads and writes return, as `ServoDefinition::refuses` does in
