@@ -1,3 +1,8 @@
+## Unreleased
+
+- Register the Feetech STS3235 (model number 2057) under the STS3215 definition: it
+  reads and moves through the STS3215 control table.
+
 ## Version 1.13.1
 
 - Python: `ServoDefinition.refuses(status)` tells a refusal from an alarm in the error
