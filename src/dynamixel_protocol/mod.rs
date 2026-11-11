@@ -250,6 +250,32 @@ impl DynamixelProtocolHandler {
         }
     }
 
+    /// Feetech's RESET instruction (0x0A): zero the turn count of motor `id`.
+    ///
+    /// A Feetech STS servo keeps counting turns past its encoder's zero, with the torque
+    /// on or off, so a joint moved by hand through that boundary reports its position
+    /// one turn away from where its limits are and, once the torque is on, drives a
+    /// whole turn to reach a goal. This instruction puts the count back to zero; the
+    /// position limits, the homing offset and the other registers are kept. The count
+    /// lives in RAM, so a power cycle clears it as well. Send it with the torque off.
+    ///
+    /// Protocol v1 only: protocol v2 has no such instruction and fails with
+    /// [`CommunicationErrorKind::Unsupported`] before anything reaches the bus. Returns
+    /// the status packet's error field, as [`write_with_error`](Self::write_with_error).
+    pub fn reset_turn_count(
+        &self,
+        serial_port: &mut dyn serialport::SerialPort,
+        id: u8,
+    ) -> Result<StatusError> {
+        let res = match &self.protocol {
+            ProtocolKind::V1(p) => p.reset_turn_count(serial_port, id),
+            ProtocolKind::V2(p, _) => p.reset_turn_count(serial_port, id),
+        }
+        .map(StatusError::new);
+        self.sleep_post_delay();
+        res
+    }
+
     /// Reads raw register bytes.
     ///
     /// Sends a read instruction to the motor and wait for the status packet in response.
@@ -662,6 +688,12 @@ trait Protocol<P: Packet> {
             P::factory_reset_packet(id, conserve_id_only, conserve_id_and_baudrate).as_ref(),
         )?;
         self.read_status_packet(port, id).map(|_| ())
+    }
+
+    fn reset_turn_count(&self, port: &mut dyn SerialPort, id: u8) -> Result<u8> {
+        let packet = P::reset_turn_count_packet(id).ok_or(CommunicationErrorKind::Unsupported)?;
+        self.send_instruction_packet(port, packet.as_ref())?;
+        self.read_status_packet(port, id).map(|sp| sp.error_byte())
     }
 
     fn read(&self, port: &mut dyn SerialPort, id: u8, addr: u8, length: u8) -> Result<Vec<u8>> {

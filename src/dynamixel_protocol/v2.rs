@@ -240,6 +240,11 @@ impl Packet for PacketV2 {
         })
     }
 
+    fn reset_turn_count_packet(_id: u8) -> Option<Box<dyn InstructionPacket<Self>>> {
+        // Protocol v2 has no such instruction.
+        None
+    }
+
     fn factory_reset_packet(
         id: u8,
         conserve_id_only: bool,

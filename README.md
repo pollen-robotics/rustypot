@@ -234,6 +234,7 @@ Beyond register access, they carry what a library driving several motor families
 - `find_model("xl330-m288")` returns the model number and the definition, whose getters give the servo's facts (`resolution`, `baudrates`, `factory_baudrate`, `homing_offset_sign`, `operating_modes`, ...);
 - `bus.broadcast_scan(definition)` finds the motors on the port with one broadcast ping, and `bus.change_id` / `bus.change_baudrate` set a new motor up;
 - `bus.set_torque(ids, enabled)` turns the torque of every motor on or off, and reports the ones that failed;
+- `bus.reset_turn_count(ids)` zeroes the turn count of Feetech STS servos with their RESET instruction (0x0A), which they keep past the encoder's zero with the torque on or off, and reports the ones that failed;
 - `with Bus(...) as bus:` releases the port on the way out.
 
 Some of these follow LeRobot's conventions rather than a vendor's: `set_torque` closes the lock of a Feetech servo when the torque goes on and opens it when it goes off.

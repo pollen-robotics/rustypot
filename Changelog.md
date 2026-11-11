@@ -1,5 +1,16 @@
 ## Unreleased
 
+- Feetech's RESET instruction (0x0A), which zeroes the turn count an STS servo keeps
+  past its encoder's zero, torque on or off: a joint moved by hand through that
+  boundary reports its position a turn away from its limits and, once the torque is on,
+  drives a whole turn to a goal. The other registers are kept, and a power cycle clears
+  the count as well. `DynamixelProtocolHandler::reset_turn_count` sends it on protocol
+  v1 (`Unsupported` on v2), each controller has `reset_turn_count(id)`,
+  `ServoDefinition::reset_turn_count` refuses it before the bus on a servo whose new
+  `ServoInfo::supports_turn_count_reset` (`supports_turn_count_reset` on Python) is
+  false, and `Bus::reset_turn_count(ids, retries)` tries every motor and reports the
+  ones that failed, as `set_torque` does. True on the STS3215 definition; send it with
+  the torque off.
 - Register the Feetech STS3235 (model number 2057) under the STS3215 definition: it
   reads and moves through the STS3215 control table.
 

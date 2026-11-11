@@ -11,6 +11,7 @@ macro_rules! generate_servo {
      $(operating_modes: [$(($mode_name:ident, $mode_value:expr)),* $(,)?],)?
      $(eeprom_lock: $eeprom_lock:expr,)?
      $(status_alarms_only: $status_alarms_only:expr,)?
+     $(supports_turn_count_reset: $supports_turn_count_reset:expr,)?
      $(encoding: [$(($enc_reg:ident, $enc_kind:ident $(($enc_arg:expr))?)),* $(,)?],)?
      $(reg: ($reg_name:ident, $reg_access:ident, $reg_addr:expr, $reg_type:ty, $conv:ident),)+
     ) => {
@@ -169,6 +170,13 @@ macro_rules! generate_servo {
                     INFO.supports_broadcast_ping
                 }
 
+                /// Whether the servo answers Feetech's RESET instruction (0x0A), which
+                /// zeroes the turn count it keeps past its encoder's zero.
+                #[staticmethod]
+                pub fn supports_turn_count_reset() -> bool {
+                    INFO.supports_turn_count_reset
+                }
+
                 /// Serial rates the servo can be set to, as {baud rate: register value},
                 /// slowest first.
                 #[staticmethod]
@@ -201,6 +209,7 @@ macro_rules! generate_servo {
             operating_modes: &[$($((stringify!($mode_name), $mode_value)),*)?],
             eeprom_lock: $crate::servo_eeprom_lock!($($eeprom_lock)?),
             status_alarms_only: $crate::servo_status_alarms_only!($($status_alarms_only)?),
+            supports_turn_count_reset: $crate::servo_supports_turn_count_reset!($($supports_turn_count_reset)?),
         };
 
         const ENCODING_OVERRIDES: &[(&str, $crate::servo::Encoding)] = &[
@@ -417,6 +426,15 @@ macro_rules! generate_special_instructions {
                     let dph = self.dph.as_ref().unwrap();
                     let serial_port = self.serial_port.as_mut().unwrap().as_mut();
                     dph.factory_reset(serial_port, id, conserve_id_only, conserve_id_and_baudrate)
+                }
+
+                /// Feetech's RESET instruction (0x0A): zero the turn count of motor `id`
+                /// with its torque off, and return the status packet's error field. See
+                /// `DynamixelProtocolHandler::reset_turn_count`; protocol v1 only.
+                pub fn reset_turn_count(&mut self, id: u8) -> $crate::Result<$crate::StatusError> {
+                    let dph = self.dph.as_ref().unwrap();
+                    let serial_port = self.serial_port.as_mut().unwrap().as_mut();
+                    dph.reset_turn_count(serial_port, id)
                 }
             }
         }
@@ -718,6 +736,21 @@ macro_rules! generate_addr_read_write {
                             let mut guard = self.0.lock().unwrap();
                             Self::borrow(&mut guard)?
                                 .factory_reset(id, conserve_id_only, conserve_id_and_baudrate)
+                                .map_err(|e| e.to_string())
+                        })
+                        .map_err(pyo3::exceptions::PyRuntimeError::new_err)
+                }
+
+                /// Feetech's RESET instruction (0x0A): zero the turn count of motor `id`
+                /// with its torque off, and return the status packet's error byte.
+                /// Protocol v1 only: a v2 servo raises `RuntimeError`.
+                pub fn reset_turn_count(&self, py: Python, id: u8) -> PyResult<u8> {
+                    py
+                        .detach(|| {
+                            let mut guard = self.0.lock().unwrap();
+                            Self::borrow(&mut guard)?
+                                .reset_turn_count(id)
+                                .map(|status| status.byte())
                                 .map_err(|e| e.to_string())
                         })
                         .map_err(pyo3::exceptions::PyRuntimeError::new_err)
@@ -1142,6 +1175,17 @@ macro_rules! servo_status_alarms_only {
     };
     ($status_alarms_only:expr) => {
         $status_alarms_only
+    };
+}
+
+#[doc(hidden)]
+#[macro_export]
+macro_rules! servo_supports_turn_count_reset {
+    () => {
+        false
+    };
+    ($supports_turn_count_reset:expr) => {
+        $supports_turn_count_reset
     };
 }
 
