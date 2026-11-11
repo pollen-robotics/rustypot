@@ -254,6 +254,31 @@ impl Bus {
         failed
     }
 
+    /// Zero the turn count of `ids` with Feetech's RESET instruction (0x0A), every motor
+    /// tried even after one fails, and return {id: error} for those that failed (empty
+    /// when all went through): a servo without the instruction
+    /// (`supports_turn_count_reset`), a motor refusing it, or one not answering. A bus
+    /// failure is tried again up to `retries` more times per motor. See
+    /// [`ServoDefinition::reset_turn_count`]; send it with the torque off.
+    pub fn reset_turn_count(
+        &mut self,
+        ids: &[u8],
+        retries: u32,
+    ) -> BTreeMap<u8, Box<dyn std::error::Error>> {
+        let mut failed = BTreeMap::new();
+        for &id in ids {
+            let result = retrying(retries, || {
+                let definition = self.definition(id)?;
+                let dph = &self.handlers[definition.protocol as usize - 1];
+                definition.reset_turn_count(dph, self.serial_port.as_mut(), id)
+            });
+            if let Err(e) = result {
+                failed.insert(id, e);
+            }
+        }
+        failed
+    }
+
     /// Give motor `id` the id `new_id`, through `definition`. See
     /// [`ServoDefinition::change_id`]. Like [`scan`](Self::scan), it reaches motors the
     /// bus does not have: a new motor answers at its factory id.
@@ -542,6 +567,32 @@ mod python {
             })
         }
 
+        /// Zero the turn count of `ids` with Feetech's RESET instruction (0x0A), every
+        /// motor tried even after one fails, and return {id: error} for those that failed
+        /// (empty when all went through): a servo without the instruction
+        /// (`ServoDefinition.supports_turn_count_reset`), a motor refusing it, or one not
+        /// answering. A bus failure is tried again up to `retries` more times per motor.
+        /// An STS servo keeps counting turns past its encoder's zero, torque on or off, so
+        /// a joint moved by hand through that boundary reports its position a turn away
+        /// from its limits and, once the torque is on, drives a whole turn to a goal. The
+        /// other registers are kept; a power cycle clears the count as well. Send this
+        /// with the torque off.
+        #[pyo3(signature = (ids, retries = 0))]
+        pub fn reset_turn_count(
+            &self,
+            py: Python,
+            ids: Vec<u8>,
+            retries: u32,
+        ) -> PyResult<BTreeMap<u8, String>> {
+            self.run(py, |bus| {
+                Ok(bus
+                    .reset_turn_count(&ids, retries)
+                    .into_iter()
+                    .map(|(id, e)| (id, e.to_string()))
+                    .collect())
+            })
+        }
+
         /// Give motor `id` the id `new_id`, through `definition`: torque off and, on a
         /// Feetech motor, lock open first. The motor need not be one of the bus's. A motor
         /// that refuses a write raises `RuntimeError`; an alarm in its answer does not.
@@ -747,6 +798,40 @@ mod tests {
         let written = written.lock().unwrap();
         assert_eq!([written[0][5], written[0][6]], [40, 1]);
         assert_eq!([written[1][5], written[1][6]], [55, 1]);
+    }
+
+    #[test]
+    fn a_turn_count_reset_reaches_the_feetech_motors_only() {
+        // STS3215 1 answers its reset; STS3215 2 does not answer; the XL330 3 has no
+        // such instruction, so nothing is sent to it; 9 is not on the bus.
+        let sts = vec![0xFF, 0xFF, 0x01, 0x02, 0x00, 0xFC];
+        let port = FakePort::new(vec![sts, vec![]]);
+        let written = port.written();
+        let mut bus = Bus::new(
+            Box::new(port),
+            BTreeMap::from([
+                (1, sts3215::DEFINITION),
+                (2, sts3215::DEFINITION),
+                (3, xl330::DEFINITION),
+            ]),
+        );
+
+        let failed = bus.reset_turn_count(&[1, 2, 3, 9], 0);
+
+        assert_eq!(failed.keys().copied().collect::<Vec<_>>(), [2, 3, 9]);
+        assert!(matches!(
+            failed[&3].downcast_ref::<RegisterError>(),
+            Some(RegisterError::TurnCountReset("XL330"))
+        ));
+        // The RESET instruction (0x0A, no parameter) went to motors 1 and 2 only.
+        let written = written.lock().unwrap();
+        assert_eq!(
+            *written,
+            [
+                vec![0xFF, 0xFF, 0x01, 0x02, 0x0A, 0xF2],
+                vec![0xFF, 0xFF, 0x02, 0x02, 0x0A, 0xF1],
+            ]
+        );
     }
 
     #[test]

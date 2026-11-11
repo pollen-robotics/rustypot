@@ -35,6 +35,14 @@ impl Packet for PacketV1 {
         })
     }
 
+    fn reset_turn_count_packet(id: u8) -> Option<Box<dyn InstructionPacket<Self>>> {
+        Some(Box::new(InstructionPacketV1 {
+            id,
+            instruction: InstructionKindV1::ResetTurnCount,
+            params: vec![],
+        }))
+    }
+
     fn factory_reset_packet(
         id: u8,
         _conserve_id_only: bool,
@@ -257,6 +265,8 @@ pub(crate) enum InstructionKindV1 {
     Write,
     FactoryReset,
     Reboot,
+    /// Feetech RESET: zero the turn count the servo keeps past its encoder's zero.
+    ResetTurnCount,
     SyncWrite,
     SyncRead,
 }
@@ -269,6 +279,7 @@ impl InstructionKindV1 {
             InstructionKindV1::Write => 0x03,
             InstructionKindV1::FactoryReset => 0x06,
             InstructionKindV1::Reboot => 0x08,
+            InstructionKindV1::ResetTurnCount => 0x0A,
             InstructionKindV1::SyncRead => 0x82,
             InstructionKindV1::SyncWrite => 0x83,
         }
@@ -303,6 +314,16 @@ mod tests {
         let p = PacketV1::reboot_packet(2);
         let bytes = p.to_bytes();
         assert_eq!(bytes, [0xFF, 0xFF, 0x02, 0x02, 0x08, 0xF3]);
+    }
+
+    #[test]
+    fn create_reset_turn_count_packet() {
+        // The frame the Feetech protocol manual gives for id 1, and the one an STS3215
+        // answered on the wire for id 2.
+        let p = PacketV1::reset_turn_count_packet(1).unwrap();
+        assert_eq!(p.to_bytes(), [0xFF, 0xFF, 0x01, 0x02, 0x0A, 0xF2]);
+        let p = PacketV1::reset_turn_count_packet(2).unwrap();
+        assert_eq!(p.to_bytes(), [0xFF, 0xFF, 0x02, 0x02, 0x0A, 0xF1]);
     }
 
     #[test]

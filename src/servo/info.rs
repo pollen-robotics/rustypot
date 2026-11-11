@@ -158,6 +158,8 @@ pub enum RegisterError {
     BroadcastPing(&'static str),
     /// The servo cannot be set to this baud rate.
     Baudrate { servo: &'static str, baudrate: u32 },
+    /// The servo has no instruction that resets its turn count.
+    TurnCountReset(&'static str),
 }
 
 impl fmt::Display for RegisterError {
@@ -191,6 +193,9 @@ impl fmt::Display for RegisterError {
             }
             RegisterError::Baudrate { servo, baudrate } => {
                 write!(f, "{servo} cannot be set to {baudrate} baud")
+            }
+            RegisterError::TurnCountReset(servo) => {
+                write!(f, "{servo} has no instruction that resets its turn count")
             }
         }
     }
@@ -263,6 +268,9 @@ pub struct ServoInfo {
     /// voltage, temperature, current, load), never an instruction it refused, as on Feetech
     /// servos.
     pub status_alarms_only: bool,
+    /// Whether the servo answers Feetech's RESET instruction (0x0A), which zeroes the
+    /// turn count it keeps past its encoder's zero: the Feetech STS. Not known of the SCS.
+    pub supports_turn_count_reset: bool,
 }
 
 /// Default encoding of a register type, when the servo definition says nothing about
