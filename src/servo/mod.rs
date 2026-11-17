@@ -320,6 +320,37 @@ mod tests {
     }
 
     #[test]
+    fn a_controller_resets_the_turn_count_of_a_servo_known_to_answer_it_only() {
+        use crate::fake_port::FakePort;
+        use crate::servo::RegisterError;
+
+        // The XL430 is not known to answer Clear: refused before the bus, nothing sent.
+        let port = FakePort::new(vec![]);
+        let written = port.written();
+        let mut c = xl430::Xl430Controller::new()
+            .with_serial_port(Box::new(port))
+            .with_protocol_v2();
+        let error = c.reset_turn_count(1).unwrap_err();
+        assert!(matches!(
+            error.downcast_ref::<RegisterError>(),
+            Some(RegisterError::TurnCountReset("XL430"))
+        ));
+        assert!(written.lock().unwrap().is_empty());
+
+        // The STS3215 answers RESET (0x0A).
+        let port = FakePort::new(vec![vec![0xFF, 0xFF, 0x01, 0x02, 0x00, 0xFC]]);
+        let written = port.written();
+        let mut c = sts3215::Sts3215Controller::new()
+            .with_serial_port(Box::new(port))
+            .with_protocol_v1();
+        assert!(c.reset_turn_count(1).unwrap().is_ok());
+        assert_eq!(
+            *written.lock().unwrap(),
+            [vec![0xFF, 0xFF, 0x01, 0x02, 0x0A, 0xF2]]
+        );
+    }
+
+    #[test]
     fn registers_are_read_and_written_by_name() {
         use crate::fake_port::FakePort;
 

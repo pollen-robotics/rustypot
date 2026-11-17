@@ -158,6 +158,8 @@ pub enum RegisterError {
     BroadcastPing(&'static str),
     /// The servo cannot be set to this baud rate.
     Baudrate { servo: &'static str, baudrate: u32 },
+    /// The servo is not known to answer the instruction that resets its turn count.
+    TurnCountReset(&'static str),
 }
 
 impl fmt::Display for RegisterError {
@@ -191,6 +193,9 @@ impl fmt::Display for RegisterError {
             }
             RegisterError::Baudrate { servo, baudrate } => {
                 write!(f, "{servo} cannot be set to {baudrate} baud")
+            }
+            RegisterError::TurnCountReset(servo) => {
+                write!(f, "{servo} is not known to reset its turn count on request")
             }
         }
     }
@@ -263,6 +268,13 @@ pub struct ServoInfo {
     /// voltage, temperature, current, load), never an instruction it refused, as on Feetech
     /// servos.
     pub status_alarms_only: bool,
+    /// Whether the servo is known to answer the instruction that zeroes the turn count it
+    /// keeps past its encoder's zero: Feetech's RESET (0x0A) on protocol v1, Dynamixel's
+    /// Clear (0x10, Clear Multi-Turn) on v2. True on the Feetech STS, checked on an
+    /// STS3215, and on the XL330, checked on an XL330-M077 (firmware 53). False until
+    /// checked on hardware elsewhere: the Feetech SCS, the other Dynamixel X (Clear needs
+    /// firmware v42 or later) and the Y.
+    pub supports_turn_count_reset: bool,
 }
 
 /// Default encoding of a register type, when the servo definition says nothing about

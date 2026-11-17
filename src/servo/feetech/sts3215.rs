@@ -17,6 +17,8 @@ generate_servo!(
     operating_modes: [(position, 0), (velocity, 1), (pwm, 2), (step, 3)],
     eeprom_lock: true,
     status_alarms_only: true,
+    // Answers RESET (0x0A), which zeroes the turn count: checked on an STS3215.
+    supports_turn_count_reset: true,
     // Positions, speeds and the offset are sign-magnitude; the limits are plain steps.
     encoding: [
         (min_angle_limit, unsigned), (min_position_limit, unsigned),

@@ -1,5 +1,19 @@
 ## Unreleased
 
+- Resetting the turn count a servo keeps past its encoder's zero, torque on or off: a
+  joint moved by hand through that boundary reports its position a turn away from its
+  limits and, once the torque is on, drives a whole turn to a goal. The other registers
+  are kept, and a power cycle clears the count as well.
+  `DynamixelProtocolHandler::reset_turn_count` sends Feetech's RESET (0x0A, a Feetech
+  extension of protocol v1) or Dynamixel's Clear (0x10 with the Clear Multi-Turn
+  parameters on protocol v2, waited for up to `CLEAR_TIMEOUT`); each controller's
+  `reset_turn_count(id)` and `ServoDefinition::reset_turn_count` refuse it before the
+  bus on a servo whose new `ServoInfo::supports_turn_count_reset`
+  (`supports_turn_count_reset` on Python) is false, and `Bus::reset_turn_count(ids,
+  retries)` tries every motor and reports the ones that failed, as `set_torque` does.
+  True on the STS3215 and XL330 definitions, both checked on hardware; false elsewhere
+  until checked (Clear needs an X-series firmware of v42 or later). Send it with the
+  torque off.
 - `Bus::sync_read_raw_with_error` (also on the Python `Bus`) reads `length` raw bytes at
   `addr` from several motors, with each one's status error field, in the order asked: one
   Sync Read per protocol, one read per id for a group with a motor that has no Sync Read.
