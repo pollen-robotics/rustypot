@@ -1,4 +1,4 @@
-## Unreleased
+## Version 1.14.0
 
 - Resetting the turn count a servo keeps past its encoder's zero, torque on or off: a
   joint moved by hand through that boundary reports its position a turn away from its
