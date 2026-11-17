@@ -154,6 +154,57 @@ impl Bus {
         Ok(values)
     }
 
+    /// Read `length` raw bytes starting at `addr` from each motor in `ids`, returning
+    /// the bytes and status packet's error field in the order asked.
+    ///
+    /// Motors are grouped by protocol, with one Sync Read per protocol. If any motor
+    /// in a group does not support Sync Read, that group is read one id at a time.
+    /// Unknown ids return [`RegisterError::UnknownMotor`] before any instruction is sent.
+    ///
+    /// The caller must ensure `addr` and `length` mean the same thing on every motor.
+    /// Raw bytes are not decoded, and register layouts are not checked.
+    pub fn sync_read_raw_with_error(
+        &mut self,
+        ids: &[u8],
+        addr: u8,
+        length: u8,
+    ) -> Result<Vec<(Vec<u8>, StatusError)>> {
+        let mut groups: Vec<Group> = Vec::new();
+        for (position, &id) in ids.iter().enumerate() {
+            let definition = self.definition(id)?;
+            let member = (position, (id, definition));
+            match groups
+                .iter_mut()
+                .find(|(protocol, _)| *protocol == definition.protocol)
+            {
+                Some((_, members)) => members.push(member),
+                None => groups.push((definition.protocol, vec![member])),
+            }
+        }
+        let mut values = vec![(Vec::new(), StatusError::default()); ids.len()];
+        for (protocol, members) in groups {
+            let handler = &self.handlers[protocol as usize - 1];
+            let replies = if members
+                .iter()
+                .all(|(_, (_, definition))| definition.info.supports_sync_read)
+            {
+                let motor_ids: Vec<_> = members.iter().map(|(_, (id, _))| *id).collect();
+                handler.sync_read_with_error(self.serial_port.as_mut(), &motor_ids, addr, length)?
+            } else {
+                members
+                    .iter()
+                    .map(|(_, (id, _))| {
+                        handler.read_with_error(self.serial_port.as_mut(), *id, addr, length)
+                    })
+                    .collect::<Result<Vec<_>>>()?
+            };
+            for ((position, _), reply) in members.into_iter().zip(replies) {
+                values[position] = reply;
+            }
+        }
+        Ok(values)
+    }
+
     /// Sync write `values` to register `name` of `ids`, one value per id, with one Sync
     /// Write per group as in [`sync_read_register`](Self::sync_read_register).
     ///
@@ -529,6 +580,35 @@ mod python {
             .map(|values| values.into_iter().map(|(v, e)| (v, e.byte())).collect())
         }
 
+        /// Read `length` raw bytes at `addr` and each motor's status error byte, in
+        /// the order of `ids`. One Sync Read per protocol; groups containing a motor
+        /// without Sync Read support use individual reads.
+        ///
+        /// The caller must ensure the range means the same thing on every motor.
+        /// No decoding or register layout checks are performed. Unknown ids fail
+        /// before any instruction is sent.
+        #[pyo3(signature = (ids, addr, length, retries = 0))]
+        pub fn sync_read_raw_with_error(
+            &self,
+            py: Python,
+            ids: Vec<u8>,
+            addr: u8,
+            length: u8,
+            retries: u32,
+        ) -> PyResult<Vec<(Vec<u8>, u8)>> {
+            self.run(py, |bus| {
+                bus.with_retries(retries, |bus| {
+                    bus.sync_read_raw_with_error(&ids, addr, length)
+                })
+            })
+            .map(|replies| {
+                replies
+                    .into_iter()
+                    .map(|(bytes, status)| (bytes, status.byte()))
+                    .collect()
+            })
+        }
+
         /// Sync write `values` to register `name` of `ids`, one value per id: one Sync
         /// Write per group as in `sync_read_register`.
         #[pyo3(signature = (ids, name, values, retries = 0))]
@@ -698,6 +778,89 @@ mod tests {
             Some(RegisterError::UnknownMotor(9))
         ));
         assert_eq!(written.lock().unwrap().len(), 4);
+    }
+
+    #[test]
+    fn raw_reads_group_protocols_and_restore_requested_order_with_status() {
+        let v1_replies = vec![
+            0xFF, 0xFF, 1, 4, 0x20, 0x00, 0x08, 0xD2, 0xFF, 0xFF, 3, 4, 0x00, 0x34, 0x12, 0xB2,
+        ];
+        let v2_replies = vec![
+            0xFF, 0xFF, 0xFD, 0, 2, 6, 0, 0x55, 0x80, 0x12, 0x34, 0x4E, 0xBE, 0xFF, 0xFF, 0xFD, 0,
+            4, 6, 0, 0x55, 7, 0x56, 0x78, 0xEC, 0x2B,
+        ];
+        let port = FakePort::new(vec![v1_replies, v2_replies]);
+        let written = port.written();
+        let mut bus = Bus::new(
+            Box::new(port),
+            BTreeMap::from([
+                (1, sts3215::DEFINITION),
+                (2, xl330::DEFINITION),
+                (3, sts3215::DEFINITION),
+                (4, xl430::DEFINITION),
+            ]),
+        );
+
+        // The raw range need not match a named register in any definition.
+        let replies = bus.sync_read_raw_with_error(&[1, 2, 3, 4], 56, 2).unwrap();
+        let replies: Vec<_> = replies
+            .into_iter()
+            .map(|(bytes, status)| (bytes, status.byte()))
+            .collect();
+        assert_eq!(
+            replies,
+            vec![
+                (vec![0x00, 0x08], 0x20),
+                (vec![0x12, 0x34], 0x80),
+                (vec![0x34, 0x12], 0),
+                (vec![0x56, 0x78], 7),
+            ]
+        );
+        let written = written.lock().unwrap();
+        assert_eq!(written.len(), 2);
+        assert_eq!(&written[0][..9], &[0xFF, 0xFF, 0xFE, 6, 0x82, 56, 2, 1, 3]);
+        assert_eq!(
+            &written[1][..14],
+            &[0xFF, 0xFF, 0xFD, 0, 0xFE, 9, 0, 0x82, 56, 0, 2, 0, 2, 4]
+        );
+    }
+
+    #[test]
+    fn raw_reads_fall_back_for_a_protocol_group_without_sync_read() {
+        let port = FakePort::new(vec![
+            vec![0xFF, 0xFF, 1, 4, 0x20, 0, 8, 0xD2],
+            vec![0xFF, 0xFF, 2, 4, 0, 0x12, 0x34, 0xB3],
+        ]);
+        let written = port.written();
+        let mut bus = Bus::new(
+            Box::new(port),
+            BTreeMap::from([(1, sts3215::DEFINITION), (2, scs0009::DEFINITION)]),
+        );
+
+        let replies = bus.sync_read_raw_with_error(&[1, 2], 56, 2).unwrap();
+        assert_eq!(replies[0].0, [0, 8]);
+        assert_eq!(replies[0].1.byte(), 0x20);
+        assert_eq!(replies[1].0, [0x12, 0x34]);
+        assert_eq!(replies[1].1.byte(), 0);
+        let written = written.lock().unwrap();
+        assert_eq!(written.len(), 2);
+        assert_eq!(&written[0][..7], &[0xFF, 0xFF, 1, 4, 2, 56, 2]);
+        assert_eq!(&written[1][..7], &[0xFF, 0xFF, 2, 4, 2, 56, 2]);
+    }
+
+    #[test]
+    fn raw_reads_validate_ids_before_sending_and_accept_no_ids() {
+        let port = FakePort::new(vec![]);
+        let written = port.written();
+        let mut bus = Bus::new(Box::new(port), BTreeMap::from([(1, sts3215::DEFINITION)]));
+
+        assert!(bus.sync_read_raw_with_error(&[], 56, 2).unwrap().is_empty());
+        let failure = bus.sync_read_raw_with_error(&[1, 9], 56, 2).unwrap_err();
+        assert!(matches!(
+            failure.downcast_ref::<RegisterError>(),
+            Some(RegisterError::UnknownMotor(9))
+        ));
+        assert!(written.lock().unwrap().is_empty());
     }
 
     #[test]
