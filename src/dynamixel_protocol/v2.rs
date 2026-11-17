@@ -240,9 +240,14 @@ impl Packet for PacketV2 {
         })
     }
 
-    fn reset_turn_count_packet(_id: u8) -> Option<Box<dyn InstructionPacket<Self>>> {
-        // Protocol v2 has no such instruction.
-        None
+    fn reset_turn_count_packet(id: u8) -> Box<dyn InstructionPacket<Self>> {
+        // Clear Multi-Turn: Clear (0x10) with 0x01 and the fixed bytes "DXL" 0x22, see
+        // https://emanual.robotis.com/docs/en/dxl/protocol2/#clear-0x10
+        Box::new(InstructionPacketV2 {
+            id,
+            instruction: InstructionKindV2::Clear,
+            params: vec![0x01, 0x44, 0x58, 0x4C, 0x22],
+        })
     }
 
     fn factory_reset_packet(
@@ -517,6 +522,9 @@ pub(crate) enum InstructionKindV2 {
     Write,
     FactoryReset,
     Reboot,
+    /// Reset information the servo keeps in memory; with the Clear Multi-Turn
+    /// parameters, its turn count.
+    Clear,
     SyncRead,
     SyncWrite,
     FastSyncRead,
@@ -530,6 +538,7 @@ impl InstructionKindV2 {
             InstructionKindV2::Write => 0x03,
             InstructionKindV2::FactoryReset => 0x06,
             InstructionKindV2::Reboot => 0x08,
+            InstructionKindV2::Clear => 0x10,
             InstructionKindV2::SyncRead => 0x82,
             InstructionKindV2::SyncWrite => 0x83,
             InstructionKindV2::FastSyncRead => 0x8A,
@@ -637,6 +646,19 @@ mod tests {
         assert_eq!(
             bytes,
             [0xff, 0xff, 0xfd, 0x0, 0x2, 0x3, 0x0, 0x8, 0x2f, 0x72]
+        );
+    }
+
+    #[test]
+    fn create_reset_turn_count_packet() {
+        // The Clear Multi-Turn example of the protocol 2.0 manual, for id 1.
+        let p = PacketV2::reset_turn_count_packet(1);
+        assert_eq!(
+            p.to_bytes(),
+            [
+                0xFF, 0xFF, 0xFD, 0x00, 0x01, 0x08, 0x00, 0x10, 0x01, 0x44, 0x58, 0x4C, 0x22, 0xB1,
+                0xDC
+            ]
         );
     }
 

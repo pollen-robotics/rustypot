@@ -170,8 +170,9 @@ macro_rules! generate_servo {
                     INFO.supports_broadcast_ping
                 }
 
-                /// Whether the servo answers Feetech's RESET instruction (0x0A), which
-                /// zeroes the turn count it keeps past its encoder's zero.
+                /// Whether the servo is known to answer the instruction that zeroes the
+                /// turn count it keeps past its encoder's zero (Feetech's RESET, 0x0A, or
+                /// Dynamixel's Clear, 0x10).
                 #[staticmethod]
                 pub fn supports_turn_count_reset() -> bool {
                     INFO.supports_turn_count_reset
@@ -428,10 +429,15 @@ macro_rules! generate_special_instructions {
                     dph.factory_reset(serial_port, id, conserve_id_only, conserve_id_and_baudrate)
                 }
 
-                /// Feetech's RESET instruction (0x0A): zero the turn count of motor `id`
-                /// with its torque off, and return the status packet's error field. See
-                /// `DynamixelProtocolHandler::reset_turn_count`; protocol v1 only.
+                /// Zero the turn count of motor `id` with its torque off (Feetech's RESET,
+                /// 0x0A, or Dynamixel's Clear, 0x10), and return the status packet's error
+                /// field. See `DynamixelProtocolHandler::reset_turn_count`. On a servo not
+                /// known to answer it (`INFO.supports_turn_count_reset`) this fails with
+                /// `RegisterError::TurnCountReset` before anything reaches the bus.
                 pub fn reset_turn_count(&mut self, id: u8) -> $crate::Result<$crate::StatusError> {
+                    if !INFO.supports_turn_count_reset {
+                        return Err($crate::servo::RegisterError::TurnCountReset(DEFINITION.name).into());
+                    }
                     let dph = self.dph.as_ref().unwrap();
                     let serial_port = self.serial_port.as_mut().unwrap().as_mut();
                     dph.reset_turn_count(serial_port, id)
@@ -741,9 +747,10 @@ macro_rules! generate_addr_read_write {
                         .map_err(pyo3::exceptions::PyRuntimeError::new_err)
                 }
 
-                /// Feetech's RESET instruction (0x0A): zero the turn count of motor `id`
-                /// with its torque off, and return the status packet's error byte.
-                /// Protocol v1 only: a v2 servo raises `RuntimeError`.
+                /// Zero the turn count of motor `id` with its torque off (Feetech's RESET,
+                /// 0x0A, or Dynamixel's Clear, 0x10), and return the status packet's error
+                /// byte. A servo not known to answer it (`supports_turn_count_reset()`)
+                /// raises `RuntimeError` before anything reaches the bus.
                 pub fn reset_turn_count(&self, py: Python, id: u8) -> PyResult<u8> {
                     py
                         .detach(|| {

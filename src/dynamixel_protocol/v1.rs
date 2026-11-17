@@ -35,12 +35,12 @@ impl Packet for PacketV1 {
         })
     }
 
-    fn reset_turn_count_packet(id: u8) -> Option<Box<dyn InstructionPacket<Self>>> {
-        Some(Box::new(InstructionPacketV1 {
+    fn reset_turn_count_packet(id: u8) -> Box<dyn InstructionPacket<Self>> {
+        Box::new(InstructionPacketV1 {
             id,
             instruction: InstructionKindV1::ResetTurnCount,
             params: vec![],
-        }))
+        })
     }
 
     fn factory_reset_packet(
@@ -265,7 +265,8 @@ pub(crate) enum InstructionKindV1 {
     Write,
     FactoryReset,
     Reboot,
-    /// Feetech RESET: zero the turn count the servo keeps past its encoder's zero.
+    /// Feetech RESET: zero the turn count the servo keeps past its encoder's zero. A
+    /// Feetech extension of protocol v1; Dynamixel v1 servos (AX, MX) have no 0x0A.
     ResetTurnCount,
     SyncWrite,
     SyncRead,
@@ -320,9 +321,9 @@ mod tests {
     fn create_reset_turn_count_packet() {
         // The frame the Feetech protocol manual gives for id 1, and the one an STS3215
         // answered on the wire for id 2.
-        let p = PacketV1::reset_turn_count_packet(1).unwrap();
+        let p = PacketV1::reset_turn_count_packet(1);
         assert_eq!(p.to_bytes(), [0xFF, 0xFF, 0x01, 0x02, 0x0A, 0xF2]);
-        let p = PacketV1::reset_turn_count_packet(2).unwrap();
+        let p = PacketV1::reset_turn_count_packet(2);
         assert_eq!(p.to_bytes(), [0xFF, 0xFF, 0x02, 0x02, 0x0A, 0xF1]);
     }
 

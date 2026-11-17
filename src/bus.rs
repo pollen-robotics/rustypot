@@ -254,9 +254,9 @@ impl Bus {
         failed
     }
 
-    /// Zero the turn count of `ids` with Feetech's RESET instruction (0x0A), every motor
-    /// tried even after one fails, and return {id: error} for those that failed (empty
-    /// when all went through): a servo without the instruction
+    /// Zero the turn count of `ids` (Feetech's RESET, 0x0A, or Dynamixel's Clear, 0x10),
+    /// every motor tried even after one fails, and return {id: error} for those that
+    /// failed (empty when all went through): a servo not known to answer it
     /// (`supports_turn_count_reset`), a motor refusing it, or one not answering. A bus
     /// failure is tried again up to `retries` more times per motor. See
     /// [`ServoDefinition::reset_turn_count`]; send it with the torque off.
@@ -567,9 +567,9 @@ mod python {
             })
         }
 
-        /// Zero the turn count of `ids` with Feetech's RESET instruction (0x0A), every
-        /// motor tried even after one fails, and return {id: error} for those that failed
-        /// (empty when all went through): a servo without the instruction
+        /// Zero the turn count of `ids` (Feetech's RESET, 0x0A, or Dynamixel's Clear,
+        /// 0x10), every motor tried even after one fails, and return {id: error} for those
+        /// that failed (empty when all went through): a servo not known to answer it
         /// (`ServoDefinition.supports_turn_count_reset`), a motor refusing it, or one not
         /// answering. A bus failure is tried again up to `retries` more times per motor.
         /// An STS servo keeps counting turns past its encoder's zero, torque on or off, so
@@ -802,8 +802,8 @@ mod tests {
 
     #[test]
     fn a_turn_count_reset_reaches_the_feetech_motors_only() {
-        // STS3215 1 answers its reset; STS3215 2 does not answer; the XL330 3 has no
-        // such instruction, so nothing is sent to it; 9 is not on the bus.
+        // STS3215 1 answers its reset; STS3215 2 does not answer; the XL430 3 is not
+        // known to answer Clear, so nothing is sent to it; 9 is not on the bus.
         let sts = vec![0xFF, 0xFF, 0x01, 0x02, 0x00, 0xFC];
         let port = FakePort::new(vec![sts, vec![]]);
         let written = port.written();
@@ -812,7 +812,7 @@ mod tests {
             BTreeMap::from([
                 (1, sts3215::DEFINITION),
                 (2, sts3215::DEFINITION),
-                (3, xl330::DEFINITION),
+                (3, xl430::DEFINITION),
             ]),
         );
 
@@ -821,7 +821,7 @@ mod tests {
         assert_eq!(failed.keys().copied().collect::<Vec<_>>(), [2, 3, 9]);
         assert!(matches!(
             failed[&3].downcast_ref::<RegisterError>(),
-            Some(RegisterError::TurnCountReset("XL330"))
+            Some(RegisterError::TurnCountReset("XL430"))
         ));
         // The RESET instruction (0x0A, no parameter) went to motors 1 and 2 only.
         let written = written.lock().unwrap();

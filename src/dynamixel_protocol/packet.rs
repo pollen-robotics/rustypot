@@ -15,9 +15,10 @@ pub trait Packet {
 
     fn ping_packet(id: u8) -> Box<dyn InstructionPacket<Self>>;
     fn reboot_packet(id: u8) -> Box<dyn InstructionPacket<Self>>;
-    /// Feetech's RESET instruction (0x0A), which zeroes the turn count the servo keeps
-    /// past its encoder's zero; `None` on a protocol that has no such instruction.
-    fn reset_turn_count_packet(id: u8) -> Option<Box<dyn InstructionPacket<Self>>>;
+    /// The instruction that zeroes the turn count a servo keeps past its encoder's zero:
+    /// Feetech's RESET (0x0A) on protocol v1, Dynamixel's Clear (0x10, Clear Multi-Turn)
+    /// on protocol v2.
+    fn reset_turn_count_packet(id: u8) -> Box<dyn InstructionPacket<Self>>;
     fn factory_reset_packet(
         id: u8,
         conserve_id_only: bool,

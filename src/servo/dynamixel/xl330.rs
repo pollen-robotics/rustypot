@@ -21,6 +21,9 @@ generate_servo!(
         (current, 0), (velocity, 1), (position, 3), (extended_position, 4),
         (current_based_position, 5), (pwm, 16),
     ],
+    // Answers Clear (0x10, Clear Multi-Turn): checked on an XL330-M077 with firmware 53,
+    // torque off, one turn in extended position mode cleared in under a millisecond.
+    supports_turn_count_reset: true,
     // The PWM registers are signed on the wire; the signed integer types cover the rest.
     encoding: [(goal_pwm, twos_complement), (present_pwm, twos_complement)],
     reg: (model_number, r, 0, u16, None),

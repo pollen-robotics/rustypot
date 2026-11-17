@@ -280,10 +280,10 @@ impl ServoDefinition {
         self.write_checked(dph, port, id, "baud_rate", value.into())
     }
 
-    /// Feetech's RESET instruction (0x0A): zero the turn count of motor `id`, see
-    /// [`DynamixelProtocolHandler::reset_turn_count`]. Fails with
-    /// [`RegisterError::TurnCountReset`] before anything reaches the bus on a servo that
-    /// does not answer it (`supports_turn_count_reset`), and with a [`StatusPacketError`]
+    /// Zero the turn count of motor `id` (Feetech's RESET, 0x0A, or Dynamixel's Clear,
+    /// 0x10), see [`DynamixelProtocolHandler::reset_turn_count`]. Fails with
+    /// [`RegisterError::TurnCountReset`] before anything reaches the bus on a servo not
+    /// known to answer it (`supports_turn_count_reset`), and with a [`StatusPacketError`]
     /// when the motor refuses it. Send it with the torque off.
     pub fn reset_turn_count(
         &self,
@@ -628,8 +628,9 @@ impl ServoDefinition {
         self.info.status_alarms_only
     }
 
-    /// Whether the servo answers Feetech's RESET instruction (0x0A), which zeroes the
-    /// turn count it keeps past its encoder's zero; `Bus.reset_turn_count` relies on it.
+    /// Whether the servo is known to answer the instruction that zeroes the turn count
+    /// it keeps past its encoder's zero (Feetech's RESET, 0x0A, or Dynamixel's Clear,
+    /// 0x10); `Bus.reset_turn_count` relies on it.
     #[getter]
     fn supports_turn_count_reset(&self) -> bool {
         self.info.supports_turn_count_reset

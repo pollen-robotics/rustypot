@@ -250,7 +250,8 @@ impl DynamixelProtocolHandler {
         }
     }
 
-    /// Feetech's RESET instruction (0x0A): zero the turn count of motor `id`.
+    /// Zero the turn count of motor `id`: Feetech's RESET instruction (0x0A) on protocol
+    /// v1, Dynamixel's Clear instruction (0x10, Clear Multi-Turn) on protocol v2.
     ///
     /// A Feetech STS servo keeps counting turns past its encoder's zero, with the torque
     /// on or off, so a joint moved by hand through that boundary reports its position
@@ -259,9 +260,16 @@ impl DynamixelProtocolHandler {
     /// position limits, the homing offset and the other registers are kept. The count
     /// lives in RAM, so a power cycle clears it as well. Send it with the torque off.
     ///
-    /// Protocol v1 only: protocol v2 has no such instruction and fails with
-    /// [`CommunicationErrorKind::Unsupported`] before anything reaches the bus. Returns
-    /// the status packet's error field, as [`write_with_error`](Self::write_with_error).
+    /// Nothing here checks that the servo has the instruction: that is the caller's
+    /// job, through [`ServoInfo::supports_turn_count_reset`](crate::servo::ServoInfo)
+    /// or [`ServoDefinition::reset_turn_count`](crate::servo::ServoDefinition::reset_turn_count).
+    /// 0x0A is a Feetech extension of protocol v1 that Dynamixel v1 servos (AX, MX) do
+    /// not have, and Clear needs an X-series firmware of v42 or later, or a Y-series.
+    /// Returns the status packet's error field, as
+    /// [`write_with_error`](Self::write_with_error); a Dynamixel in motion answers Clear
+    /// with Result Fail. On protocol v2 the status packet is waited for up to
+    /// [`CLEAR_TIMEOUT`], as the clear can take a while; the port's timeout is put back
+    /// afterwards.
     pub fn reset_turn_count(
         &self,
         serial_port: &mut dyn serialport::SerialPort,
@@ -269,7 +277,15 @@ impl DynamixelProtocolHandler {
     ) -> Result<StatusError> {
         let res = match &self.protocol {
             ProtocolKind::V1(p) => p.reset_turn_count(serial_port, id),
-            ProtocolKind::V2(p, _) => p.reset_turn_count(serial_port, id),
+            ProtocolKind::V2(p, _) => {
+                let timeout = serial_port.timeout();
+                let res = serial_port
+                    .set_timeout(timeout.max(CLEAR_TIMEOUT))
+                    .map_err(Into::into)
+                    .and_then(|()| p.reset_turn_count(serial_port, id));
+                serial_port.set_timeout(timeout)?;
+                res
+            }
         }
         .map(StatusError::new);
         self.sleep_post_delay();
@@ -691,8 +707,7 @@ trait Protocol<P: Packet> {
     }
 
     fn reset_turn_count(&self, port: &mut dyn SerialPort, id: u8) -> Result<u8> {
-        let packet = P::reset_turn_count_packet(id).ok_or(CommunicationErrorKind::Unsupported)?;
-        self.send_instruction_packet(port, packet.as_ref())?;
+        self.send_instruction_packet(port, P::reset_turn_count_packet(id).as_ref())?;
         self.read_status_packet(port, id).map(|sp| sp.error_byte())
     }
 
@@ -884,6 +899,10 @@ use std::{
     fmt, io,
     time::{Duration, Instant},
 };
+
+/// How long a protocol v2 servo is given to answer Clear (0x10), as the DynamixelSDK
+/// gives it: the clear can take a while, unlike a register access.
+pub const CLEAR_TIMEOUT: Duration = Duration::from_secs(10);
 
 /// The error field of a status packet.
 ///
@@ -1134,6 +1153,52 @@ mod tests {
             elapsed >= POST_DELAY,
             "sync_read returned after {elapsed:?}, before the {POST_DELAY:?} post delay"
         );
+    }
+
+    #[test]
+    fn a_turn_count_reset_on_v2_sends_clear_and_waits_longer_for_the_answer() {
+        // The Clear Multi-Turn exchange of the protocol 2.0 manual, for id 1.
+        let status = vec![
+            0xFF, 0xFF, 0xFD, 0x00, 0x01, 0x04, 0x00, 0x55, 0x00, 0xA1, 0x0C,
+        ];
+        let mut port = FakePort::new(vec![status]);
+        let written = port.written();
+        let settings = port.settings();
+
+        let error = DynamixelProtocolHandler::v2()
+            .reset_turn_count(&mut port, 1)
+            .unwrap();
+
+        assert!(error.is_ok());
+        assert_eq!(
+            *written.lock().unwrap(),
+            [vec![
+                0xFF, 0xFF, 0xFD, 0x00, 0x01, 0x08, 0x00, 0x10, 0x01, 0x44, 0x58, 0x4C, 0x22, 0xB1,
+                0xDC
+            ]]
+        );
+        // The answer was waited for with the long timeout, and the port's own is back.
+        let timeouts = &settings.lock().unwrap().timeouts;
+        assert!(timeouts.contains(&CLEAR_TIMEOUT), "{timeouts:?}");
+        assert_eq!(timeouts.last(), timeouts.first());
+    }
+
+    #[test]
+    fn a_turn_count_reset_on_v1_sends_feetech_reset_with_the_port_timeout() {
+        let mut port = FakePort::new(vec![vec![0xFF, 0xFF, 0x02, 0x02, 0x00, 0xFB]]);
+        let written = port.written();
+        let settings = port.settings();
+
+        let error = DynamixelProtocolHandler::v1()
+            .reset_turn_count(&mut port, 2)
+            .unwrap();
+
+        assert!(error.is_ok());
+        assert_eq!(
+            *written.lock().unwrap(),
+            [vec![0xFF, 0xFF, 0x02, 0x02, 0x0A, 0xF1]]
+        );
+        assert_eq!(settings.lock().unwrap().timeouts.len(), 1);
     }
 
     #[test]
