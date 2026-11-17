@@ -1,5 +1,9 @@
 ## Unreleased
 
+- `Bus::sync_read_raw_with_error` (also on the Python `Bus`) reads `length` raw bytes at
+  `addr` from several motors, with each one's status error field, in the order asked: one
+  Sync Read per protocol, one read per id for a group with a motor that has no Sync Read.
+  The bytes are not decoded: the range must mean the same thing on every motor.
 - Register the Feetech STS3235 (model number 2057) under the STS3215 definition: it
   reads and moves through the STS3215 control table.
 
