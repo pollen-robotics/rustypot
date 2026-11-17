@@ -154,6 +154,83 @@ impl Bus {
         Ok(values)
     }
 
+    /// Read contiguous named registers from each motor, in the order asked.
+    pub fn sync_read_registers(&mut self, ids: &[u8], names: &[&str]) -> Result<Vec<Vec<i64>>> {
+        Ok(self
+            .sync_read_registers_with_error(ids, names)?
+            .into_iter()
+            .map(|(values, _)| values)
+            .collect())
+    }
+
+    /// Read contiguous named registers and each motor's status, in the order asked.
+    /// Registers must be listed in address order and contiguous for each motor.
+    /// Motors with different protocols or ranges are read in separate transactions.
+    pub fn sync_read_registers_with_error(
+        &mut self,
+        ids: &[u8],
+        names: &[&str],
+    ) -> Result<Vec<(Vec<i64>, StatusError)>> {
+        if ids.is_empty() {
+            return Ok(Vec::new());
+        }
+        if names.is_empty() {
+            return Err(std::io::Error::new(
+                std::io::ErrorKind::InvalidInput,
+                "at least one register is required",
+            )
+            .into());
+        }
+        let mut layouts = Vec::new();
+        for &id in ids {
+            let definition = self.definition(id)?;
+            let registers: Vec<_> = names
+                .iter()
+                .map(|name| {
+                    definition
+                        .register(name)
+                        .ok_or_else(|| RegisterError::Unknown((*name).to_string()))
+                })
+                .collect::<std::result::Result<_, _>>()?;
+            let start = registers[0].addr;
+            let mut end = u16::from(start);
+            for register in &registers {
+                if u16::from(register.addr) != end || register.size == 0 || register.size > 8 {
+                    return Err(RegisterError::Layout(register.name.to_string()).into());
+                }
+                end += u16::from(register.size);
+            }
+            let length = u8::try_from(end - u16::from(start))
+                .map_err(|_| RegisterError::Layout(names[0].to_string()))?;
+            layouts.push((definition, registers, start, length));
+        }
+        let mut groups: Vec<((u8, u8, u8), Vec<usize>)> = Vec::new();
+        for (index, (definition, _, start, length)) in layouts.iter().enumerate() {
+            let key = (definition.protocol, *start, *length);
+            match groups.iter_mut().find(|(existing, _)| *existing == key) {
+                Some((_, indices)) => indices.push(index),
+                None => groups.push((key, vec![index])),
+            }
+        }
+        let mut values = vec![(Vec::new(), StatusError::default()); ids.len()];
+        for ((_, start, length), indices) in groups {
+            let group_ids: Vec<_> = indices.iter().map(|&index| ids[index]).collect();
+            let replies = self.sync_read_raw_with_error(&group_ids, start, length)?;
+            for (index, (bytes, status)) in indices.into_iter().zip(replies) {
+                let (definition, registers, _, _) = &layouts[index];
+                let mut offset = 0;
+                let mut decoded = Vec::with_capacity(registers.len());
+                for register in registers {
+                    let end = offset + usize::from(register.size);
+                    decoded.push(register.decode(definition.info.word_order, &bytes[offset..end])?);
+                    offset = end;
+                }
+                values[index] = (decoded, status);
+            }
+        }
+        Ok(values)
+    }
+
     /// Read `length` raw bytes starting at `addr` from each motor in `ids`, returning
     /// the bytes and status packet's error field in the order asked.
     ///
@@ -580,6 +657,44 @@ mod python {
             .map(|values| values.into_iter().map(|(v, e)| (v, e.byte())).collect())
         }
 
+        /// Read contiguous named registers from each motor, in the order asked.
+        #[pyo3(signature = (ids, names, retries = 0))]
+        pub fn sync_read_registers(
+            &self,
+            py: Python,
+            ids: Vec<u8>,
+            names: Vec<String>,
+            retries: u32,
+        ) -> PyResult<Vec<Vec<i64>>> {
+            let names: Vec<&str> = names.iter().map(String::as_str).collect();
+            self.run(py, |bus| {
+                bus.with_retries(retries, |bus| bus.sync_read_registers(&ids, &names))
+            })
+        }
+
+        /// Read contiguous named registers and each motor's status error byte.
+        #[pyo3(signature = (ids, names, retries = 0))]
+        pub fn sync_read_registers_with_error(
+            &self,
+            py: Python,
+            ids: Vec<u8>,
+            names: Vec<String>,
+            retries: u32,
+        ) -> PyResult<Vec<(Vec<i64>, u8)>> {
+            let names: Vec<&str> = names.iter().map(String::as_str).collect();
+            self.run(py, |bus| {
+                bus.with_retries(retries, |bus| {
+                    bus.sync_read_registers_with_error(&ids, &names)
+                })
+            })
+            .map(|replies| {
+                replies
+                    .into_iter()
+                    .map(|(values, status)| (values, status.byte()))
+                    .collect()
+            })
+        }
+
         /// Read `length` raw bytes at `addr` and each motor's status error byte, in
         /// the order of `ids`. One Sync Read per protocol; groups containing a motor
         /// without Sync Read support use individual reads.
@@ -778,6 +893,23 @@ mod tests {
             Some(RegisterError::UnknownMotor(9))
         ));
         assert_eq!(written.lock().unwrap().len(), 4);
+    }
+
+    #[test]
+    fn named_block_reads_decode_values_and_preserve_status() {
+        let reply = vec![0xFF, 0xFF, 1, 6, 0x20, 0x00, 0x08, 0x64, 0x80, 0xEC];
+        let port = FakePort::new(vec![reply]);
+        let written = port.written();
+        let mut bus = Bus::new(Box::new(port), BTreeMap::from([(1, sts3215::DEFINITION)]));
+        let replies = bus
+            .sync_read_registers_with_error(&[1], &["present_position", "present_speed"])
+            .unwrap();
+        assert_eq!(replies[0].0, vec![2048, -100]);
+        assert_eq!(replies[0].1.byte(), 0x20);
+        assert!(bus
+            .sync_read_registers_with_error(&[1], &["present_position", "present_load"])
+            .is_err());
+        assert_eq!(written.lock().unwrap().len(), 1);
     }
 
     #[test]
