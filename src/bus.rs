@@ -330,6 +330,30 @@ impl Bus {
         failed
     }
 
+    /// Send Feetech's parameter restore (0x06) to one STS3215 (model 777).
+    /// The servo ID is preserved; stored parameters, including calibration and
+    /// potentially baud rate, are restored. Back them up first. Torque must be
+    /// off and EEPROM unlocked. This does not retry an unacknowledged restore.
+    pub fn restore_feetech_parameters(&mut self, id: u8) -> Result<()> {
+        if id >= 0xFE {
+            return Err("Parameter restore requires a single motor ID".into());
+        }
+        let definition = self.definition(id)?;
+        if definition != crate::servo::feetech::sts3215::DEFINITION
+            || self.read_register(id, "model_number")? != 777
+        {
+            return Err("Parameter restore requires an STS3215 (model 777)".into());
+        }
+        if self.read_register(id, "torque_enable")? != 0 || self.read_register(id, "lock")? != 0 {
+            return Err("Turn torque off and unlock EEPROM before parameter restore".into());
+        }
+        let status = self.handlers[0].restore_feetech_parameters(self.serial_port.as_mut(), id)?;
+        if !status.is_ok() {
+            return Err(Box::new(crate::StatusPacketError { id, status }));
+        }
+        Ok(())
+    }
+
     /// Give motor `id` the id `new_id`, through `definition`. See
     /// [`ServoDefinition::change_id`]. Like [`scan`](Self::scan), it reaches motors the
     /// bus does not have: a new motor answers at its factory id.
@@ -673,6 +697,13 @@ mod python {
             })
         }
 
+        /// Restore stored parameters on one STS3215 (model 777), preserving its ID.
+        /// Back up calibration and other settings first. Torque must be off and EEPROM
+        /// unlocked. A missing acknowledgment is reported without retrying.
+        pub fn restore_feetech_parameters(&self, py: Python, id: u8) -> PyResult<()> {
+            self.run(py, |bus| bus.restore_feetech_parameters(id))
+        }
+
         /// Give motor `id` the id `new_id`, through `definition`: torque off and, on a
         /// Feetech motor, lock open first. The motor need not be one of the bus's. A motor
         /// that refuses a write raises `RuntimeError`; an alarm in its answer does not.
@@ -961,6 +992,35 @@ mod tests {
         let written = written.lock().unwrap();
         assert_eq!([written[0][5], written[0][6]], [40, 1]);
         assert_eq!([written[1][5], written[1][6]], [55, 1]);
+    }
+
+    #[test]
+    fn parameter_restore_is_addressed_and_checks_the_acknowledgment() {
+        for status in [0, 0x40] {
+            let reply = |error, data: &[u8]| {
+                let mut packet = vec![0xff, 0xff, 4, (data.len() + 2) as u8, error];
+                packet.extend(data);
+                packet.push(
+                    !packet[2..]
+                        .iter()
+                        .fold(0u8, |sum, byte| sum.wrapping_add(*byte)),
+                );
+                packet
+            };
+            let port = FakePort::new(vec![
+                reply(0, &777u16.to_le_bytes()),
+                reply(0, &[0]),
+                reply(0, &[0]),
+                reply(status, &[]),
+            ]);
+            let written = port.written();
+            let mut bus = Bus::new(Box::new(port), BTreeMap::from([(4, sts3215::DEFINITION)]));
+            assert!(bus.restore_feetech_parameters(0xfe).is_err());
+            assert_eq!(bus.restore_feetech_parameters(4).is_ok(), status == 0);
+            let written = written.lock().unwrap();
+            assert_eq!(written.len(), 4);
+            assert_eq!(written[3], [0xff, 0xff, 4, 2, 0x06, 0xf3]);
+        }
     }
 
     #[test]
