@@ -243,11 +243,27 @@ impl DynamixelProtocolHandler {
                     return Err(Box::new(CommunicationErrorKind::Unsupported));
                 }
                 p.factory_reset(serial_port, id, conserve_id_only, conserve_id_and_baudrate)
+                    .map(|_| ())
             }
-            ProtocolKind::V2(p, _) => {
-                p.factory_reset(serial_port, id, conserve_id_only, conserve_id_and_baudrate)
-            }
+            ProtocolKind::V2(p, _) => p
+                .factory_reset(serial_port, id, conserve_id_only, conserve_id_and_baudrate)
+                .map(|_| ()),
         }
+    }
+
+    pub(crate) fn restore_feetech_parameters(
+        &self,
+        port: &mut dyn serialport::SerialPort,
+        id: u8,
+    ) -> Result<StatusError> {
+        let ProtocolKind::V1(protocol) = &self.protocol else {
+            return Err(Box::new(CommunicationErrorKind::Unsupported));
+        };
+        let result = protocol
+            .factory_reset(port, id, false, false)
+            .map(StatusError::new);
+        self.sleep_post_delay();
+        result
     }
 
     /// Zero the turn count of motor `id`: Feetech's RESET instruction (0x0A) on protocol
@@ -698,12 +714,13 @@ trait Protocol<P: Packet> {
         id: u8,
         conserve_id_only: bool,
         conserve_id_and_baudrate: bool,
-    ) -> Result<()> {
+    ) -> Result<u8> {
         self.send_instruction_packet(
             port,
             P::factory_reset_packet(id, conserve_id_only, conserve_id_and_baudrate).as_ref(),
         )?;
-        self.read_status_packet(port, id).map(|_| ())
+        self.read_status_packet(port, id)
+            .map(|packet| packet.error_byte())
     }
 
     fn reset_turn_count(&self, port: &mut dyn SerialPort, id: u8) -> Result<u8> {
