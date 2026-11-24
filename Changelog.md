@@ -1,3 +1,9 @@
+## Unreleased
+
+- `Bus::sync_read_block` and `sync_read_block_with_error` (also on Python) read contiguous
+  named registers in address order, grouping motors by protocol and range and returning
+  them in the order asked.
+
 ## Version 1.14.0
 
 - Resetting the turn count a servo keeps past its encoder's zero, torque on or off: a
