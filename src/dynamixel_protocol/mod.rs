@@ -237,31 +237,38 @@ impl DynamixelProtocolHandler {
         conserve_id_only: bool,
         conserve_id_and_baudrate: bool,
     ) -> Result<()> {
-        match &self.protocol {
-            ProtocolKind::V1(p) => {
-                if conserve_id_only || conserve_id_and_baudrate {
-                    return Err(Box::new(CommunicationErrorKind::Unsupported));
-                }
-                p.factory_reset(serial_port, id, conserve_id_only, conserve_id_and_baudrate)
-                    .map(|_| ())
-            }
-            ProtocolKind::V2(p, _) => p
-                .factory_reset(serial_port, id, conserve_id_only, conserve_id_and_baudrate)
-                .map(|_| ()),
-        }
+        self.factory_reset_with_error(serial_port, id, conserve_id_only, conserve_id_and_baudrate)
+            .map(|_| ())
     }
 
-    pub(crate) fn restore_feetech_parameters(
+    fn factory_reset_with_error(
         &self,
-        port: &mut dyn serialport::SerialPort,
+        port: &mut dyn SerialPort,
+        id: u8,
+        conserve_id_only: bool,
+        conserve_id_and_baudrate: bool,
+    ) -> Result<StatusError> {
+        match &self.protocol {
+            ProtocolKind::V1(_) if conserve_id_only || conserve_id_and_baudrate => {
+                return Err(Box::new(CommunicationErrorKind::Unsupported));
+            }
+            ProtocolKind::V1(protocol) => protocol.factory_reset(port, id, false, false),
+            ProtocolKind::V2(protocol, _) => {
+                protocol.factory_reset(port, id, conserve_id_only, conserve_id_and_baudrate)
+            }
+        }
+        .map(StatusError::new)
+    }
+
+    pub(crate) fn reset_feetech_parameters(
+        &self,
+        port: &mut dyn SerialPort,
         id: u8,
     ) -> Result<StatusError> {
-        let ProtocolKind::V1(protocol) = &self.protocol else {
+        if self.protocol_version() != 1 {
             return Err(Box::new(CommunicationErrorKind::Unsupported));
-        };
-        let result = protocol
-            .factory_reset(port, id, false, false)
-            .map(StatusError::new);
+        }
+        let result = self.factory_reset_with_error(port, id, false, false);
         self.sleep_post_delay();
         result
     }

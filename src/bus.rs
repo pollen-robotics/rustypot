@@ -330,28 +330,14 @@ impl Bus {
         failed
     }
 
-    /// Send Feetech's parameter restore (0x06) to one STS3215 (model 777).
-    /// The servo ID is preserved; stored parameters, including calibration and
-    /// potentially baud rate, are restored. Back them up first. Torque must be
-    /// off and EEPROM unlocked. This does not retry an unacknowledged restore.
-    pub fn restore_feetech_parameters(&mut self, id: u8) -> Result<()> {
-        if id >= 0xFE {
-            return Err("Parameter restore requires a single motor ID".into());
-        }
+    /// Reset the motor's parameters to factory defaults, keeping its ID.
+    /// Back up calibration and other settings first. Torque must be off and EEPROM
+    /// unlocked (`set_torque(&[id], false, retries)` does both on Feetech).
+    /// See [`ServoDefinition::reset_parameters_keep_id`].
+    pub fn reset_parameters_keep_id(&mut self, id: u8) -> Result<()> {
         let definition = self.definition(id)?;
-        if definition != crate::servo::feetech::sts3215::DEFINITION
-            || self.read_register(id, "model_number")? != 777
-        {
-            return Err("Parameter restore requires an STS3215 (model 777)".into());
-        }
-        if self.read_register(id, "torque_enable")? != 0 || self.read_register(id, "lock")? != 0 {
-            return Err("Turn torque off and unlock EEPROM before parameter restore".into());
-        }
-        let status = self.handlers[0].restore_feetech_parameters(self.serial_port.as_mut(), id)?;
-        if !status.is_ok() {
-            return Err(Box::new(crate::StatusPacketError { id, status }));
-        }
-        Ok(())
+        let handler = &self.handlers[definition.protocol as usize - 1];
+        definition.reset_parameters_keep_id(handler, self.serial_port.as_mut(), id)
     }
 
     /// Give motor `id` the id `new_id`, through `definition`. See
@@ -697,11 +683,11 @@ mod python {
             })
         }
 
-        /// Restore stored parameters on one STS3215 (model 777), preserving its ID.
-        /// Back up calibration and other settings first. Torque must be off and EEPROM
-        /// unlocked. A missing acknowledgment is reported without retrying.
-        pub fn restore_feetech_parameters(&self, py: Python, id: u8) -> PyResult<()> {
-            self.run(py, |bus| bus.restore_feetech_parameters(id))
+        /// Reset parameters to factory defaults on one supported servo, keeping its ID.
+        /// Back up calibration and other settings first. On Feetech,
+        /// `set_torque([id], False)` turns torque off and unlocks EEPROM.
+        pub fn reset_parameters_keep_id(&self, py: Python, id: u8) -> PyResult<()> {
+            self.run(py, |bus| bus.reset_parameters_keep_id(id))
         }
 
         /// Give motor `id` the id `new_id`, through `definition`: torque off and, on a
@@ -995,31 +981,67 @@ mod tests {
     }
 
     #[test]
-    fn parameter_restore_is_addressed_and_checks_the_acknowledgment() {
-        for status in [0, 0x40] {
-            let reply = |error, data: &[u8]| {
-                let mut packet = vec![0xff, 0xff, 4, (data.len() + 2) as u8, error];
-                packet.extend(data);
-                packet.push(
-                    !packet[2..]
-                        .iter()
-                        .fold(0u8, |sum, byte| sum.wrapping_add(*byte)),
-                );
-                packet
-            };
-            let port = FakePort::new(vec![
-                reply(0, &777u16.to_le_bytes()),
-                reply(0, &[0]),
-                reply(0, &[0]),
-                reply(status, &[]),
-            ]);
+    fn parameter_reset_is_addressed_and_checks_the_acknowledgment() {
+        let model = vec![0xff, 0xff, 4, 4, 0, 0x09, 0x03, 0xeb];
+        let clear = vec![0xff, 0xff, 4, 3, 0, 0, 0xf8];
+        let alarm_ack = vec![0xff, 0xff, 4, 2, 0x20, 0xd9];
+        for acknowledged in [true, false] {
+            let mut replies = vec![model.clone(), clear.clone(), clear.clone()];
+            if acknowledged {
+                replies.push(alarm_ack.clone());
+            }
+            let port = FakePort::new(replies);
             let written = port.written();
             let mut bus = Bus::new(Box::new(port), BTreeMap::from([(4, sts3215::DEFINITION)]));
-            assert!(bus.restore_feetech_parameters(0xfe).is_err());
-            assert_eq!(bus.restore_feetech_parameters(4).is_ok(), status == 0);
+
+            // On Feetech the status byte reports alarms, so this still counts as an ack.
+            assert_eq!(bus.reset_parameters_keep_id(4).is_ok(), acknowledged);
             let written = written.lock().unwrap();
             assert_eq!(written.len(), 4);
             assert_eq!(written[3], [0xff, 0xff, 4, 2, 0x06, 0xf3]);
+        }
+    }
+
+    #[test]
+    fn parameter_reset_requires_a_verified_model_with_torque_off_and_eeprom_unlocked() {
+        let model = vec![0xff, 0xff, 4, 4, 0, 0x09, 0x03, 0xeb];
+        let other_model = vec![0xff, 0xff, 4, 4, 0, 0x09, 0x08, 0xe6];
+        let clear = vec![0xff, 0xff, 4, 3, 0, 0, 0xf8];
+        let set = vec![0xff, 0xff, 4, 3, 0, 1, 0xf7];
+        let short_reply = vec![0xff, 0xff, 4, 2, 0, 0xf9];
+        for (id, definition, replies, expected_error) in [
+            (0xfe, sts3215::DEFINITION, vec![], "single motor ID"),
+            (4, scs0009::DEFINITION, vec![], "is not supported"),
+            (4, sts3215::DEFINITION, vec![other_model], "model 2057"),
+            (
+                4,
+                sts3215::DEFINITION,
+                vec![model.clone(), set.clone()],
+                "set_torque",
+            ),
+            (
+                4,
+                sts3215::DEFINITION,
+                vec![model.clone(), clear.clone(), set],
+                "set_torque",
+            ),
+            (
+                4,
+                sts3215::DEFINITION,
+                vec![model, clear, short_reply],
+                "expected 1 bytes",
+            ),
+        ] {
+            let port = FakePort::new(replies);
+            let written = port.written();
+            let mut bus = Bus::new(Box::new(port), BTreeMap::from([(id, definition)]));
+            let error = bus.reset_parameters_keep_id(id).unwrap_err().to_string();
+            assert!(error.contains(expected_error), "{error}");
+            assert!(written
+                .lock()
+                .unwrap()
+                .iter()
+                .all(|packet| packet[4] == 0x02));
         }
     }
 

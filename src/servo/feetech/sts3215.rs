@@ -19,6 +19,8 @@ generate_servo!(
     status_alarms_only: true,
     // Answers RESET (0x0A), which zeroes the turn count: checked on an STS3215.
     supports_turn_count_reset: true,
+    // Parameter restore (0x06) was checked on model 777 with firmware 3.10.
+    parameter_restore_models: [777],
     // Positions, speeds and the offset are sign-magnitude; the limits are plain steps.
     encoding: [
         (min_angle_limit, unsigned), (min_position_limit, unsigned),

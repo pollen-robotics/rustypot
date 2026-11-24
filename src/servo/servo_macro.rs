@@ -12,6 +12,7 @@ macro_rules! generate_servo {
      $(eeprom_lock: $eeprom_lock:expr,)?
      $(status_alarms_only: $status_alarms_only:expr,)?
      $(supports_turn_count_reset: $supports_turn_count_reset:expr,)?
+     $(parameter_restore_models: [$($restore_model:expr),* $(,)?],)?
      $(encoding: [$(($enc_reg:ident, $enc_kind:ident $(($enc_arg:expr))?)),* $(,)?],)?
      $(reg: ($reg_name:ident, $reg_access:ident, $reg_addr:expr, $reg_type:ty, $conv:ident),)+
     ) => {
@@ -211,6 +212,7 @@ macro_rules! generate_servo {
             eeprom_lock: $crate::servo_eeprom_lock!($($eeprom_lock)?),
             status_alarms_only: $crate::servo_status_alarms_only!($($status_alarms_only)?),
             supports_turn_count_reset: $crate::servo_supports_turn_count_reset!($($supports_turn_count_reset)?),
+            parameter_restore_models: &[$($($restore_model),*)?],
         };
 
         const ENCODING_OVERRIDES: &[(&str, $crate::servo::Encoding)] = &[
@@ -427,6 +429,14 @@ macro_rules! generate_special_instructions {
                     let dph = self.dph.as_ref().unwrap();
                     let serial_port = self.serial_port.as_mut().unwrap().as_mut();
                     dph.factory_reset(serial_port, id, conserve_id_only, conserve_id_and_baudrate)
+                }
+
+                /// Reset parameters to factory defaults, keeping the motor's ID.
+                /// See `ServoDefinition::reset_parameters_keep_id`.
+                pub fn reset_parameters_keep_id(&mut self, id: u8) -> $crate::Result<()> {
+                    let dph = self.dph.as_ref().unwrap();
+                    let serial_port = self.serial_port.as_mut().unwrap().as_mut();
+                    DEFINITION.reset_parameters_keep_id(dph, serial_port, id)
                 }
 
                 /// Zero the turn count of motor `id` with its torque off (Feetech's RESET,
@@ -742,6 +752,19 @@ macro_rules! generate_addr_read_write {
                             let mut guard = self.0.lock().unwrap();
                             Self::borrow(&mut guard)?
                                 .factory_reset(id, conserve_id_only, conserve_id_and_baudrate)
+                                .map_err(|e| e.to_string())
+                        })
+                        .map_err(pyo3::exceptions::PyRuntimeError::new_err)
+                }
+
+                /// Reset parameters to factory defaults, keeping the motor's ID.
+                /// Back up calibration first. Turn torque off and unlock EEPROM before calling.
+                pub fn reset_parameters_keep_id(&self, py: Python, id: u8) -> PyResult<()> {
+                    py
+                        .detach(|| {
+                            let mut guard = self.0.lock().unwrap();
+                            Self::borrow(&mut guard)?
+                                .reset_parameters_keep_id(id)
                                 .map_err(|e| e.to_string())
                         })
                         .map_err(pyo3::exceptions::PyRuntimeError::new_err)

@@ -298,6 +298,51 @@ impl ServoDefinition {
         self.check_status(id, dph.reset_turn_count(port, id)?)
     }
 
+    /// Reset parameters to factory defaults while keeping the motor's ID (Feetech 0x06).
+    /// This clears calibration and can change the baud rate. Back up settings first.
+    /// Only the model numbers in `info.parameter_restore_models` are accepted. Torque
+    /// must be off and EEPROM unlocked. A missing acknowledgment is returned as an error
+    /// without retrying.
+    pub fn reset_parameters_keep_id(
+        &self,
+        dph: &DynamixelProtocolHandler,
+        port: &mut dyn SerialPort,
+        id: u8,
+    ) -> Result<()> {
+        self.check_protocol(dph)?;
+        if id > dph.max_id() {
+            return Err("Parameter reset requires a single motor ID".into());
+        }
+        if self.info.parameter_restore_models.is_empty() {
+            return Err(format!("Parameter reset is not supported on {}", self.name).into());
+        }
+        let mut read = |name| -> Result<i64> {
+            let register = self.named(name)?;
+            let (bytes, status) = dph.read_with_error(port, id, register.addr, register.size)?;
+            self.check_status(id, status)?;
+            if bytes.len() != usize::from(register.size) {
+                return Err(std::io::Error::new(
+                    std::io::ErrorKind::InvalidData,
+                    format!(
+                        "motor {id}: expected {} bytes for '{name}', got {}",
+                        register.size,
+                        bytes.len()
+                    ),
+                )
+                .into());
+            }
+            Ok(register.decode(self.info.word_order, &bytes)?)
+        };
+        let model = u16::try_from(read("model_number")?)?;
+        if !self.info.parameter_restore_models.contains(&model) {
+            return Err(format!("Parameter reset is not verified for model {model}").into());
+        }
+        if read("torque_enable")? != 0 || read("lock")? != 0 {
+            return Err("Turn torque off and unlock EEPROM before parameter reset. On Feetech use Bus::set_torque with enabled=false.".into());
+        }
+        self.check_status(id, dph.reset_feetech_parameters(port, id)?)
+    }
+
     /// Turn the torque off, and open the lock of a servo that has one. A Feetech lock
     /// opens with 0; the lock of an AX or MX only clears at power-up, and writing it 0
     /// changes nothing.
@@ -634,6 +679,12 @@ impl ServoDefinition {
     #[getter]
     fn supports_turn_count_reset(&self) -> bool {
         self.info.supports_turn_count_reset
+    }
+
+    /// Whether any model using this definition is verified for parameter reset.
+    #[getter]
+    fn supports_parameter_restore(&self) -> bool {
+        !self.info.parameter_restore_models.is_empty()
     }
 
     /// Whether `status`, the error field of an answer as the `*_with_error` reads and
