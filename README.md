@@ -229,6 +229,9 @@ found = bus.scan(Xl330PyController.definition())  # the v2 motors, as {id: model
 
 Each motor is read and written through its own definition and protocol. A sync read or write sends one instruction per group of motors sharing a protocol and the register's address and size, and hands the values back in the order asked: here, one Sync Read for motor 11 and one for motors 1 and 2. A group with a motor that has no Sync Read is read one id at a time.
 
+Use `bus.sync_read_block(ids, names)` to read adjacent registers by name in address order.
+`sync_read_block_with_error` also returns each motor's status byte.
+
 Beyond register access, they carry what a library driving several motor families needs:
 
 - `find_model("xl330-m288")` returns the model number and the definition, whose getters give the servo's facts (`resolution`, `baudrates`, `factory_baudrate`, `homing_offset_sign`, `operating_modes`, ...);

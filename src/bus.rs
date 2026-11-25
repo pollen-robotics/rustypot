@@ -19,7 +19,7 @@ use serialport::SerialPort;
 
 use crate::servo::definition::{self, retrying, ServoDefinition, SyncWrite};
 use crate::servo::RegisterError;
-use crate::{DynamixelProtocolHandler, Result, StatusError};
+use crate::{DynamixelProtocolHandler, Result, StatusError, SyncReadError};
 
 /// The motors of `ids` sharing a protocol and the address and size of one register, which
 /// is what one Sync Read or Sync Write can reach: each as its position in `ids`, its id
@@ -149,6 +149,88 @@ impl Bus {
             )?;
             for (&(position, _), value) in members.iter().zip(read) {
                 values[position] = value;
+            }
+        }
+        Ok(values)
+    }
+
+    /// Read contiguous named registers from each motor, in the order asked.
+    /// Registers must be listed in address order with no gaps.
+    pub fn sync_read_block(&mut self, ids: &[u8], names: &[&str]) -> Result<Vec<Vec<i64>>> {
+        Ok(self
+            .sync_read_block_with_error(ids, names)?
+            .into_iter()
+            .map(|(values, _)| values)
+            .collect())
+    }
+
+    /// Read contiguous named registers and each motor's status, in the order asked.
+    /// Registers must be listed in address order and contiguous for each motor.
+    /// Motors with different protocols or ranges are read in separate transactions.
+    pub fn sync_read_block_with_error(
+        &mut self,
+        ids: &[u8],
+        names: &[&str],
+    ) -> Result<Vec<(Vec<i64>, StatusError)>> {
+        if names.is_empty() {
+            return Err(RegisterError::EmptyRegisterBlock.into());
+        }
+        let mut layouts = Vec::new();
+        for &id in ids {
+            let definition = self.definition(id)?;
+            let registers: Vec<_> = names
+                .iter()
+                .map(|name| {
+                    definition
+                        .register(name)
+                        .ok_or_else(|| RegisterError::Unknown((*name).to_string()))
+                })
+                .collect::<std::result::Result<_, _>>()?;
+            let start = registers[0].addr;
+            let mut end = u16::from(start);
+            for register in &registers {
+                if u16::from(register.addr) != end || register.size == 0 {
+                    return Err(RegisterError::Layout(register.name.to_string()).into());
+                }
+                register.integer_width()?;
+                end += u16::from(register.size);
+            }
+            let length = u8::try_from(end - u16::from(start))
+                .map_err(|_| RegisterError::Layout(names[0].to_string()))?;
+            layouts.push((definition, registers, start, length));
+        }
+        let mut groups: Vec<((u8, u8, u8), Vec<usize>)> = Vec::new();
+        for (index, (definition, _, start, length)) in layouts.iter().enumerate() {
+            let key = (definition.protocol, *start, *length);
+            match groups.iter_mut().find(|(existing, _)| *existing == key) {
+                Some((_, indices)) => indices.push(index),
+                None => groups.push((key, vec![index])),
+            }
+        }
+        let mut values = vec![(Vec::new(), StatusError::default()); ids.len()];
+        for ((_, start, length), indices) in groups {
+            let group_ids: Vec<_> = indices.iter().map(|&index| ids[index]).collect();
+            let replies = self.sync_read_raw_with_error(&group_ids, start, length)?;
+            for (index, (bytes, status)) in indices.into_iter().zip(replies) {
+                if bytes.len() != usize::from(length) {
+                    return Err(SyncReadError::boxed(
+                        ids[index],
+                        std::io::Error::new(
+                            std::io::ErrorKind::InvalidData,
+                            format!("expected {length} register bytes, got {}", bytes.len()),
+                        )
+                        .into(),
+                    ));
+                }
+                let (definition, registers, _, _) = &layouts[index];
+                let mut offset = 0;
+                let mut decoded = Vec::with_capacity(registers.len());
+                for register in registers {
+                    let end = offset + usize::from(register.size);
+                    decoded.push(register.decode(definition.info.word_order, &bytes[offset..end])?);
+                    offset = end;
+                }
+                values[index] = (decoded, status);
             }
         }
         Ok(values)
@@ -580,6 +662,44 @@ mod python {
             .map(|values| values.into_iter().map(|(v, e)| (v, e.byte())).collect())
         }
 
+        /// Read contiguous named registers from each motor, in the order asked.
+        /// Registers must be listed in address order with no gaps.
+        #[pyo3(signature = (ids, names, retries = 0))]
+        pub fn sync_read_block(
+            &self,
+            py: Python,
+            ids: Vec<u8>,
+            names: Vec<String>,
+            retries: u32,
+        ) -> PyResult<Vec<Vec<i64>>> {
+            let names: Vec<&str> = names.iter().map(String::as_str).collect();
+            self.run(py, |bus| {
+                bus.with_retries(retries, |bus| bus.sync_read_block(&ids, &names))
+            })
+        }
+
+        /// Read contiguous named registers and each motor's status error byte.
+        /// Registers must be listed in address order with no gaps.
+        #[pyo3(signature = (ids, names, retries = 0))]
+        pub fn sync_read_block_with_error(
+            &self,
+            py: Python,
+            ids: Vec<u8>,
+            names: Vec<String>,
+            retries: u32,
+        ) -> PyResult<Vec<(Vec<i64>, u8)>> {
+            let names: Vec<&str> = names.iter().map(String::as_str).collect();
+            self.run(py, |bus| {
+                bus.with_retries(retries, |bus| bus.sync_read_block_with_error(&ids, &names))
+            })
+            .map(|replies| {
+                replies
+                    .into_iter()
+                    .map(|(values, status)| (values, status.byte()))
+                    .collect()
+            })
+        }
+
         /// Read `length` raw bytes at `addr` and each motor's status error byte, in
         /// the order of `ids`. One Sync Read per protocol; groups containing a motor
         /// without Sync Read support use individual reads.
@@ -778,6 +898,77 @@ mod tests {
             Some(RegisterError::UnknownMotor(9))
         ));
         assert_eq!(written.lock().unwrap().len(), 4);
+    }
+
+    #[test]
+    fn named_block_reads_decode_values_and_preserve_status() {
+        let reply = vec![0xFF, 0xFF, 1, 6, 0x20, 0x00, 0x08, 0x64, 0x80, 0xEC];
+        let port = FakePort::new(vec![reply]);
+        let written = port.written();
+        let mut bus = Bus::new(Box::new(port), BTreeMap::from([(1, sts3215::DEFINITION)]));
+        let replies = bus
+            .sync_read_block_with_error(&[1], &["present_position", "present_speed"])
+            .unwrap();
+        assert_eq!(replies[0].0, vec![2048, -100]);
+        assert_eq!(replies[0].1.byte(), 0x20);
+        assert!(bus
+            .sync_read_block_with_error(&[1], &["present_position", "present_load"])
+            .is_err());
+        for ids in [&[1][..], &[]] {
+            let error = bus.sync_read_block(ids, &[]).unwrap_err();
+            assert_eq!(
+                error.downcast_ref::<RegisterError>(),
+                Some(&RegisterError::EmptyRegisterBlock)
+            );
+        }
+        assert_eq!(written.lock().unwrap().len(), 1);
+    }
+
+    #[test]
+    fn named_block_reads_return_mixed_protocols_in_requested_order() {
+        let v1_replies = vec![
+            0xFF, 0xFF, 1, 4, 0x20, 0x00, 0x08, 0xD2, 0xFF, 0xFF, 3, 4, 0x00, 0x34, 0x12, 0xB2,
+        ];
+        let v2_reply = vec![
+            0xFF, 0xFF, 0xFD, 0x00, 0x02, 0x08, 0x00, 0x55, 0x80, 0xFE, 0xFF, 0xFF, 0xFF, 0x36,
+            0x1A,
+        ];
+        let port = FakePort::new(vec![v1_replies, v2_reply]);
+        let mut bus = Bus::new(
+            Box::new(port),
+            BTreeMap::from([
+                (1, sts3215::DEFINITION),
+                (2, xl330::DEFINITION),
+                (3, sts3215::DEFINITION),
+            ]),
+        );
+
+        let replies = bus
+            .sync_read_block_with_error(&[1, 2, 3], &["present_position"])
+            .unwrap();
+        let replies: Vec<_> = replies
+            .into_iter()
+            .map(|(values, status)| (values, status.byte()))
+            .collect();
+        assert_eq!(
+            replies,
+            [(vec![2048], 0x20), (vec![-2], 0x80), (vec![4660], 0)]
+        );
+    }
+
+    #[test]
+    fn named_block_reads_reject_a_short_reply() {
+        let port = FakePort::new(vec![vec![0xFF, 0xFF, 1, 2, 0x20, 0xDC]]);
+        let mut bus = Bus::new(Box::new(port), BTreeMap::from([(1, sts3215::DEFINITION)]));
+        let error = bus
+            .sync_read_block(&[1], &["present_position", "present_speed"])
+            .unwrap_err();
+        let error = error.downcast_ref::<crate::SyncReadError>().unwrap();
+        assert_eq!(error.id, 1);
+        assert_eq!(
+            error.cause.downcast_ref::<std::io::Error>().unwrap().kind(),
+            std::io::ErrorKind::InvalidData
+        );
     }
 
     #[test]
