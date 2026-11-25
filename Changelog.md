@@ -1,4 +1,4 @@
-## Unreleased
+## Version 1.15.0
 
 - `Bus::sync_read_block` and `sync_read_block_with_error` (also on Python) read contiguous
   named registers in address order, grouping motors by protocol and range and returning
