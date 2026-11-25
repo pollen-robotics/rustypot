@@ -1,5 +1,8 @@
 ## Unreleased
 
+- `Bus::sync_read_block` and `sync_read_block_with_error` (also on Python) read contiguous
+  named registers in address order, grouping motors by protocol and range and returning
+  them in the order asked.
 - `reset_parameters_keep_id` on `Bus`, `ServoDefinition` and the per-servo controllers
   resets parameters to factory defaults, clearing calibration and keeping the motor ID.
   The Rust and Python bus and controllers check that the model is supported, torque is
