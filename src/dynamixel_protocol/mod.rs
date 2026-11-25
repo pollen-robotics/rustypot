@@ -237,17 +237,40 @@ impl DynamixelProtocolHandler {
         conserve_id_only: bool,
         conserve_id_and_baudrate: bool,
     ) -> Result<()> {
+        self.factory_reset_with_error(serial_port, id, conserve_id_only, conserve_id_and_baudrate)
+            .map(|_| ())
+    }
+
+    fn factory_reset_with_error(
+        &self,
+        port: &mut dyn SerialPort,
+        id: u8,
+        conserve_id_only: bool,
+        conserve_id_and_baudrate: bool,
+    ) -> Result<StatusError> {
         match &self.protocol {
-            ProtocolKind::V1(p) => {
-                if conserve_id_only || conserve_id_and_baudrate {
-                    return Err(Box::new(CommunicationErrorKind::Unsupported));
-                }
-                p.factory_reset(serial_port, id, conserve_id_only, conserve_id_and_baudrate)
+            ProtocolKind::V1(_) if conserve_id_only || conserve_id_and_baudrate => {
+                return Err(Box::new(CommunicationErrorKind::Unsupported));
             }
-            ProtocolKind::V2(p, _) => {
-                p.factory_reset(serial_port, id, conserve_id_only, conserve_id_and_baudrate)
+            ProtocolKind::V1(protocol) => protocol.factory_reset(port, id, false, false),
+            ProtocolKind::V2(protocol, _) => {
+                protocol.factory_reset(port, id, conserve_id_only, conserve_id_and_baudrate)
             }
         }
+        .map(StatusError::new)
+    }
+
+    pub(crate) fn reset_feetech_parameters(
+        &self,
+        port: &mut dyn SerialPort,
+        id: u8,
+    ) -> Result<StatusError> {
+        if self.protocol_version() != 1 {
+            return Err(Box::new(CommunicationErrorKind::Unsupported));
+        }
+        let result = self.factory_reset_with_error(port, id, false, false);
+        self.sleep_post_delay();
+        result
     }
 
     /// Zero the turn count of motor `id`: Feetech's RESET instruction (0x0A) on protocol
@@ -698,12 +721,13 @@ trait Protocol<P: Packet> {
         id: u8,
         conserve_id_only: bool,
         conserve_id_and_baudrate: bool,
-    ) -> Result<()> {
+    ) -> Result<u8> {
         self.send_instruction_packet(
             port,
             P::factory_reset_packet(id, conserve_id_only, conserve_id_and_baudrate).as_ref(),
         )?;
-        self.read_status_packet(port, id).map(|_| ())
+        self.read_status_packet(port, id)
+            .map(|packet| packet.error_byte())
     }
 
     fn reset_turn_count(&self, port: &mut dyn SerialPort, id: u8) -> Result<u8> {

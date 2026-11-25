@@ -412,6 +412,16 @@ impl Bus {
         failed
     }
 
+    /// Reset the motor's parameters to factory defaults, keeping its ID.
+    /// Back up calibration and other settings first. Torque must be off and EEPROM
+    /// unlocked (`set_torque(&[id], false, retries)` does both on Feetech).
+    /// See [`ServoDefinition::reset_parameters_keep_id`].
+    pub fn reset_parameters_keep_id(&mut self, id: u8) -> Result<()> {
+        let definition = self.definition(id)?;
+        let handler = &self.handlers[definition.protocol as usize - 1];
+        definition.reset_parameters_keep_id(handler, self.serial_port.as_mut(), id)
+    }
+
     /// Give motor `id` the id `new_id`, through `definition`. See
     /// [`ServoDefinition::change_id`]. Like [`scan`](Self::scan), it reaches motors the
     /// bus does not have: a new motor answers at its factory id.
@@ -793,6 +803,13 @@ mod python {
             })
         }
 
+        /// Reset parameters to factory defaults on one supported servo, keeping its ID.
+        /// Back up calibration and other settings first. On Feetech,
+        /// `set_torque([id], False)` turns torque off and unlocks EEPROM.
+        pub fn reset_parameters_keep_id(&self, py: Python, id: u8) -> PyResult<()> {
+            self.run(py, |bus| bus.reset_parameters_keep_id(id))
+        }
+
         /// Give motor `id` the id `new_id`, through `definition`: torque off and, on a
         /// Feetech motor, lock open first. The motor need not be one of the bus's. A motor
         /// that refuses a write raises `RuntimeError`; an alarm in its answer does not.
@@ -1152,6 +1169,71 @@ mod tests {
         let written = written.lock().unwrap();
         assert_eq!([written[0][5], written[0][6]], [40, 1]);
         assert_eq!([written[1][5], written[1][6]], [55, 1]);
+    }
+
+    #[test]
+    fn parameter_reset_is_addressed_and_checks_the_acknowledgment() {
+        let model = vec![0xff, 0xff, 4, 4, 0, 0x09, 0x03, 0xeb];
+        let clear = vec![0xff, 0xff, 4, 3, 0, 0, 0xf8];
+        let alarm_ack = vec![0xff, 0xff, 4, 2, 0x20, 0xd9];
+        for acknowledged in [true, false] {
+            let mut replies = vec![model.clone(), clear.clone(), clear.clone()];
+            if acknowledged {
+                replies.push(alarm_ack.clone());
+            }
+            let port = FakePort::new(replies);
+            let written = port.written();
+            let mut bus = Bus::new(Box::new(port), BTreeMap::from([(4, sts3215::DEFINITION)]));
+
+            // On Feetech the status byte reports alarms, so this still counts as an ack.
+            assert_eq!(bus.reset_parameters_keep_id(4).is_ok(), acknowledged);
+            let written = written.lock().unwrap();
+            assert_eq!(written.len(), 4);
+            assert_eq!(written[3], [0xff, 0xff, 4, 2, 0x06, 0xf3]);
+        }
+    }
+
+    #[test]
+    fn parameter_reset_requires_a_verified_model_with_torque_off_and_eeprom_unlocked() {
+        let model = vec![0xff, 0xff, 4, 4, 0, 0x09, 0x03, 0xeb];
+        let other_model = vec![0xff, 0xff, 4, 4, 0, 0x09, 0x08, 0xe6];
+        let clear = vec![0xff, 0xff, 4, 3, 0, 0, 0xf8];
+        let set = vec![0xff, 0xff, 4, 3, 0, 1, 0xf7];
+        let short_reply = vec![0xff, 0xff, 4, 2, 0, 0xf9];
+        for (id, definition, replies, expected_error) in [
+            (0xfe, sts3215::DEFINITION, vec![], "single motor ID"),
+            (4, scs0009::DEFINITION, vec![], "is not supported"),
+            (4, sts3215::DEFINITION, vec![other_model], "model 2057"),
+            (
+                4,
+                sts3215::DEFINITION,
+                vec![model.clone(), set.clone()],
+                "set_torque",
+            ),
+            (
+                4,
+                sts3215::DEFINITION,
+                vec![model.clone(), clear.clone(), set],
+                "set_torque",
+            ),
+            (
+                4,
+                sts3215::DEFINITION,
+                vec![model, clear, short_reply],
+                "expected 1 bytes",
+            ),
+        ] {
+            let port = FakePort::new(replies);
+            let written = port.written();
+            let mut bus = Bus::new(Box::new(port), BTreeMap::from([(id, definition)]));
+            let error = bus.reset_parameters_keep_id(id).unwrap_err().to_string();
+            assert!(error.contains(expected_error), "{error}");
+            assert!(written
+                .lock()
+                .unwrap()
+                .iter()
+                .all(|packet| packet[4] == 0x02));
+        }
     }
 
     #[test]

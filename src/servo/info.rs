@@ -278,6 +278,9 @@ pub struct ServoInfo {
     /// checked on hardware elsewhere: the Feetech SCS, the other Dynamixel X (Clear needs
     /// firmware v42 or later) and the Y.
     pub supports_turn_count_reset: bool,
+    /// Model numbers verified to reset their parameters to factory defaults, keeping their
+    /// ID. A servo definition can cover models that share a control table.
+    pub parameter_restore_models: &'static [u16],
 }
 
 /// Default encoding of a register type, when the servo definition says nothing about
