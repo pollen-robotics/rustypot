@@ -83,6 +83,7 @@ generate_servo!(
     reg: (present_load, r, 60, u16, None),
     reg: (present_voltage, r, 62, u8, None),
     reg: (present_temperature, r, 63, u8, None),
+    reg: (async_write_flag, r, 64, u8, None),
     reg: (status, r, 65, u8, None),
     reg: (moving, r, 66, u8, bool),
     reg: (present_current, r, 69, u16, None),
