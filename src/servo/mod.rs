@@ -157,7 +157,8 @@ crate::register_servo!(
         (STS3235, 2057),
         (STS3250, 2825),
         (SM8512BL, 11272), // Same control table as the STS3215.
-        (STS3036, 521) // Same control table as the STS3215, checked on an ST-3036-C001.
+        (STS3036, 521), // Same control table as the STS3215, checked on an ST-3036-C001.
+        (STS3032, 521) // Same bytes 9, 2 as the STS3036 (FD shows 2306), so the number resolves to the STS3036.
     ),
     servo: (feetech, SCS0009,
         (SCS0009, 1284) // Bytes 5, 4 at address 3, read big-endian as the SCS series stores words.
@@ -212,6 +213,12 @@ mod tests {
             super::find_model("sts3036"),
             Some((521, sts3215::DEFINITION))
         );
+        // The STS3032 answers the STS3036's number: the bytes at address 3 are a servo
+        // version, not a unique model id.
+        assert_eq!(
+            super::find_model("sts3032"),
+            Some((521, sts3215::DEFINITION))
+        );
         assert_eq!(
             sts3215::DEFINITION.models,
             [
@@ -219,7 +226,8 @@ mod tests {
                 ("STS3235", 2057),
                 ("STS3250", 2825),
                 ("SM8512BL", 11272),
-                ("STS3036", 521)
+                ("STS3036", 521),
+                ("STS3032", 521)
             ]
         );
     }
