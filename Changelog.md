@@ -1,5 +1,8 @@
-## Unreleased
+## Version 1.16.0
 
+- Add the STS3215 `async_write_flag` register (address 64, read-only), filling the gap
+  between `present_temperature` and `status` so `Bus::sync_read_block` can read the
+  STS3215 telemetry from 56 to 65 in one transaction.
 - Register the Feetech STS3032 under the STS3215 definition, with model number 521.
   The bytes at address 3 are a servo version, not a unique id: the STS3032 answers the
   same 9, 2 as the STS3036 (Feetech's FD shows 2306 for both), so `ServoKind::try_from(521)`
