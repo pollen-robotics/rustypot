@@ -1946,7 +1946,11 @@ macro_rules! register_servo {
                 )+
             }
             impl ServoKind {
+                /// A number shared by several models resolves to the first one listed.
                 pub fn try_from(model_number: u16) -> Result<Self, String> {
+                    // Feetech reuses numbers across models (the STS3036 and STS3032 both
+                    // answer 521), so later arms with the same number are unreachable.
+                    #[allow(unreachable_patterns)]
                     match model_number {
                         $(
                             $(

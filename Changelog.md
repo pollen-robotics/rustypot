@@ -1,3 +1,11 @@
+## Unreleased
+
+- Register the Feetech STS3032 under the STS3215 definition, with model number 521.
+  The bytes at address 3 are a servo version, not a unique id: the STS3032 answers the
+  same 9, 2 as the STS3036 (Feetech's FD shows 2306 for both), so `ServoKind::try_from(521)`
+  still resolves to the STS3036, and `find_model("sts3032")` returns 521 and the STS3215
+  definition.
+
 ## Version 1.15.0
 
 - `Bus::sync_read_block` and `sync_read_block_with_error` (also on Python) read contiguous
